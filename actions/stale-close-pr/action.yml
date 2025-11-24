@@ -6,7 +6,6 @@ inputs:
   github-token:
     description: 'GitHub token for authentication'
     required: false
-    default: ${{ github.token }}
 
   days-before-stale:
     description: 'Number of days of inactivity before a PR is marked as stale'
@@ -46,23 +45,12 @@ inputs:
   stale-pr-message:
     description: 'Message to post on PRs when they are marked as stale'
     required: false
-    default: |
-      This pull request has been automatically marked as stale because it has not had any activity for 25 days.
-      It will be closed in 5 days if no further activity occurs.
-
-      If you believe this PR should remain open, please add a comment or push new commits to keep it active.
-
-      Thank you for your contribution! 🙏
+    default: ''
 
   close-pr-message:
     description: 'Message to post on PRs when they are closed'
     required: false
-    default: |
-      This pull request has been automatically closed due to inactivity.
-
-      If you would like to continue working on this, please reopen the PR and add new commits.
-
-      Thank you for your contribution! 🙏
+    default: ''
 
   operations-per-run:
     description: 'Maximum number of operations per run (to avoid rate limits)'
@@ -79,13 +67,18 @@ inputs:
     required: false
     default: 'false'
 
+  delete-branch:
+    description: 'Delete the branch when closing the PR (default: false)'
+    required: false
+    default: 'false'
+
 runs:
   using: 'composite'
   steps:
     - name: Mark stale PRs and close inactive ones
       uses: actions/stale@v10
       with:
-        repo-token: ${{ inputs.github-token }}
+        repo-token: ${{ inputs.github-token || github.token }}
 
         # Days configuration - use PR-specific parameters
         days-before-pr-stale: ${{ inputs.days-before-stale }}
@@ -101,17 +94,14 @@ runs:
         exempt-draft-pr: ${{ inputs.exempt-draft-pr }}
 
         # Messages
-        stale-pr-message: ${{ inputs.stale-pr-message }}
-        close-pr-message: ${{ inputs.close-pr-message }}
+        stale-pr-message: ${{ inputs.stale-pr-message != '' && inputs.stale-pr-message || format('This pull request has been automatically marked as stale because it has not had any activity for {0} days.\nIt will be closed in {1} days if no further activity occurs.\n\nIf you believe this PR should remain open, please add a comment or push new commits to keep it active.\n\nThank you for your contribution! 🙏', inputs.days-before-stale, inputs.days-before-close) }}
+        close-pr-message: ${{ inputs.close-pr-message != '' && inputs.close-pr-message || format('This pull request has been automatically closed due to inactivity after {0} days.\n\nIf you would like to continue working on this, please reopen the PR and add new commits.\n\nThank you for your contribution! 🙏', inputs.days-before-close) }}
 
         # Behavior
         remove-stale-when-updated: ${{ inputs.remove-stale-when-updated }}
         operations-per-run: ${{ inputs.operations-per-run }}
         ascending: ${{ inputs.ascending }}
-        delete-branch: true
-
-        # Only process PRs, not issues
-        only-pr-labels: ''
+        delete-branch: ${{ inputs.delete-branch }}
 
         # Disable issue processing
         days-before-issue-stale: -1
