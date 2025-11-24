@@ -1,0 +1,22 @@
+name: Stale PR Sweeper
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 */30 * *'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  stale-prs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run stale/close routine
+        uses: ./actions/stale-close-pr
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          days-before-stale: '0'   # immediately mark stale
+          days-before-close: '-1'  # never auto-close
