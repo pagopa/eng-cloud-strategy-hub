@@ -1,0 +1,8 @@
+# CODEOWNERS
+
+* @pagopa/rtp-team-admin
+
+# groups
+.github/ @pagopa/payments-cloud-admin
+
+helm/prod @pagopa/payments-cloud-admin
