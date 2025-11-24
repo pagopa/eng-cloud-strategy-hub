@@ -75,6 +75,27 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Prepare messages
+      id: messages
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.stale-pr-message }}" ]; then
+          STALE_MSG="${{ inputs.stale-pr-message }}"
+        else
+          STALE_MSG=$(printf "This pull request has been automatically marked as stale because it has not had any activity for %s days.\nIt will be closed in %s days if no further activity occurs.\n\nIf you believe this PR should remain open, please add a comment or push new commits to keep it active.\n\nThank you for your contribution! 🙏" "${{ inputs.days-before-stale }}" "${{ inputs.days-before-close }}")
+        fi
+
+        if [ -n "${{ inputs.close-pr-message }}" ]; then
+          CLOSE_MSG="${{ inputs.close-pr-message }}"
+        else
+          CLOSE_MSG=$(printf "This pull request has been automatically closed due to inactivity after %s days.\n\nIf you would like to continue working on this, please reopen the PR and add new commits.\n\nThank you for your contribution! 🙏" "${{ inputs.days-before-close }}")
+        fi
+
+        {
+          echo "stale=${STALE_MSG}"
+          echo "close=${CLOSE_MSG}"
+        } >> "$GITHUB_OUTPUT"
+
     - name: Mark stale PRs and close inactive ones
       uses: actions/stale@v10
       with:
@@ -94,8 +115,8 @@ runs:
         exempt-draft-pr: ${{ inputs.exempt-draft-pr }}
 
         # Messages
-        stale-pr-message: ${{ inputs.stale-pr-message != '' && inputs.stale-pr-message || format('This pull request has been automatically marked as stale because it has not had any activity for {0} days.\nIt will be closed in {1} days if no further activity occurs.\n\nIf you believe this PR should remain open, please add a comment or push new commits to keep it active.\n\nThank you for your contribution! 🙏', inputs.days-before-stale, inputs.days-before-close) }}
-        close-pr-message: ${{ inputs.close-pr-message != '' && inputs.close-pr-message || format('This pull request has been automatically closed due to inactivity after {0} days.\n\nIf you would like to continue working on this, please reopen the PR and add new commits.\n\nThank you for your contribution! 🙏', inputs.days-before-close) }}
+        stale-pr-message: ${{ steps.messages.outputs.stale }}
+        close-pr-message: ${{ steps.messages.outputs.close }}
 
         # Behavior
         remove-stale-when-updated: ${{ inputs.remove-stale-when-updated }}
