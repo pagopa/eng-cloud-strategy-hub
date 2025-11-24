@@ -1,4 +1,4 @@
-name: Stale PR Sweeper
+name: 🗓️ Stale/Close PR Sweeper
 
 on:
   workflow_dispatch:
