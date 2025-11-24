@@ -1,0 +1,140 @@
+name: 'GitHub PR Auto Close'
+description: 'Automatically marks PRs as stale after a configurable period and closes them if no activity occurs'
+author: 'PagoPA'
+
+inputs:
+  github-token:
+    description: 'GitHub token for authentication'
+    required: false
+
+  days-before-stale:
+    description: 'Number of days of inactivity before a PR is marked as stale'
+    required: false
+    default: '25'
+
+  days-before-close:
+    description: 'Number of days of inactivity before a stale PR is closed'
+    required: false
+    default: '5'
+
+  stale-pr-label:
+    description: 'Label to apply to stale PRs'
+    required: false
+    default: 'stale'
+
+  close-pr-label:
+    description: 'Label to apply when a PR is automatically closed'
+    required: false
+    default: 'auto-close'
+
+  exempt-pr-labels:
+    description: 'Comma-separated list of labels that exempt a PR from being marked as stale'
+    required: false
+    default: ''
+
+  exempt-pr-assignees:
+    description: 'Comma-separated list of assignees that exempt a PR from being marked as stale'
+    required: false
+    default: ''
+
+  exempt-draft-pr:
+    description: 'Exempt draft PRs from being marked as stale'
+    required: false
+    default: 'true'
+
+  stale-pr-message:
+    description: 'Message to post on PRs when they are marked as stale'
+    required: false
+    default: ''
+
+  close-pr-message:
+    description: 'Message to post on PRs when they are closed'
+    required: false
+    default: ''
+
+  operations-per-run:
+    description: 'Maximum number of operations per run (to avoid rate limits)'
+    required: false
+    default: '30'
+
+  remove-stale-when-updated:
+    description: 'Remove stale label when a PR is updated'
+    required: false
+    default: 'true'
+
+  ascending:
+    description: 'Process PRs in ascending order (oldest first)'
+    required: false
+    default: 'false'
+
+  delete-branch:
+    description: 'Delete the branch when closing the PR (default: false)'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Prepare messages
+      id: messages
+      shell: bash
+      run: |
+        DAYS_STALE="${{ inputs.days-before-stale }}"
+        DAYS_CLOSE="${{ inputs.days-before-close }}"
+
+        if [ -n "${{ inputs.stale-pr-message }}" ]; then
+          STALE_MSG="${{ inputs.stale-pr-message }}"
+        else
+          if [ "${DAYS_CLOSE}" = "-1" ]; then
+            STALE_MSG=$(printf "This pull request has been automatically marked as stale because it has not had any activity for %s days.\nIt will not be automatically closed.\n\nIf you believe this PR should remain open, please add a comment or push new commits to keep it active.\n\nThank you for your contribution! 🙏" "${DAYS_STALE}")
+          else
+            STALE_MSG=$(printf "This pull request has been automatically marked as stale because it has not had any activity for %s days.\nIt will be closed in %s days if no further activity occurs.\n\nIf you believe this PR should remain open, please add a comment or push new commits to keep it active.\n\nThank you for your contribution! 🙏" "${DAYS_STALE}" "${DAYS_CLOSE}")
+          fi
+        fi
+
+        if [ -n "${{ inputs.close-pr-message }}" ]; then
+          CLOSE_MSG="${{ inputs.close-pr-message }}"
+        else
+          if [ "${DAYS_CLOSE}" = "-1" ]; then
+            CLOSE_MSG="Automatic close is disabled for this pull request."
+          else
+            CLOSE_MSG=$(printf "This pull request has been automatically closed due to inactivity after %s days.\n\nIf you would like to continue working on this, please reopen the PR and add new commits.\n\nThank you for your contribution! 🙏" "${DAYS_CLOSE}")
+          fi
+        fi
+
+        {
+          printf 'stale<<EOF\n%s\nEOF\n' "$STALE_MSG"
+          printf 'close<<EOF\n%s\nEOF\n' "$CLOSE_MSG"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Mark stale PRs and close inactive ones
+      uses: actions/stale@v10
+      with:
+        repo-token: ${{ inputs.github-token || github.token }}
+
+        # Days configuration - use PR-specific parameters
+        days-before-pr-stale: ${{ inputs.days-before-stale }}
+        days-before-pr-close: ${{ inputs.days-before-close }}
+
+        # Labels
+        stale-pr-label: ${{ inputs.stale-pr-label }}
+        close-pr-label: ${{ inputs.close-pr-label }}
+        exempt-pr-labels: ${{ inputs.exempt-pr-labels }}
+
+        # Exemptions
+        exempt-pr-assignees: ${{ inputs.exempt-pr-assignees }}
+        exempt-draft-pr: ${{ inputs.exempt-draft-pr }}
+
+        # Messages
+        stale-pr-message: ${{ steps.messages.outputs.stale }}
+        close-pr-message: ${{ steps.messages.outputs.close }}
+
+        # Behavior
+        remove-stale-when-updated: ${{ inputs.remove-stale-when-updated }}
+        operations-per-run: ${{ inputs.operations-per-run }}
+        ascending: ${{ inputs.ascending }}
+        delete-branch: ${{ inputs.delete-branch }}
+
+        # Disable issue processing
+        days-before-issue-stale: -1
+        days-before-issue-close: -1
