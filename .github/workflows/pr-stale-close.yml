@@ -1,4 +1,4 @@
-name: Stale PR Sweeper
+name: ⏳ Stale/Close PR Sweeper
 
 on:
   workflow_dispatch:
@@ -22,4 +22,4 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           days-before-stale: '0'   # immediately mark stale
-          days-before-close: '-1'  # never auto-close
+          days-before-close: '0'  # never auto-close
