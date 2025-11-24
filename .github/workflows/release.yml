@@ -17,10 +17,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: write
+      issues: write
+      pull-requests: write
     steps:
       - name: Release action
         id: release
         # https://github.com/pagopa/eng-github-actions-iac-template/releases/tag/v1.20.0
         uses: pagopa/eng-github-actions-iac-template/global/release-action@5c7e5f690ad0f07f3bd945bdebf2a6c7a575b33f
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # PAT with repo write permissions to create releases
+          github_token: ${{ secrets.RELEASE_GITHUB_TOKEN }}
