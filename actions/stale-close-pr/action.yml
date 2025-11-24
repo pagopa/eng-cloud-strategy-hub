@@ -1,0 +1,118 @@
+name: 'GitHub PR Auto Close'
+description: 'Automatically marks PRs as stale after a configurable period and closes them if no activity occurs'
+author: 'PagoPA'
+
+inputs:
+  github-token:
+    description: 'GitHub token for authentication'
+    required: false
+    default: ${{ github.token }}
+
+  days-before-stale:
+    description: 'Number of days of inactivity before a PR is marked as stale'
+    required: false
+    default: '25'
+
+  days-before-close:
+    description: 'Number of days of inactivity before a stale PR is closed'
+    required: false
+    default: '5'
+
+  stale-pr-label:
+    description: 'Label to apply to stale PRs'
+    required: false
+    default: 'stale'
+
+  close-pr-label:
+    description: 'Label to apply when a PR is automatically closed'
+    required: false
+    default: 'auto-close'
+
+  exempt-pr-labels:
+    description: 'Comma-separated list of labels that exempt a PR from being marked as stale'
+    required: false
+    default: ''
+
+  exempt-pr-assignees:
+    description: 'Comma-separated list of assignees that exempt a PR from being marked as stale'
+    required: false
+    default: ''
+
+  exempt-draft-pr:
+    description: 'Exempt draft PRs from being marked as stale'
+    required: false
+    default: 'true'
+
+  stale-pr-message:
+    description: 'Message to post on PRs when they are marked as stale'
+    required: false
+    default: |
+      This pull request has been automatically marked as stale because it has not had any activity for 25 days.
+      It will be closed in 5 days if no further activity occurs.
+
+      If you believe this PR should remain open, please add a comment or push new commits to keep it active.
+
+      Thank you for your contribution! 🙏
+
+  close-pr-message:
+    description: 'Message to post on PRs when they are closed'
+    required: false
+    default: |
+      This pull request has been automatically closed due to inactivity.
+
+      If you would like to continue working on this, please reopen the PR and add new commits.
+
+      Thank you for your contribution! 🙏
+
+  operations-per-run:
+    description: 'Maximum number of operations per run (to avoid rate limits)'
+    required: false
+    default: '30'
+
+  remove-stale-when-updated:
+    description: 'Remove stale label when a PR is updated'
+    required: false
+    default: 'true'
+
+  ascending:
+    description: 'Process PRs in ascending order (oldest first)'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Mark stale PRs and close inactive ones
+      uses: actions/stale@v10
+      with:
+        repo-token: ${{ inputs.github-token }}
+
+        # Days configuration - use PR-specific parameters
+        days-before-pr-stale: ${{ inputs.days-before-stale }}
+        days-before-pr-close: ${{ inputs.days-before-close }}
+
+        # Labels
+        stale-pr-label: ${{ inputs.stale-pr-label }}
+        close-pr-label: ${{ inputs.close-pr-label }}
+        exempt-pr-labels: ${{ inputs.exempt-pr-labels }}
+
+        # Exemptions
+        exempt-pr-assignees: ${{ inputs.exempt-pr-assignees }}
+        exempt-draft-pr: ${{ inputs.exempt-draft-pr }}
+
+        # Messages
+        stale-pr-message: ${{ inputs.stale-pr-message }}
+        close-pr-message: ${{ inputs.close-pr-message }}
+
+        # Behavior
+        remove-stale-when-updated: ${{ inputs.remove-stale-when-updated }}
+        operations-per-run: ${{ inputs.operations-per-run }}
+        ascending: ${{ inputs.ascending }}
+        delete-branch: true
+
+        # Only process PRs, not issues
+        only-pr-labels: ''
+
+        # Disable issue processing
+        days-before-issue-stale: -1
+        days-before-issue-close: -1
