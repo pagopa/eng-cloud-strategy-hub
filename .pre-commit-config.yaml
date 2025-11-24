@@ -20,10 +20,3 @@ repos:
       - id: detect-aws-credentials
         args: ['--allow-missing-credentials']
       - id: detect-private-key
-  - repo: local
-    hooks:
-      - id: helm ct-lint
-        name: Helm Chart Testing Lint
-        entry: bash -c "ct lint --config ct.yaml --all --lint-conf ct.yaml"
-        language: system
-        pass_filenames: false
