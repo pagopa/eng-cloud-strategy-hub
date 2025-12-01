@@ -1,15 +1,14 @@
 name: 🚀 Release
 
 on:
-  # Trigger the workflow on push or pull request,
-  # but only for the main branch
+  # Trigger the workflow on push to main branch or manually
   push:
     branches:
       - main
     paths-ignore:
       - "CODEOWNERS"
       - "**.md"
-      - ".**"
+  workflow_dispatch:
 
 jobs:
   release:
@@ -26,5 +25,5 @@ jobs:
         # https://github.com/pagopa/eng-github-actions-iac-template/releases/tag/v1.20.0
         uses: pagopa/eng-github-actions-iac-template/global/release-action@5c7e5f690ad0f07f3bd945bdebf2a6c7a575b33f
         with:
-          # PAT with repo write permissions to create releases
-          github_token: ${{ secrets.RELEASE_GITHUB_TOKEN }}
+          # Use the default GITHUB_TOKEN with repo write permissions to create releases
+          github_token: ${{ secrets.GITHUB_TOKEN }}
