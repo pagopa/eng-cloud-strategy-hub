@@ -1,0 +1,4 @@
+bucket       = "region-account-project"
+key          = "20_security/terraform.tfstate"
+region       = "eu-west-1"
+use_lockfile = true
