@@ -18,16 +18,14 @@ function extract_resources() {
   ENV=$2
   TARGETS=""
 
-  # Check if the file exists
   if [ ! -f "$TF_FILE" ]; then
-      echo "File $TF_FILE does not exist."
-      exit 1
+    echo "File $TF_FILE does not exist."
+    exit 1
   fi
 
-  # Check if the directory exists
   if [ ! -d "./env/$ENV" ]; then
-      echo "Directory ./env/$ENV does not exist."
-      exit 1
+    echo "Directory ./env/$ENV does not exist."
+    exit 1
   fi
 
   TMP_FILE=$(mktemp)
@@ -88,28 +86,67 @@ function run_cmd() {
   "$@"
 }
 
+function configure_aws_profile() {
+  if [ -z "$aws_profile" ]; then
+    return 0
+  fi
+
+  export AWS_PROFILE="$aws_profile"
+
+  if [ "$cicd_mode" = true ]; then
+    echo "CICD mode enabled: skipping local AWS profile checks and SSO login"
+    return 0
+  fi
+
+  require_cmd "aws" "needed for AWS profile checks"
+  if ! aws configure list-profiles | grep -qx "$aws_profile"; then
+    echo "AWS profile '$aws_profile' not found"
+    exit 1
+  fi
+
+  sso_start_url=$(aws configure get sso_start_url --profile "$aws_profile")
+  sso_session=$(aws configure get sso_session --profile "$aws_profile")
+  if [ -z "$sso_start_url" ] && [ -z "$sso_session" ]; then
+    echo "Profile '$aws_profile' is not SSO-based, skipping aws sso login"
+    if ! aws sts get-caller-identity --profile "$aws_profile" >/dev/null; then
+      echo "AWS credentials validation failed for profile '$aws_profile'"
+      exit 1
+    fi
+    return 0
+  fi
+
+  if aws sts get-caller-identity --profile "$aws_profile" >/dev/null; then
+    echo "AWS SSO session already valid for profile '$aws_profile'"
+    return 0
+  fi
+
+  if ! aws sso login --profile "$aws_profile" >/dev/null; then
+    echo "AWS SSO login failed for profile '$aws_profile'"
+    exit 1
+  fi
+  if ! aws sts get-caller-identity --profile "$aws_profile" >/dev/null; then
+    echo "AWS credentials validation failed for profile '$aws_profile'"
+    exit 1
+  fi
+}
+
 function init_terraform() {
   require_env
   run_cmd terraform init -reconfigure -backend-config="./env/$env/backend.tfvars"
 }
 
 function list_env() {
-  # Check if env directory exists
   if [ ! -d "./env" ]; then
     echo "No environment directory found"
     exit 1
   fi
 
-  # List subdirectories under env directory
   env_list=$(ls -d ./env/*/ 2>/dev/null)
-
-  # Check if there are any subdirectories
   if [ -z "$env_list" ]; then
     echo "No environments found"
     exit 1
   fi
 
-  # Print the list of environments
   echo "Available environments:"
   for env in $env_list; do
     env_name=$(echo "$env" | sed 's#./env/##;s#/##')
@@ -232,24 +269,7 @@ if [ -n "$env" ]; then
     exit 1
   fi
 
-  if [ -n "$aws_profile" ]; then
-    export AWS_PROFILE="$aws_profile"
-    if [ "$cicd_mode" = true ]; then
-      echo "CICD mode enabled: skipping local AWS profile checks and SSO login"
-    else
-      require_cmd "aws" "needed for AWS profile checks"
-      if ! aws configure list-profiles | grep -qx "$aws_profile"; then
-        echo "AWS profile '$aws_profile' not found"
-        exit 1
-      fi
-      if [ -n "$(aws configure get sso_start_url --profile "$aws_profile")" ]; then
-        if ! aws sso login --profile "$aws_profile" >/dev/null; then
-          echo "AWS SSO login failed for profile '$aws_profile'"
-          exit 1
-        fi
-      fi
-    fi
-  fi
+  configure_aws_profile
 
   export AWS_REGION="$aws_region"
   export AWS_DEFAULT_REGION="$aws_region"
