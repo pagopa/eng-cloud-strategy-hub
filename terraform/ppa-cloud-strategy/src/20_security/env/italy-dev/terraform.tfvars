@@ -1,7 +1,8 @@
 # general
-prefix         = "cstar"
+prefix         = "cs"
 env_short      = "d"
 env            = "dev"
 domain         = "core"
-location       = "italynorth"
-location_short = "itn"
+location       = "italy"
+location_short = "ita"
+aws_region     = "eu-south-1"
