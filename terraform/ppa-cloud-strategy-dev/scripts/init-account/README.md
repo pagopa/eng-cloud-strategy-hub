@@ -5,11 +5,11 @@ Usage:
 2) Run the script:
 
 ```bash
-./init_terraform_state_bucket.sh --profile <aws_profile> --region <aws_region> --account-name <account_name> --project-name <project_name> --terraform-principal-arn <principal_arn>
+./init_terraform_state_bucket.sh --profile <aws_profile> --region <aws_region> --project-name <project_name>
 ```
 
 The script creates a bucket:
-`<region>-<account>-<project>`
+`terraform-state-<project>-<region>`
 
 Best practices applied:
 - Block public access
