@@ -6,13 +6,6 @@
 # Global variables
 # Version format x.y accepted
 vers="1.12"
-# Check if the third parameter exists and is a file
-if [ -n "$3" ] && [ -f "$3" ]; then
-  FILE_ACTION=true
-else
-  FILE_ACTION=false
-fi
-
 # Define functions
 function clean_environment() {
   rm -rf .terraform
@@ -70,7 +63,6 @@ function help_usage() {
   echo "  help          This help"
   echo "  list          List every environment available"
   echo "  summ          Generate summary of Terraform plan"
-  echo "  tflist        Generate an improved output of terraform state list"
   echo "  tlock         Generate or update the dependency lock file"
   echo "  *             any terraform option"
 }
@@ -97,12 +89,8 @@ function run_cmd() {
 }
 
 function init_terraform() {
-  if [ -n "$env" ]; then
-    run_cmd terraform init -reconfigure -backend-config="./env/$env/backend.tfvars"
-  else
-    echo "ERROR: no env configured!"
-    exit 1
-  fi
+  require_env
+  run_cmd terraform init -reconfigure -backend-config="./env/$env/backend.tfvars"
 }
 
 function list_env() {
@@ -129,34 +117,20 @@ function list_env() {
   done
 }
 
-function other_actions() {
-  if [ -n "$env" ] && [ -n "$action" ]; then
-    run_cmd terraform "$action" -var-file="./env/$env/terraform.tfvars" -compact-warnings $other
-  else
-    echo "ERROR: no env or action configured!"
+function require_env() {
+  if [ -z "$env" ]; then
+    echo "ERROR: missing env. Usage: ./terraform.sh <action> <env> [options]"
     exit 1
   fi
 }
 
-function state_output_taint_actions() {
-  if [ "$action" == "tflist" ]; then
-    if [ "$dry_run" = true ]; then
-      echo "DRY-RUN: terraform state list | tflist"
-      return 0
-    fi
-    # If 'tflist' is not installed globally and there is no 'tflist' file in the current directory,
-    # require 'tflist' to be installed
-    if ! command -v tflist &> /dev/null && [ ! -f "tflist" ]; then
-      require_cmd "tflist" "needed for tflist action"
-    fi
-    if command -v tflist &> /dev/null; then
-      run_cmd terraform state list | tflist
-    else
-      run_cmd terraform state list | ./tflist
-    fi
-  else
-    run_cmd terraform $action $other
-  fi
+function run_with_vars() {
+  require_env
+  run_cmd terraform "$action" -var-file="./env/$env/terraform.tfvars" -compact-warnings $other
+}
+
+function run_no_vars() {
+  run_cmd terraform "$action" $other
 }
 
 
@@ -187,7 +161,7 @@ function tfsummary() {
   fi
   action="plan"
   other="-out=${plan_file}"
-  other_actions
+  run_with_vars
   if [ -n "$(command -v tf-summarize)" ]; then
     run_cmd tf-summarize -tree "${plan_file}"
   else
@@ -235,15 +209,13 @@ while [ $# -gt 0 ]; do
 done
 other="${other_args[@]}"
 
-if [ -z "$(command -v terraform)" ]; then
-  case "$action" in
-    help|-h|\?|clean|list)
-      ;;
-    *)
-      require_cmd "terraform" "needed for action '$action'"
-      ;;
-  esac
-fi
+case "$action" in
+  help|-h|\?|clean|list)
+    ;;
+  *)
+    require_cmd "terraform" "needed for action '$action'"
+    ;;
+esac
 
 if [ -n "$env" ]; then
   backend_ini="./env/$env/backend.ini"
@@ -279,10 +251,8 @@ if [ -n "$env" ]; then
     fi
   fi
 
-  if [ -n "$aws_region" ]; then
-    export AWS_REGION="$aws_region"
-    export AWS_DEFAULT_REGION="$aws_region"
-  fi
+  export AWS_REGION="$aws_region"
+  export AWS_DEFAULT_REGION="$aws_region"
 fi
 
 # Call appropriate function based on action
@@ -294,14 +264,14 @@ case $action in
     help_usage
     ;;
   init)
-    init_terraform "$other"
+    init_terraform
     ;;
   list)
     list_env
     ;;
-  output|state|taint|tflist)
+  output|state|taint)
     init_terraform
-    state_output_taint_actions $other
+    run_no_vars
     ;;
   summ)
     init_terraform
@@ -311,11 +281,11 @@ case $action in
     run_cmd terraform providers lock -platform=windows_amd64 -platform=darwin_amd64 -platform=darwin_arm64 -platform=linux_amd64
     ;;
   *)
-    if [ "$FILE_ACTION" = true ]; then
+    if [ -n "$filetf" ] && [ -f "$filetf" ]; then
       extract_resources "$filetf" "$env"
     else
       init_terraform
-      other_actions "$other"
+      run_with_vars
     fi
     ;;
 esac
