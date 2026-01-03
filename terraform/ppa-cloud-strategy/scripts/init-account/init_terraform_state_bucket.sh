@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Bootstrap an S3 bucket for Terraform state (SSE-S3, versioning, public access block).
 # Example:
-#   ./init_terraform_state_bucket.sh --profile pagopa-cloud-strategy-dev-fulladmin --region eu-south-1 --project-name eng-cloud-strategy-hub
+#   ./init_terraform_state_bucket.sh --profile pagopa-cloud-strategy-dev-fulladmin --region eu-south-1 --project-name eng-cloud-strategy-hub --env dev
 set -euo pipefail
 
 if ! command -v aws >/dev/null 2>&1; then
@@ -19,13 +19,14 @@ require_non_empty() {
 }
 
 usage() {
-  echo "Usage: $0 --profile <aws_profile> --region <aws_region> --project-name <project_name>"
+  echo "Usage: $0 --profile <aws_profile> --region <aws_region> --project-name <project_name> --env <environment>"
   exit 1
 }
 
 AWS_PROFILE=""
 AWS_REGION=""
 PROJECT_NAME=""
+ENV_NAME=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -41,6 +42,10 @@ while [ $# -gt 0 ]; do
       PROJECT_NAME="${2:-}"
       shift 2
       ;;
+    --env)
+      ENV_NAME="${2:-}"
+      shift 2
+      ;;
     -h|--help)
       usage
       ;;
@@ -54,16 +59,23 @@ done
 require_non_empty "${AWS_PROFILE}" "AWS profile name"
 require_non_empty "${AWS_REGION}" "AWS region"
 require_non_empty "${PROJECT_NAME}" "Project name"
+require_non_empty "${ENV_NAME}" "Environment"
 
 normalize() {
   echo "$1" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd 'a-z0-9-'
 }
 
+if ! aws configure list-profiles | tr ' ' '\n' | grep -qx "${AWS_PROFILE}"; then
+  echo "ERROR: AWS profile '${AWS_PROFILE}' not found in ~/.aws/config."
+  exit 1
+fi
+
 AWS_REGION_NORM=$(normalize "${AWS_REGION}")
 PROJECT_NAME_NORM=$(normalize "${PROJECT_NAME}")
+ENV_NAME_NORM=$(normalize "${ENV_NAME}")
 
 # S3 bucket name
-BUCKET_NAME="terraform-state-${PROJECT_NAME_NORM}-${AWS_REGION_NORM}"
+BUCKET_NAME="terraform-state-${PROJECT_NAME_NORM}-${ENV_NAME_NORM}-${AWS_REGION_NORM}"
 
 echo "🔎 Bucket name: ${BUCKET_NAME}"
 
@@ -71,6 +83,11 @@ export AWS_PROFILE
 
 echo "✅ Using AWS profile: ${AWS_PROFILE}"
 echo "🔐 Verifying credentials..."
+if ! aws sts get-caller-identity >/dev/null 2>&1; then
+  echo "🔑 SSO login required. Launching aws sso login..."
+  aws sso login --profile "${AWS_PROFILE}"
+fi
+
 aws sts get-caller-identity >/dev/null
 
 echo "🪣 Ensuring bucket exists..."
