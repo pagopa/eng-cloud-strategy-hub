@@ -6,9 +6,6 @@
 # Global variables
 # Version format x.y accepted
 vers="1.12"
-script_name=$(basename "$0")
-git_repo="https://raw.githubusercontent.com/pagopa/eng-common-scripts/main/aws/${script_name}"
-tmp_file="${script_name}.new"
 # Check if the third parameter exists and is a file
 if [ -n "$3" ] && [ -f "$3" ]; then
   FILE_ACTION=true
@@ -21,39 +18,6 @@ function clean_environment() {
   rm -rf .terraform
   rm tfplan 2>/dev/null
   echo "cleaned!"
-}
-
-function download_tool() {
-  #default value
-  cpu_type="intel"
-  os_type=$(uname)
-
-  # only on MacOS
-  if [ "$os_type" == "Darwin" ]; then
-    cpu_brand=$(sysctl -n machdep.cpu.brand_string)
-    if grep -q -i "intel" <<< "$cpu_brand"; then
-      cpu_type="intel"
-    else
-      cpu_type="arm"
-    fi
-  fi
-
-  echo $cpu_type
-  tool=$1
-  git_repo="https://raw.githubusercontent.com/pagopa/eng-common-scripts/main/golang/${tool}_${cpu_type}"
-  if ! command -v $tool &> /dev/null; then
-    if ! curl -sL "$git_repo" -o "$tool"; then
-      echo "Error downloading ${tool}"
-      return 1
-    else
-      chmod +x $tool
-      echo "${tool} downloaded! Please note this tool WON'T be copied in your **/bin folder for safety reasons.
-You need to do it yourself!"
-      read -p "Press enter to continue"
-
-
-    fi
-  fi
 }
 
 function extract_resources() {
@@ -99,21 +63,42 @@ function help_usage() {
   echo "Usage: ./script.sh [ACTION] [ENV] [OTHER OPTIONS]"
   echo "es. ACTION: init, apply, plan, etc."
   echo "es. ENV: dev, uat, prod, etc."
+  echo "es. OTHER OPTIONS: --cicd --dry-run"
   echo
   echo "Available actions:"
   echo "  clean         Remove .terraform* folders and tfplan files"
   echo "  help          This help"
   echo "  list          List every environment available"
-  echo "  update        Update this script if possible"
   echo "  summ          Generate summary of Terraform plan"
   echo "  tflist        Generate an improved output of terraform state list"
   echo "  tlock         Generate or update the dependency lock file"
   echo "  *             any terraform option"
 }
 
+function require_cmd() {
+  local bin="$1"
+  local ctx="$2"
+  if [ -z "$(command -v "$bin")" ]; then
+    if [ -n "$ctx" ]; then
+      echo "Missing required binary: $bin ($ctx)"
+    else
+      echo "Missing required binary: $bin"
+    fi
+    exit 1
+  fi
+}
+
+function run_cmd() {
+  if [ "$dry_run" = true ]; then
+    echo "DRY-RUN: $*"
+    return 0
+  fi
+  "$@"
+}
+
 function init_terraform() {
   if [ -n "$env" ]; then
-    terraform init -reconfigure -backend-config="./env/$env/backend.tfvars"
+    run_cmd terraform init -reconfigure -backend-config="./env/$env/backend.tfvars"
   else
     echo "ERROR: no env configured!"
     exit 1
@@ -146,7 +131,7 @@ function list_env() {
 
 function other_actions() {
   if [ -n "$env" ] && [ -n "$action" ]; then
-    terraform "$action" -var-file="./env/$env/terraform.tfvars" -compact-warnings $other
+    run_cmd terraform "$action" -var-file="./env/$env/terraform.tfvars" -compact-warnings $other
   else
     echo "ERROR: no env or action configured!"
     exit 1
@@ -155,24 +140,22 @@ function other_actions() {
 
 function state_output_taint_actions() {
   if [ "$action" == "tflist" ]; then
+    if [ "$dry_run" = true ]; then
+      echo "DRY-RUN: terraform state list | tflist"
+      return 0
+    fi
     # If 'tflist' is not installed globally and there is no 'tflist' file in the current directory,
-    # attempt to download the 'tflist' tool
+    # require 'tflist' to be installed
     if ! command -v tflist &> /dev/null && [ ! -f "tflist" ]; then
-      download_tool "tflist"
-      if [ $? -ne 0 ]; then
-        echo "Error: Failed to download tflist!!"
-        exit 1
-      else
-        echo "tflist downloaded!"
-      fi
+      require_cmd "tflist" "needed for tflist action"
     fi
     if command -v tflist &> /dev/null; then
-      terraform state list | tflist
+      run_cmd terraform state list | tflist
     else
-      terraform state list | ./tflist
+      run_cmd terraform state list | ./tflist
     fi
   else
-    terraform $action $other
+    run_cmd terraform $action $other
   fi
 }
 
@@ -206,60 +189,13 @@ function tfsummary() {
   other="-out=${plan_file}"
   other_actions
   if [ -n "$(command -v tf-summarize)" ]; then
-    tf-summarize -tree "${plan_file}"
+    run_cmd tf-summarize -tree "${plan_file}"
   else
     echo "tf-summarize is not installed"
   fi
   if [ "$plan_file" == "tfplan" ]; then
     rm $plan_file
   fi
-}
-
-function update_script() {
-  # Check if the repository was cloned successfully
-  if ! curl -sL "$git_repo" -o "$tmp_file"; then
-    echo "Error cloning the repository"
-    rm "$tmp_file" 2>/dev/null
-    return 1
-  fi
-
-  # Check if a newer version exists
-  remote_vers=$(sed -n '8s/vers="\(.*\)"/\1/p' "$tmp_file")
-  if [ "$(printf '%s\n' "$vers" "$remote_vers" | sort -V | tail -n 1)" == "$vers" ]; then
-    echo "The local script version is equal to or newer than the remote version."
-    rm "$tmp_file" 2>/dev/null
-    return 0
-  fi
-
-  # Check the fingerprint
-  local_fingerprint=$(sed -n '4p' "$0")
-  remote_fingerprint=$(sed -n '4p' "$tmp_file")
-
-  if [ "$local_fingerprint" != "$remote_fingerprint" ]; then
-    echo "The local and remote file fingerprints do not match."
-    rm "$tmp_file" 2>/dev/null
-    return 0
-  fi
-
-  # Show the current and available versions to the user
-  echo "Current script version: $vers"
-  echo "Available script version: $remote_vers"
-
-  # Ask the user if they want to update the script
-  read -rp "Do you want to update the script to version $remote_vers? (y/n): " answer
-
-  if [ "$answer" == "y" ] || [ "$answer" == "Y" ]; then
-    # Replace the local script with the updated version
-    cp "$tmp_file" "$script_name"
-    chmod +x "$script_name"
-    rm "$tmp_file" 2>/dev/null
-
-    echo "Script successfully updated to version $remote_vers"
-  else
-    echo "Update canceled by the user"
-  fi
-
-  rm "$tmp_file" 2>/dev/null
 }
 
 # Check arguments number
@@ -273,13 +209,50 @@ action=$1
 env=$2
 filetf=$3
 shift 2
-other=$@
+cicd_mode=false
+dry_run=false
+other_args=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --cicd|--ci)
+      cicd_mode=true
+      shift
+      ;;
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    --)
+      shift
+      other_args+=("$@")
+      break
+      ;;
+    *)
+      other_args+=("$1")
+      shift
+      ;;
+  esac
+done
+other="${other_args[@]}"
+
+if [ -z "$(command -v terraform)" ]; then
+  case "$action" in
+    help|-h|\?|clean|list)
+      ;;
+    *)
+      require_cmd "terraform" "needed for action '$action'"
+      ;;
+  esac
+fi
 
 if [ -n "$env" ]; then
   backend_ini="./env/$env/backend.ini"
   if [ -f "$backend_ini" ]; then
     # shellcheck source=/dev/null
     source "$backend_ini"
+  else
+    echo "Missing backend.ini for env '$env'"
+    exit 1
   fi
 
   if [ -z "$aws_region" ]; then
@@ -288,18 +261,22 @@ if [ -n "$env" ]; then
   fi
 
   if [ -n "$aws_profile" ]; then
-    if [ -z "$(command -v aws)" ]; then
-      echo "aws not found, cannot proceed"
-      exit 1
-    fi
-    if ! aws configure list-profiles | grep -qx "$aws_profile"; then
-      echo "AWS profile '$aws_profile' not found"
-      exit 1
-    fi
-    if [ -n "$(aws configure get sso_start_url --profile "$aws_profile")" ]; then
-      aws sso login --profile "$aws_profile" >/dev/null || exit 1
-    fi
     export AWS_PROFILE="$aws_profile"
+    if [ "$cicd_mode" = true ]; then
+      echo "CICD mode enabled: skipping local AWS profile checks and SSO login"
+    else
+      require_cmd "aws" "needed for AWS profile checks"
+      if ! aws configure list-profiles | grep -qx "$aws_profile"; then
+        echo "AWS profile '$aws_profile' not found"
+        exit 1
+      fi
+      if [ -n "$(aws configure get sso_start_url --profile "$aws_profile")" ]; then
+        if ! aws sso login --profile "$aws_profile" >/dev/null; then
+          echo "AWS SSO login failed for profile '$aws_profile'"
+          exit 1
+        fi
+      fi
+    fi
   fi
 
   if [ -n "$aws_region" ]; then
@@ -331,10 +308,7 @@ case $action in
     tfsummary "$other"
     ;;
   tlock)
-    terraform providers lock -platform=windows_amd64 -platform=darwin_amd64 -platform=darwin_arm64 -platform=linux_amd64
-    ;;
-  update)
-    update_script
+    run_cmd terraform providers lock -platform=windows_amd64 -platform=darwin_amd64 -platform=darwin_arm64 -platform=linux_amd64
     ;;
   *)
     if [ "$FILE_ACTION" = true ]; then
