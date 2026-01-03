@@ -1,13 +1,13 @@
 #!/bin/bash
 ############################################################
-# Terraform script for managing infrastructure on Azure
+# Terraform script for managing infrastructure on AWS
 # md5: 065397c756f4c6a1ba29f44d1e00ef74
 ############################################################
 # Global variables
 # Version format x.y accepted
 vers="1.12"
 script_name=$(basename "$0")
-git_repo="https://raw.githubusercontent.com/pagopa/eng-common-scripts/main/azure/${script_name}"
+git_repo="https://raw.githubusercontent.com/pagopa/eng-common-scripts/main/aws/${script_name}"
 tmp_file="${script_name}.new"
 # Check if the third parameter exists and is a file
 if [ -n "$3" ] && [ -f "$3" ]; then
@@ -276,14 +276,36 @@ shift 2
 other=$@
 
 if [ -n "$env" ]; then
-  # shellcheck source=/dev/null
-  source "./env/$env/backend.ini"
-  if [ -z "$(command -v az)" ]; then
-    echo "az not found, cannot proceed"
+  backend_ini="./env/$env/backend.ini"
+  if [ -f "$backend_ini" ]; then
+    # shellcheck source=/dev/null
+    source "$backend_ini"
+  fi
+
+  if [ -z "$aws_region" ]; then
+    echo "Missing aws_region in $backend_ini"
     exit 1
   fi
-  az account set -s "${subscription}"
-  export ARM_SUBSCRIPTION_ID=$(az account list --query "[?isDefault].id" --output tsv)
+
+  if [ -n "$aws_profile" ]; then
+    if [ -z "$(command -v aws)" ]; then
+      echo "aws not found, cannot proceed"
+      exit 1
+    fi
+    if ! aws configure list-profiles | grep -qx "$aws_profile"; then
+      echo "AWS profile '$aws_profile' not found"
+      exit 1
+    fi
+    if [ -n "$(aws configure get sso_start_url --profile "$aws_profile")" ]; then
+      aws sso login --profile "$aws_profile" >/dev/null || exit 1
+    fi
+    export AWS_PROFILE="$aws_profile"
+  fi
+
+  if [ -n "$aws_region" ]; then
+    export AWS_REGION="$aws_region"
+    export AWS_DEFAULT_REGION="$aws_region"
+  fi
 fi
 
 # Call appropriate function based on action
