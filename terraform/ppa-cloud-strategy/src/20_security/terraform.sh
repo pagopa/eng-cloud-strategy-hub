@@ -10,7 +10,7 @@ vers="1.12"
 function clean_environment() {
   rm -rf .terraform
   rm tfplan 2>/dev/null
-  echo "cleaned!"
+  echo "🧹 cleaned!"
 }
 
 function extract_resources() {
@@ -19,12 +19,12 @@ function extract_resources() {
   TARGETS=""
 
   if [ ! -f "$TF_FILE" ]; then
-    echo "File $TF_FILE does not exist."
+    echo "❌ File $TF_FILE does not exist."
     exit 1
   fi
 
   if [ ! -d "./env/$ENV" ]; then
-    echo "Directory ./env/$ENV does not exist."
+    echo "❌ Directory ./env/$ENV does not exist."
     exit 1
   fi
 
@@ -45,24 +45,24 @@ function extract_resources() {
 
   rm $TMP_FILE
 
-  echo "./terraform.sh $action $ENV $TARGETS"
+  echo "ℹ️  ./terraform.sh $action $ENV $TARGETS"
 }
 
 function help_usage() {
-  echo "terraform.sh Version ${vers}"
+  echo "ℹ️  terraform.sh Version ${vers}"
   echo
-  echo "Usage: ./script.sh [ACTION] [ENV] [OTHER OPTIONS]"
-  echo "es. ACTION: init, apply, plan, etc."
-  echo "es. ENV: dev, uat, prod, etc."
-  echo "es. OTHER OPTIONS: --cicd --dry-run"
+  echo "ℹ️  Usage: ./script.sh [ACTION] [ENV] [OTHER OPTIONS]"
+  echo "ℹ️  es. ACTION: init, apply, plan, etc."
+  echo "ℹ️  es. ENV: dev, uat, prod, etc."
+  echo "ℹ️  es. OTHER OPTIONS: --cicd --dry-run"
   echo
-  echo "Available actions:"
-  echo "  clean         Remove .terraform* folders and tfplan files"
-  echo "  help          This help"
-  echo "  list          List every environment available"
-  echo "  summ          Generate summary of Terraform plan"
-  echo "  tlock         Generate or update the dependency lock file"
-  echo "  *             any terraform option"
+  echo "ℹ️  Available actions:"
+  echo "🔹 clean         Remove .terraform* folders and tfplan files"
+  echo "🔹 help          This help"
+  echo "🔹 list          List every environment available"
+  echo "🔹 summ          Generate summary of Terraform plan"
+  echo "🔹 tlock         Generate or update the dependency lock file"
+  echo "🔹 *             any terraform option"
 }
 
 function require_cmd() {
@@ -70,9 +70,9 @@ function require_cmd() {
   local ctx="$2"
   if [ -z "$(command -v "$bin")" ]; then
     if [ -n "$ctx" ]; then
-      echo "Missing required binary: $bin ($ctx)"
+      echo "❌ Missing required binary: $bin ($ctx)"
     else
-      echo "Missing required binary: $bin"
+      echo "❌ Missing required binary: $bin"
     fi
     exit 1
   fi
@@ -80,7 +80,7 @@ function require_cmd() {
 
 function run_cmd() {
   if [ "$dry_run" = true ]; then
-    echo "DRY-RUN: $*"
+    echo "🧪 DRY-RUN: $*"
     return 0
   fi
   "$@"
@@ -88,46 +88,49 @@ function run_cmd() {
 
 function configure_aws_profile() {
   if [ -z "$aws_profile" ]; then
+    echo "ℹ️  No aws_profile configured, skipping AWS profile setup"
     return 0
   fi
 
   export AWS_PROFILE="$aws_profile"
 
   if [ "$cicd_mode" = true ]; then
-    echo "CICD mode enabled: skipping local AWS profile checks and SSO login"
+    echo "🤖 CICD mode enabled: skipping local AWS profile checks and SSO login"
     return 0
   fi
 
   require_cmd "aws" "needed for AWS profile checks"
   if ! aws configure list-profiles | grep -qx "$aws_profile"; then
-    echo "AWS profile '$aws_profile' not found"
+    echo "❌ AWS profile '$aws_profile' not found"
     exit 1
   fi
 
   sso_start_url=$(aws configure get sso_start_url --profile "$aws_profile")
   sso_session=$(aws configure get sso_session --profile "$aws_profile")
   if [ -z "$sso_start_url" ] && [ -z "$sso_session" ]; then
-    echo "Profile '$aws_profile' is not SSO-based, skipping aws sso login"
+    echo "ℹ️  Profile '$aws_profile' is not SSO-based, skipping aws sso login"
     if ! aws sts get-caller-identity --profile "$aws_profile" >/dev/null; then
-      echo "AWS credentials validation failed for profile '$aws_profile'"
+      echo "❌ AWS credentials validation failed for profile '$aws_profile'"
       exit 1
     fi
+    echo "✅ AWS credentials validated for profile '$aws_profile'"
     return 0
   fi
 
   if aws sts get-caller-identity --profile "$aws_profile" >/dev/null; then
-    echo "AWS SSO session already valid for profile '$aws_profile'"
+    echo "✅ AWS SSO session already valid for profile '$aws_profile'"
     return 0
   fi
 
   if ! aws sso login --profile "$aws_profile" >/dev/null; then
-    echo "AWS SSO login failed for profile '$aws_profile'"
+    echo "❌ AWS SSO login failed for profile '$aws_profile'"
     exit 1
   fi
   if ! aws sts get-caller-identity --profile "$aws_profile" >/dev/null; then
-    echo "AWS credentials validation failed for profile '$aws_profile'"
+    echo "❌ AWS credentials validation failed for profile '$aws_profile'"
     exit 1
   fi
+  echo "✅ AWS credentials validated for profile '$aws_profile'"
 }
 
 function init_terraform() {
@@ -137,26 +140,26 @@ function init_terraform() {
 
 function list_env() {
   if [ ! -d "./env" ]; then
-    echo "No environment directory found"
+    echo "❌ No environment directory found"
     exit 1
   fi
 
   env_list=$(ls -d ./env/*/ 2>/dev/null)
   if [ -z "$env_list" ]; then
-    echo "No environments found"
+    echo "❌ No environments found"
     exit 1
   fi
 
-  echo "Available environments:"
+  echo "ℹ️  Available environments:"
   for env in $env_list; do
     env_name=$(echo "$env" | sed 's#./env/##;s#/##')
-    echo "- $env_name"
+    echo "📁 $env_name"
   done
 }
 
 function require_env() {
   if [ -z "$env" ]; then
-    echo "ERROR: missing env. Usage: ./terraform.sh <action> <env> [options]"
+    echo "❌ ERROR: missing env. Usage: ./terraform.sh <action> <env> [options]"
     exit 1
   fi
 }
@@ -202,7 +205,7 @@ function tfsummary() {
   if [ -n "$(command -v tf-summarize)" ]; then
     run_cmd tf-summarize -tree "${plan_file}"
   else
-    echo "tf-summarize is not installed"
+    echo "⚠️  tf-summarize is not installed"
   fi
   if [ "$plan_file" == "tfplan" ]; then
     rm $plan_file
@@ -260,12 +263,12 @@ if [ -n "$env" ]; then
     # shellcheck source=/dev/null
     source "$backend_ini"
   else
-    echo "Missing backend.ini for env '$env'"
+    echo "❌ Missing backend.ini for env '$env'"
     exit 1
   fi
 
   if [ -z "$aws_region" ]; then
-    echo "Missing aws_region in $backend_ini"
+    echo "❌ Missing aws_region in $backend_ini"
     exit 1
   fi
 
