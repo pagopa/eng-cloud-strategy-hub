@@ -26,20 +26,39 @@ if [[ "${1:-}" == "debug" ]]; then
 fi
 
 debug_log "📝 Parsing JSON input from Terraform"
-eval "$(jq -r '@sh "export secret_ini_path=\(.path)"')"
+eval "$(jq -r '@sh "export secret_env=\(.env // \"\") scope=\(.scope // \"\") secret_path=\(.path // \"\")"')"
 
-if [[ -z "$secret_ini_path" ]]; then
-  error_log "🚫 Path not specified in Terraform JSON input"
+if [[ -n "$secret_env" && -n "$scope" ]]; then
+  secret_ini_path="./env/$secret_env/sops_${scope}.ini"
+  env_dir="./env/$secret_env"
+elif [[ -n "$secret_path" ]]; then
+  if [[ -f "$secret_path" ]]; then
+    secret_ini_path="$secret_path"
+    env_dir="$(dirname "$secret_path")"
+  elif [[ -d "$secret_path" && -n "$scope" ]]; then
+    secret_ini_path="$secret_path/sops_${scope}.ini"
+    env_dir="$secret_path"
+  else
+    error_log "🚫 Invalid path or missing scope in Terraform JSON input"
+    exit 1
+  fi
+else
+  error_log "🚫 Missing env/scope in Terraform JSON input"
   exit 1
 fi
-debug_log "🌍 Path set to: $secret_ini_path"
+
+debug_log "🌍 Config path set to: $secret_ini_path"
 
 debug_log "📂 Loading configuration file"
 file_crypted="PLACEHOLDER_SECRET_INI"
 # shellcheck source=/dev/null
-source "$secret_ini_path/secret.ini"
-# shellcheck source=/dev/null
-encrypted_file_path="$secret_ini_path/$file_crypted"
+source "$secret_ini_path"
+
+file_basename="$file_crypted"
+if [[ "$file_basename" != "${scope}_"* ]]; then
+  file_basename="${scope}_${file_basename}"
+fi
+encrypted_file_path="$env_dir/$file_basename"
 
 debug_log "🔒 Checking file existence: $encrypted_file_path"
 if [ -f "$encrypted_file_path" ]; then

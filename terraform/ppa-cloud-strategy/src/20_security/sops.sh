@@ -85,7 +85,7 @@ fi
 
 file_basename="$file_crypted"
 if [[ "$file_basename" != "${kvname}_"* ]]; then
-  file_basename="${file_basename}"
+  file_basename="${kvname}_${file_basename}"
 fi
 encrypted_file_path="./env/$env/$file_basename"
 
