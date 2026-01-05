@@ -30,8 +30,9 @@ data "external" "terrasops" {
 resource "aws_secretsmanager_secret" "sops_secret" {
   for_each = local.secrets_by_name
 
-  name       = each.value.sec_key
-  kms_key_id = aws_kms_key.sops_key[each.value.key_vault].arn
+  name                    = "${each.value.key_vault}-${each.value.sec_key}"
+  kms_key_id              = aws_kms_key.sops_key[each.value.key_vault].arn
+  recovery_window_in_days = var.secrets_recovery_window_in_days
 }
 
 resource "aws_secretsmanager_secret_version" "sops_secret_value" {

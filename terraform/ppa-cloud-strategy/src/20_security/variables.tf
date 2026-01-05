@@ -7,7 +7,7 @@ variable "prefix" {
   type = string
   validation {
     condition     = length(var.prefix) <= 6
-    error_message = "Max length is 6 chars."
+    error_message = "Max length is 6 characters."
   }
 }
 
@@ -20,7 +20,7 @@ variable "env_short" {
   type = string
   validation {
     condition     = length(var.env_short) <= 1
-    error_message = "Max length is 1 chars."
+    error_message = "Max length is 1 character."
   }
 }
 
@@ -37,6 +37,18 @@ variable "domain" {
   type = string
   validation {
     condition     = length(var.domain) <= 12
-    error_message = "Max length is 12 chars."
+    error_message = "Max length is 12 characters."
   }
+}
+
+variable "enable_kms_key_rotation" {
+  type        = bool
+  description = "Whether to enable KMS key rotation for SOPS keys."
+  default     = false
+}
+
+variable "secrets_recovery_window_in_days" {
+  type        = number
+  description = "Recovery window (days) for Secrets Manager deletions."
+  default     = 30
 }

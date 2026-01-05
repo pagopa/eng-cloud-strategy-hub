@@ -93,16 +93,26 @@ if echo "d decrypt a add s search n new e edit f file-encrypt di decryptignore" 
   case $action in
     "d"|"decrypt")
       sops --decrypt "$encrypted_file_path"
-      if [ $? -eq 1 ]; then
-        echo "❌ File $encrypted_file_path NOT encrypted"
-        exit 0
+      status=$?
+      if [ "$status" -ne 0 ]; then
+        if [ "$status" -eq 1 ]; then
+          echo "❌ File $encrypted_file_path NOT encrypted"
+          exit 0
+        fi
+        echo "❌ Failed to decrypt $encrypted_file_path (exit code: $status)"
+        exit "$status"
       fi
       ;;
     "di"|"decryptignore")
       sops --decrypt --ignore-mac "$encrypted_file_path"
-      if [ $? -eq 1 ]; then
-        echo "❌ File $encrypted_file_path NOT encrypted"
-        exit 0
+      status=$?
+      if [ "$status" -ne 0 ]; then
+        if [ "$status" -eq 1 ]; then
+          echo "❌ File $encrypted_file_path NOT encrypted"
+          exit 0
+        fi
+        echo "❌ Failed to decrypt (ignore-mac) $encrypted_file_path (exit code: $status)"
+        exit "$status"
       fi
       ;;
     "s"|"search")

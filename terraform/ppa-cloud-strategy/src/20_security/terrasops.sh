@@ -57,6 +57,11 @@ file_crypted="PLACEHOLDER_SECRET_INI"
 # shellcheck source=/dev/null
 source "$secret_ini_path"
 
+if [[ -z "${file_crypted}" || "${file_crypted}" == "PLACEHOLDER_SECRET_INI" ]]; then
+  error_log "🚫 Invalid file_crypted value in $secret_ini_path"
+  exit 1
+fi
+
 file_basename="$file_crypted"
 if [[ "$file_basename" != "${scope}_"* ]]; then
   file_basename="${scope}_${file_basename}"
