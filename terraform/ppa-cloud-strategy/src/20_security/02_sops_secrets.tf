@@ -1,32 +1,29 @@
+locals {
+  secret_env = "${var.location}-${var.env}"
+
+  decrypted_secrets_by_scope = {
+    for scope, ext in data.external.terrasops :
+    scope => can(ext.result) ? ext.result : {}
+  }
+
+  secrets_by_name = merge([
+    for scope, secrets in local.decrypted_secrets_by_scope : {
+      for key, value in secrets : "${scope}-${key}" => {
+        key_vault = scope
+        sec_key   = key
+        sec_val   = value
+      }
+    }
+  ]...)
+}
+
 data "external" "terrasops" {
   for_each = toset(local.secret_scopes)
 
   program = ["bash", "terrasops.sh"]
   query = {
-    env   = "${var.location}-${var.env}"
+    env   = local.secret_env
     scope = each.key
-  }
-}
-
-locals {
-  all_enc_secrets_value = {
-    for key, ext in data.external.terrasops :
-    key => can(ext.result) ? [
-      for k, v in ext.result : {
-        sec_val = v
-        sec_key = k
-      }
-    ] : []
-  }
-
-  secrets_flat = flatten([
-    for scope, secrets in local.all_enc_secrets_value : [
-      for s in secrets : merge(s, { key_vault = scope })
-    ]
-  ])
-
-  secrets_by_name = {
-    for s in local.secrets_flat : "${s.key_vault}-${s.sec_key}" => s
   }
 }
 
