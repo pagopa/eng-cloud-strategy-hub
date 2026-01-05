@@ -10,6 +10,6 @@ locals {
     # isolates the module working folder, removing the absolute path leading to the cwd and the leading slash
     Folder     = local.relative_folder
     CostCenter = "Technology"
-    domain     = var.domain
+    Domain     = var.domain
   }
 }
