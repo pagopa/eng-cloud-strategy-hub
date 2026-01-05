@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # This script manages SOPS-encrypted secrets using AWS KMS.
-# It expects a secret.ini file under:
-#   ./secrets/<scope>/<env>/secret.ini
+# It expects a config ini file under:
+#   ./env/<env>/sops_<scope>.ini
 
 action=$1
 kvname=$2
@@ -50,7 +50,7 @@ if [ -z "$kvname" ]; then
 fi
 
 if [ -z "$env" ]; then
-  echo "env should be something like: ita-dev, ita-uat or ita-prod."
+  echo "env should be something like: italy-dev, italy-uat or italy-prod."
   exit 0
 fi
 
@@ -63,8 +63,13 @@ echo "🔨 Mandatory parameters are correct"
 file_crypted=""
 kms_key_arn=""
 
+secret_ini_path="./env/$env/sops_${kvname}.ini"
+if [ ! -f "$secret_ini_path" ]; then
+  echo "❌ Error: missing config file $secret_ini_path"
+  exit 1
+fi
 # shellcheck disable=SC1090
-source "./secrets/$kvname/$env/secret.ini"
+source "$secret_ini_path"
 
 echo "🔨 All variables loaded"
 
@@ -78,7 +83,11 @@ if [ -z "$file_crypted" ]; then
   exit 1
 fi
 
-encrypted_file_path="./secrets/$kvname/$env/$file_crypted"
+file_basename="$file_crypted"
+if [[ "$file_basename" != "${kvname}_"* ]]; then
+  file_basename="${file_basename}"
+fi
+encrypted_file_path="./env/$env/$file_basename"
 
 if echo "d decrypt a add s search n new e edit f file-encrypt di decryptignore" | grep -w "$action" > /dev/null; then
   case $action in
@@ -125,7 +134,7 @@ if echo "d decrypt a add s search n new e edit f file-encrypt di decryptignore" 
       ;;
     "f"|"file-encrypt")
       read -r -p 'file: ' file
-      sops --encrypt --kms "$kms_key_arn" "./secrets/$kvname/$env/$file" > "$encrypted_file_path"
+      sops --encrypt --kms "$kms_key_arn" "./env/$env/$file" > "$encrypted_file_path"
       ;;
   esac
 else
