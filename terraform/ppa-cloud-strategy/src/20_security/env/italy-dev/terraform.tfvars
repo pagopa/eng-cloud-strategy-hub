@@ -1,5 +1,5 @@
 # general
-prefix         = "cs"
+prefix         = "csh"
 env_short      = "d"
 env            = "dev"
 domain         = "core"

@@ -2,3 +2,53 @@ variable "aws_region" {
   type        = string
   description = "AWS region."
 }
+
+variable "prefix" {
+  type = string
+  validation {
+    condition     = length(var.prefix) <= 6
+    error_message = "Max length is 6 characters."
+  }
+}
+
+variable "env" {
+  type        = string
+  description = "Environment."
+}
+
+variable "env_short" {
+  type = string
+  validation {
+    condition     = length(var.env_short) <= 1
+    error_message = "Max length is 1 character."
+  }
+}
+
+variable "location" {
+  type = string
+}
+
+variable "location_short" {
+  type        = string
+  description = "Location short like eg: neu, weu."
+}
+
+variable "domain" {
+  type = string
+  validation {
+    condition     = length(var.domain) <= 12
+    error_message = "Max length is 12 characters."
+  }
+}
+
+variable "enable_kms_key_rotation" {
+  type        = bool
+  description = "Whether to enable KMS key rotation for SOPS keys."
+  default     = false
+}
+
+variable "secrets_recovery_window_in_days" {
+  type        = number
+  description = "Recovery window (days) for Secrets Manager deletions."
+  default     = 30
+}
