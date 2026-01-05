@@ -26,7 +26,10 @@ if [[ "${1:-}" == "debug" ]]; then
 fi
 
 debug_log "📝 Parsing JSON input from Terraform"
-eval "$(jq -r '@sh "export secret_env=\(.env // \"\") scope=\(.scope // \"\") secret_path=\(.path // \"\")"')"
+secret_env=""
+scope=""
+secret_path=""
+eval "$(jq -r 'def norm: ( . // "" | tostring ); @sh "export secret_env=\(.env | norm) scope=\(.scope | norm) secret_path=\(.path | norm)"')"
 
 if [[ -n "$secret_env" && -n "$scope" ]]; then
   secret_ini_path="./env/$secret_env/sops_${scope}.ini"

@@ -33,7 +33,7 @@ locals {
 resource "aws_secretsmanager_secret" "sops_secret" {
   for_each = local.secrets_by_name
 
-  name       = "${local.project_nodomain}-${each.value.key_vault}-${each.value.sec_key}"
+  name       = each.value.sec_key
   kms_key_id = aws_kms_key.sops_key[each.value.key_vault].arn
 }
 
