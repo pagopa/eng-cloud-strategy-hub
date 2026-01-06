@@ -8,8 +8,7 @@ repos:
         exclude_types: [sql]
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
-        exclude_types: [sql]
-      - id: check-yaml
+        exclude_types: [sql, bash, shell]
       - id: check-executables-have-shebangs
       # Cross platform
       - id: check-case-conflict
@@ -20,3 +19,22 @@ repos:
       - id: detect-aws-credentials
         args: ['--allow-missing-credentials']
       - id: detect-private-key
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.99.2
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_docs
+        args:
+          - markdown --sort-by required
+      - id: terraform_validate
+        args:
+          - --init-args=-lockfile=readonly
+          - --args=-json
+          - --args=-no-color
+#      - id: terraform_providers_lock
+#        args:
+#          - --args=-platform=windows_amd64
+#          - --args=-platform=darwin_amd64
+#          - --args=-platform=darwin_arm64
+#          - --args=-platform=linux_amd64
+#          - --args=-platform=linux_arm64
