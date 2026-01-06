@@ -44,15 +44,3 @@ variable "domain" {
     error_message = "Max length is 12 characters."
   }
 }
-
-variable "enable_kms_key_rotation" {
-  type        = bool
-  description = "Whether to enable KMS key rotation for SOPS keys."
-  default     = false
-}
-
-variable "secrets_recovery_window_in_days" {
-  type        = number
-  description = "Recovery window (days) for Secrets Manager deletions."
-  default     = 30
-}

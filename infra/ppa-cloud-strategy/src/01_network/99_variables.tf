@@ -4,7 +4,8 @@ variable "aws_region" {
 }
 
 variable "prefix" {
-  type = string
+  type        = string
+  description = "Prefix for resource names."
   validation {
     condition     = length(var.prefix) <= 6
     error_message = "Max length is 6 characters."
@@ -17,7 +18,8 @@ variable "env" {
 }
 
 variable "env_short" {
-  type = string
+  type        = string
+  description = "Short environment identifier."
   validation {
     condition     = length(var.env_short) <= 1
     error_message = "Max length is 1 character."
@@ -25,7 +27,8 @@ variable "env_short" {
 }
 
 variable "location" {
-  type = string
+  type        = string
+  description = "Location or region name."
 }
 
 variable "location_short" {
@@ -34,7 +37,8 @@ variable "location_short" {
 }
 
 variable "domain" {
-  type = string
+  type        = string
+  description = "Domain name."
   validation {
     condition     = length(var.domain) <= 12
     error_message = "Max length is 12 characters."
