@@ -4,7 +4,7 @@ resource "aws_kms_key" "sops_key" {
   description             = "${local.project_nodomain}-${each.key}-sops"
   deletion_window_in_days = 30
   enable_key_rotation     = var.enable_kms_key_rotation
-  tags = module.tag_config.tags
+  tags                    = module.tag_config.tags
 }
 
 resource "aws_kms_alias" "sops_key" {

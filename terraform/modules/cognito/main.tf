@@ -1,0 +1,185 @@
+# Cognito user pool 
+resource "aws_cognito_user_pool" "main" {
+  name = var.cognito.user_pool_name
+
+  # schema {
+  #   attribute_data_type = "String"
+  #   name                = "email"
+  #   required            = true
+  # }
+
+  schema {
+    attribute_data_type      = "String"
+    developer_only_attribute = false
+    mutable                  = false
+    name                     = "email"
+    required                 = true
+  }
+  schema {
+    attribute_data_type      = "String"
+    developer_only_attribute = false
+    mutable                  = true
+    name                     = "client_id"
+    required                 = false
+
+    string_attribute_constraints {}
+  }
+
+  username_attributes      = ["email"]
+  auto_verified_attributes = ["email"]
+
+  password_policy {
+    minimum_length                   = 8
+    require_lowercase                = true
+    require_numbers                  = true
+    require_symbols                  = true
+    require_uppercase                = true
+    temporary_password_validity_days = 7
+  }
+
+  account_recovery_setting {
+    recovery_mechanism {
+      name     = "admin_only"
+      priority = 1
+    }
+  }
+
+  admin_create_user_config {
+    allow_admin_create_user_only = false
+  }
+
+  /*
+  schema {
+    attribute_data_type      = "String"
+    developer_only_attribute = true
+    mutable                  = false
+    name                     = "clientID"
+    required                 = false #to check
+  }
+  */
+
+  lambda_config {
+    pre_sign_up = module.cognito_presignup_lambda.lambda_function_arn
+  }
+
+  lifecycle {
+
+    ignore_changes = [
+      password_policy,
+      schema
+    ]
+  }
+  deletion_protection = "INACTIVE"
+
+  email_configuration {
+    email_sending_account = "COGNITO_DEFAULT"
+  }
+
+  verification_message_template {
+    default_email_option = "CONFIRM_WITH_CODE"
+    email_message        = "Your verification code is {####}"
+  }
+}
+
+# resource "aws_cognito_user_pool_domain" "main" {
+#   domain       = var.cognito.user_pool_domain
+#   user_pool_id = aws_cognito_user_pool.main.id
+# }
+
+# resource "aws_route53_record" "auth_alias" {
+#   name    = "auth.admin"  
+#   type    = "A"
+#   zone_id = var.r53_dns_zone_id
+#   alias {
+#     evaluate_target_health = false
+
+#     #name    = aws_cognito_user_pool_domain.auth.cloudfront_distribution
+#     name = "d111111abcdef8.cloudfront.net"
+#     zone_id = "Z2FDTNDATAQYW2"
+#   }
+
+#   lifecycle {
+#   create_before_destroy = true
+# }
+# }
+
+# resource "null_resource" "wait_for_dns" {
+#   depends_on = [aws_route53_record.auth_alias]
+
+#   provisioner "local-exec" {
+#     command = "sleep 60"
+#   }
+# }
+
+resource "aws_cognito_user_pool_domain" "auth" {
+  domain          = var.cognito.acm_domain_name
+  certificate_arn = var.cognito.auth_certificate_arn
+  user_pool_id    = aws_cognito_user_pool.main.id
+}
+
+resource "aws_route53_record" "auth_admin" {
+  zone_id = var.r53_dns_zone_id
+  name    = "auth.admin"
+  type    = "A"
+
+  alias {
+    name                   = aws_cognito_user_pool_domain.auth.cloudfront_distribution
+    zone_id                = aws_cognito_user_pool_domain.auth.cloudfront_distribution_zone_id
+    evaluate_target_health = false
+  }
+
+  depends_on = [aws_cognito_user_pool_domain.auth]
+}
+
+resource "aws_cognito_user_pool_client" "client" {
+  name         = var.cognito.user_pool_client
+  user_pool_id = aws_cognito_user_pool.main.id
+
+  allowed_oauth_flows_user_pool_client = true
+
+  explicit_auth_flows = [
+    "ALLOW_USER_PASSWORD_AUTH",
+    "ALLOW_REFRESH_TOKEN_AUTH",
+    "ALLOW_USER_SRP_AUTH",
+  ]
+
+
+  allowed_oauth_flows  = ["code"]
+  allowed_oauth_scopes = ["email", "openid", "profile"]
+
+  callback_urls = ["http://localhost:5173", "${var.cognito.callback_url}"]
+  logout_urls   = ["${var.cognito.logout_url}"] # Update with your app's logout URL
+
+  supported_identity_providers = ["COGNITO"]
+
+
+}
+
+module "cognito_presignup_lambda" {
+  source                 = "terraform-aws-modules/lambda/aws"
+  version                = "7.4.0"
+  function_name          = var.cognito_presignup_lambda.name
+  description            = "Lambda function cognito preSignUp."
+  runtime                = "python3.12"
+  handler                = "index.lambda_handler"
+  create_package         = false
+  local_existing_package = var.cognito_presignup_lambda.filename
+
+  ignore_source_code_hash = true
+
+  publish = true
+
+  allowed_triggers = {
+    events = {
+      principal  = "cognito-idp.amazonaws.com"
+      source_arn = aws_cognito_user_pool.main.arn
+    }
+  }
+
+  memory_size = 512
+  timeout     = 30
+
+  cloudwatch_logs_retention_in_days = var.cognito_presignup_lambda.cloudwatch_logs_retention_in_days
+
+}
+
