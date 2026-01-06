@@ -44,7 +44,7 @@ resource "aws_cloudwatch_metric_alarm" "sqs_error_sending_message_alarm" {
 
 # Alarm for monitoring the DLQ of the errors SQS queue
 resource "aws_cloudwatch_metric_alarm" "dlq_errors" {
-  alarm_name = "${var.sqs_queue_name}-${var.dlq_alarms.metric_name}-Dlq-${var.dlq_alarms.threshold}"
+  alarm_name          = "${var.sqs_queue_name}-${var.dlq_alarms.metric_name}-Dlq-${var.dlq_alarms.threshold}"
   comparison_operator = var.dlq_alarms.comparison_operator
   evaluation_periods  = var.dlq_alarms.evaluation_periods
   metric_name         = var.dlq_alarms.metric_name
