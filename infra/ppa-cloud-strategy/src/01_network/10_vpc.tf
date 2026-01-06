@@ -24,7 +24,7 @@ data "aws_security_group" "default" {
 }
 
 resource "aws_security_group" "vpc_tls" {
-  name_prefix = format("%s_tls_sg", var.vpc_name)
+  name_prefix = "${var.vpc_name}_tls_sg"
   description = "Allow TLS inbound traffic"
   vpc_id      = module.vpc.vpc_id
 
@@ -36,7 +36,7 @@ resource "aws_security_group" "vpc_tls" {
     cidr_blocks = [module.vpc.vpc_cidr_block]
   }
 
-  tags = merge({ Name = format("%s_tls_sg", var.vpc_name) }, module.tag_config.tags)
+  tags = merge({ Name = "${var.vpc_name}_tls_sg" }, module.tag_config.tags)
 
 }
 
