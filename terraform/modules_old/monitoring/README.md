@@ -74,7 +74,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_alarm_subscribers"></a> [alarm\_subscribers](#input\_alarm\_subscribers) | SSM parameter store with the list alarm subscribers. | `string` | n/a | yes |
+| <a name="input_alarm_subscribers_emails"></a> [alarm\_subscribers\_emails](#input\_alarm\_subscribers\_emails) | SSM parameter store with the list alarm subscribers. | `string` | n/a | yes |
 | <a name="input_api_methods_dashboard_name"></a> [api\_methods\_dashboard\_name](#input\_api\_methods\_dashboard\_name) | Name of the api methods dashboard. | `string` | n/a | yes |
 | <a name="input_api_name"></a> [api\_name](#input\_api\_name) | n/a | `string` | n/a | yes |
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | n/a | `string` | n/a | yes |

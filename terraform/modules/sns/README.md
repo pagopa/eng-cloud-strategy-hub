@@ -28,7 +28,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_alarm_subscribers"></a> [alarm\_subscribers](#input\_alarm\_subscribers) | SSM parameter store with the list alarm subscribers. | `string` | n/a | yes |
+| <a name="input_alarm_subscribers_emails"></a> [alarm\_subscribers\_emails](#input\_alarm\_subscribers\_emails) | SSM parameter store with the list alarm subscribers. | `string` | n/a | yes |
 | <a name="input_sns_topic_name"></a> [sns\_topic\_name](#input\_sns\_topic\_name) | SNS topic name. | `string` | n/a | yes |
 
 ## Outputs

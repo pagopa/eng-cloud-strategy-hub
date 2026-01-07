@@ -1,5 +1,5 @@
 data "aws_ssm_parameter" "alarm_subscribers" {
-  name = var.alarm_subscribers
+  name = var.alarm_subscribers_emails
 }
 
 locals {

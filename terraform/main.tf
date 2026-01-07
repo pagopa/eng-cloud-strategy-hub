@@ -90,9 +90,9 @@ module "storage" {
 
 ## SNS for alarms ##
 module "sns" {
-  source            = "../../modules/sns"
-  sns_topic_name    = format("%s-sns", local.project)
-  alarm_subscribers = var.alarm_subscribers
+  source                   = "../../modules/sns"
+  sns_topic_name           = format("%s-sns", local.project)
+  alarm_subscribers_emails = var.alarm_subscribers
 }
 
 module "sqs" {
@@ -104,7 +104,7 @@ module "sqs" {
 
 }
 
-## Database ##  
+## Database ##
 module "database" {
   source                      = "../../modules/database"
   sessions_table              = var.sessions_table
@@ -611,7 +611,7 @@ module "monitoring" {
 
   create_ce_budget = true
 
-  alarm_subscribers = var.alarm_subscribers
+  alarm_subscribers_emails = var.alarm_subscribers
 }
 
 module "cognito" {

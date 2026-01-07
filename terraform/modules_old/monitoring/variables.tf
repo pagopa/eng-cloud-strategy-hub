@@ -87,7 +87,7 @@ variable "query_files" {
   default = [] # Empty list, we'll populate it with locals
 }
 
-variable "alarm_subscribers" {
+variable "alarm_subscribers_emails" {
   type        = string
   description = "SSM parameter store with the list alarm subscribers."
 }

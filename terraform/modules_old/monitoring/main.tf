@@ -3,7 +3,7 @@ locals {
 }
 
 data "aws_ssm_parameter" "alarm_subscribers" {
-  name = var.alarm_subscribers
+  name = var.alarm_subscribers_emails
 }
 
 resource "aws_cloudwatch_dashboard" "main" {
