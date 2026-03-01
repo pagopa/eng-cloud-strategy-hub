@@ -1,37 +1,33 @@
-<!--- Please always add a PR description as if nobody knows anything about the context these changes come from. -->
-<!--- Even if we are all from our internal team, we may not be on the same page. -->
-<!--- Write this PR as you were contributing to a public OSS project, where nobody knows you and you have to earn their trust. -->
-<!--- This will improve our projects in the long run! Thanks. -->
+## Description
 
-#### List of Changes
+<!-- Explain the shared platform change and expected downstream impact. -->
 
-<!--- Describe your changes in detail -->
+## Change Type
 
-#### Motivation and Context
+- [ ] GitHub workflow/composite action update
+- [ ] Shared Terraform module/infrastructure change
+- [ ] Shared automation script update
+- [ ] Standards/documentation update
+- [ ] Bug fix
+- [ ] Other
 
-<!--- Why is this change required? What problem does it solve? -->
+## Scope and Compatibility
 
-#### How Has This Been Tested?
+- Affected shared components:
+- Potential downstream repositories impacted:
+- Backward compatibility status:
+- Rollback strategy:
 
-<!--- Please describe in detail how you tested your changes. -->
-<!--- Include details of your testing environment, tests ran to see how -->
-<!--- your change affects other areas of the code, etc. -->
+## Validation Evidence
 
-#### Screenshots (if appropriate):
+- Local/static checks run:
+- Terraform/action validation summary:
+- Manual verification summary:
 
-#### Types of changes
+## Checklist
 
-<!--- What types of changes does your code introduce? Put an `x` in all the boxes that apply: -->
-
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] Chore change (non-breaking change which does not affect existing functionality)
-
-#### Checklist:
-
-<!--- Go over all the following points, and put an `x` in all the boxes that apply. -->
-<!--- If you're unsure about any of these, don't hesitate to ask. We're here to help! -->
-
-- [ ] My change requires a change to the documentation.
-- [ ] I have updated the documentation accordingly.
+- [ ] Change is backward-compatible or migration notes are included
+- [ ] Shared interfaces/inputs/outputs are documented
+- [ ] Validation evidence is attached for each affected component type
+- [ ] No credentials/secrets are introduced
+- [ ] Reviewer notes include rollout/rollback guidance
