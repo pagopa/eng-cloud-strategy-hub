@@ -1,37 +1,55 @@
-<!--- Please always add a PR description as if nobody knows anything about the context these changes come from. -->
-<!--- Even if we are all from our internal team, we may not be on the same page. -->
-<!--- Write this PR as you were contributing to a public OSS project, where nobody knows you and you have to earn their trust. -->
-<!--- This will improve our projects in the long run! Thanks. -->
+<!-- markdownlint-disable-file MD041 -->
+<!-- PR title format: <type>(<scope>): <summary> -->
+<!-- Examples: feat(terraform): add new SCP policy -->
+<!--           fix(scripts): correct JSON validation logic -->
 
-#### List of Changes
+## Description
 
-<!--- Describe your changes in detail -->
+<!-- Explain the shared platform change and expected downstream impact. -->
 
-#### Motivation and Context
+## Change Type
 
-<!--- Why is this change required? What problem does it solve? -->
+- [ ] GitHub workflow/composite action update
+- [ ] Shared Terraform module/infrastructure change
+- [ ] Shared automation script update
+- [ ] Standards/documentation update
+- [ ] Bug fix
+- [ ] Other
 
-#### How Has This Been Tested?
+## Scope and Compatibility
 
-<!--- Please describe in detail how you tested your changes. -->
-<!--- Include details of your testing environment, tests ran to see how -->
-<!--- your change affects other areas of the code, etc. -->
+- Affected shared components:
+- Potential downstream repositories impacted:
+- Backward compatibility status:
+- Rollback strategy:
 
-#### Screenshots (if appropriate):
+## Downstream Consumer Testing
 
-#### Types of changes
+- Repositories tested:
+- Validation summary:
+- [ ] Version bump required for shared actions/modules
 
-<!--- What types of changes does your code introduce? Put an `x` in all the boxes that apply: -->
+## Testing Instructions
 
-- [ ] Bug fix (non-breaking change which fixes an issue)
-- [ ] New feature (non-breaking change which adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] Chore change (non-breaking change which does not affect existing functionality)
+<!-- Step-by-step instructions for reviewers to validate changes -->
+1.
+2.
 
-#### Checklist:
+## Validation Evidence
 
-<!--- Go over all the following points, and put an `x` in all the boxes that apply. -->
-<!--- If you're unsure about any of these, don't hesitate to ask. We're here to help! -->
+- Local/static checks run:
+- Terraform/action validation summary:
+- Manual verification summary:
 
-- [ ] My change requires a change to the documentation.
-- [ ] I have updated the documentation accordingly.
+## Breaking Changes
+
+- [ ] This PR contains breaking changes
+<!-- If checked, describe what breaks and migration path -->
+
+## Checklist
+
+- [ ] Change is backward-compatible or migration notes are included
+- [ ] Shared interfaces/inputs/outputs are documented
+- [ ] Validation evidence is attached for each affected component type
+- [ ] No credentials/secrets are introduced
+- [ ] Reviewer notes include rollout/rollback guidance

@@ -44,3 +44,26 @@ __azurite_*
 .idea
 .vscode
 /.project
+
+# Copilot align: IDE / OS / Python
+.idea/
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+__MACOSX/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+env/
+.python-version
