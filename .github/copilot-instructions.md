@@ -65,38 +65,7 @@ You are an expert software/platform engineer. Optimize for secure, consistent, a
 - Python/Java/Node.js: run unit tests relevant to the change.
 - Run `scripts/validate-copilot-customizations.sh` for customization changes (or `.github/scripts/...` in `.github` layout).
 
-
-## Repository Alignment
-- Repository: `eng-cloud-strategy-hub`
-- Recommended profile from `repo-profiles.yml`: `mixed-platform`
-- Primary scope: Shared platform repository for reusable GitHub automation, Terraform modules, and cross-team engineering standards.
-- High-priority paths:
-  - `actions`
-  - `infra`
-  - `terraform/modules`
-  - `code`
-- Default instruction set for daily tasks:
-  - `instructions/github-actions.instructions.md`
-  - `instructions/github-action-composite.instructions.md`
-  - `instructions/terraform.instructions.md`
-  - `instructions/markdown.instructions.md`
-  - `instructions/yaml.instructions.md`
-- Preferred prompts for repeatable work:
-  - `prompts/github-action.prompt.md`
-  - `prompts/github-composite-action.prompt.md`
-  - `prompts/cs-terraform.prompt.md`
-  - `prompts/cs-cloud-policy.prompt.md`
-  - `prompts/github-pr-description.prompt.md`
-- Preferred skills:
-  - `skills/cicd-workflow/SKILL.md`
-  - `skills/composite-action/SKILL.md`
-  - `skills/terraform-feature/SKILL.md`
-  - `skills/terraform-module/SKILL.md`
-  - `skills/pr-writing/SKILL.md`
-- Minimum validation before commit:
-  - `actionlint (for workflow changes)`
-  - `terraform fmt -recursive (for terraform changes)`
-  - `terraform validate (where module/root is affected)`
-  - `manual dry-run notes for shared automation changes`
-- Keep assistant-facing language mapped through AGENTS.md and avoid mentioning internal runtime names.
-- PRs must be completed using `.github/PULL_REQUEST_TEMPLATE.md` (or mirrored lowercase template).
+## Repository-specific context
+- Use `AGENTS.md` as the single source of truth for repository-specific routing, preferred prompts/skills, inventories, and validation details.
+- Avoid repeating large prompt/skill catalogs here; load only the files needed for the current task.
+- Keep assistant-facing language mapped through `AGENTS.md` and avoid mentioning internal runtime names.
