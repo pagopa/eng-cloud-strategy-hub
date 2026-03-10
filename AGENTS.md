@@ -104,7 +104,6 @@ This inventory reflects the desired managed baseline plus repository-owned inter
 - `.github/instructions/yaml.instructions.md`
 
 ### Prompts
-- `.github/prompts/cs-data-registry.prompt.md`
 - `.github/prompts/tech-ai-add-unit-tests.prompt.md`
 - `.github/prompts/tech-ai-bash-script.prompt.md`
 - `.github/prompts/tech-ai-cloud-policy.prompt.md`
@@ -116,7 +115,6 @@ This inventory reflects the desired managed baseline plus repository-owned inter
 - `.github/prompts/tech-ai-terraform.prompt.md`
 
 ### Skills
-- `.github/skills/data-registry/SKILL.md`
 - `.github/skills/tech-ai-cicd-workflow/SKILL.md`
 - `.github/skills/tech-ai-cloud-policy/SKILL.md`
 - `.github/skills/tech-ai-composite-action/SKILL.md`
