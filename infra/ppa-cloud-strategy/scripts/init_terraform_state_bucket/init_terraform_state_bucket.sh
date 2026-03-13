@@ -33,19 +33,23 @@ DRY_RUN=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --profile)
-      AWS_PROFILE="${2:-}"
+      [[ $# -lt 2 ]] && { echo "ERROR: --profile requires a value"; usage; }
+      AWS_PROFILE="$2"
       shift 2
       ;;
     --region)
-      AWS_REGION="${2:-}"
+      [[ $# -lt 2 ]] && { echo "ERROR: --region requires a value"; usage; }
+      AWS_REGION="$2"
       shift 2
       ;;
     --project-name)
-      PROJECT_NAME="${2:-}"
+      [[ $# -lt 2 ]] && { echo "ERROR: --project-name requires a value"; usage; }
+      PROJECT_NAME="$2"
       shift 2
       ;;
     --env)
-      ENV_NAME="${2:-}"
+      [[ $# -lt 2 ]] && { echo "ERROR: --env requires a value"; usage; }
+      ENV_NAME="$2"
       shift 2
       ;;
     --dry-run|-n)
@@ -68,7 +72,7 @@ require_non_empty "${PROJECT_NAME}" "Project name"
 require_non_empty "${ENV_NAME}" "Environment"
 
 normalize() {
-  echo "$1" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd 'a-z0-9-'
+  echo "$1" | tr '[:upper:]' '[:lower:]' | tr ' ' '-' | tr -cd 'a-z0-9-' | sed 's/^-\+//;s/-\+$//'
 }
 
 print_cmd() {
@@ -86,7 +90,7 @@ run_cmd() {
 }
 
 if [ "${DRY_RUN}" = false ]; then
-  if ! aws configure list-profiles | tr ' ' '\n' | grep -qx "${AWS_PROFILE}"; then
+  if ! aws configure list-profiles | tr ' ' '\n' | grep -Fqx "${AWS_PROFILE}"; then
     echo "ERROR: AWS profile '${AWS_PROFILE}' not found in ~/.aws/config."
     exit 1
   fi
@@ -100,6 +104,11 @@ ENV_NAME_NORM=$(normalize "${ENV_NAME}")
 
 # S3 bucket name
 BUCKET_NAME="terraform-state-${PROJECT_NAME_NORM}-${ENV_NAME_NORM}-${AWS_REGION_NORM}"
+
+if [ ${#BUCKET_NAME} -gt 63 ] || [ ${#BUCKET_NAME} -lt 3 ]; then
+  echo "ERROR: Bucket name '${BUCKET_NAME}' is ${#BUCKET_NAME} characters (must be 3-63)."
+  exit 1
+fi
 
 echo "🔎 Bucket name: ${BUCKET_NAME}"
 
@@ -124,8 +133,14 @@ fi
 
 echo "🪣 Ensuring bucket exists..."
 if [ "${DRY_RUN}" = false ]; then
-  if aws s3api head-bucket --bucket "${BUCKET_NAME}" >/dev/null 2>&1; then
+  HEAD_EXIT=0
+  aws s3api head-bucket --bucket "${BUCKET_NAME}" >/dev/null 2>&1 || HEAD_EXIT=$?
+  if [ "${HEAD_EXIT}" -eq 0 ]; then
     echo "ℹ️  Bucket ${BUCKET_NAME} already exists."
+  elif [ "${HEAD_EXIT}" -eq 254 ] || [ "${HEAD_EXIT}" -eq 253 ]; then
+    # 254 = 403 Forbidden (bucket owned by another account), 253 = other client errors
+    echo "ERROR: Bucket '${BUCKET_NAME}' exists but is not accessible (HTTP 403). It may belong to another AWS account."
+    exit 1
   else
     if [ "${AWS_REGION_NORM}" = "us-east-1" ]; then
       aws s3api create-bucket --bucket "${BUCKET_NAME}" --region "${AWS_REGION_NORM}"
@@ -164,7 +179,42 @@ run_cmd aws s3api put-bucket-encryption \
   --bucket "${BUCKET_NAME}" \
   --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
 
+echo "🔒 Applying TLS-only bucket policy..."
+TLS_POLICY=$(cat <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DenyInsecureTransport",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:*",
+      "Resource": [
+        "arn:aws:s3:::${BUCKET_NAME}",
+        "arn:aws:s3:::${BUCKET_NAME}/*"
+      ],
+      "Condition": {
+        "Bool": {
+          "aws:SecureTransport": "false"
+        }
+      }
+    }
+  ]
+}
+EOF
+)
+run_cmd aws s3api put-bucket-policy \
+  --bucket "${BUCKET_NAME}" \
+  --policy "${TLS_POLICY}"
+
+echo "♻️  Adding lifecycle rule for noncurrent versions (expire after 90 days)..."
+LIFECYCLE_CONFIG='{"Rules":[{"ID":"ExpireNoncurrentVersions","Status":"Enabled","Filter":{"Prefix":""},"NoncurrentVersionExpiration":{"NoncurrentDays":90}}]}'
+run_cmd aws s3api put-bucket-lifecycle-configuration \
+  --bucket "${BUCKET_NAME}" \
+  --lifecycle-configuration "${LIFECYCLE_CONFIG}"
+
 echo "✅ Bucket ready."
 echo "Use these backend values:"
-echo "  bucket = ${BUCKET_NAME}"
-echo "  region = ${AWS_REGION_NORM}"
+echo "  bucket         = ${BUCKET_NAME}"
+echo "  region         = ${AWS_REGION_NORM}"
+echo "  use_lockfile   = true"
