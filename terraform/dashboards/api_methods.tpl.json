@@ -1,0 +1,12 @@
+{
+  "widgets": [
+    {
+      "height": 6,
+      "width": 24,
+      "type": "text",
+      "properties": {
+        "markdown": "# API Methods\nAPI: ${api_name}\nRegion: ${aws_region}"
+      }
+    }
+  ]
+}

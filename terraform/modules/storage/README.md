@@ -65,14 +65,14 @@
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >=5.49 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.49, < 6.0.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | 3.6.1 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >=5.49 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | 3.6.1 |
 
 ## Modules
@@ -136,11 +136,9 @@
 | <a name="input_create_assets_internal_idp_bucket"></a> [create\_assets\_internal\_idp\_bucket](#input\_create\_assets\_internal\_idp\_bucket) | Create assets internal idp bucket. | `bool` | `false` | no |
 | <a name="input_create_athena_table"></a> [create\_athena\_table](#input\_create\_athena\_table) | Create athena table, query, glue crawler and all related resources. | `bool` | `true` | no |
 | <a name="input_create_idp_metadata_bucket"></a> [create\_idp\_metadata\_bucket](#input\_create\_idp\_metadata\_bucket) | Create idp metadata bucket. | `bool` | `true` | no |
-| <a name="input_create_metadata_bucket"></a> [create\_metadata\_bucket](#input\_create\_metadata\_bucket) | Create metadata bucket. | `bool` | `true` | no |
 | <a name="input_github_repository"></a> [github\_repository](#input\_github\_repository) | n/a | `string` | n/a | yes |
 | <a name="input_idp_metadata_bucket_prefix"></a> [idp\_metadata\_bucket\_prefix](#input\_idp\_metadata\_bucket\_prefix) | Idp metadata bucket prefix. | `string` | `""` | no |
 | <a name="input_kms_rotation_period_in_days"></a> [kms\_rotation\_period\_in\_days](#input\_kms\_rotation\_period\_in\_days) | n/a | `number` | `365` | no |
-| <a name="input_metadata_bucket_prefix"></a> [metadata\_bucket\_prefix](#input\_metadata\_bucket\_prefix) | Metadata bucket prefix. | `string` | `""` | no |
 | <a name="input_role_prefix"></a> [role\_prefix](#input\_role\_prefix) | Prefix to assign to the roles. | `string` | n/a | yes |
 
 ## Outputs

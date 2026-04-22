@@ -2,13 +2,13 @@ data "aws_caller_identity" "current" {}
 
 
 module "iam" {
-  source            = "../../modules/iam"
+  source            = "./modules/iam"
   prefix            = local.project
   github_repository = "pagopa/oneidentity"
 }
 
 module "r53_zones" {
-  source = "../../modules/dns"
+  source = "./modules/dns"
 
   r53_dns_zones = {
     (var.r53_dns_zone.name) = {
@@ -51,7 +51,7 @@ module "dev_ns_record" {
 
 
 module "network" {
-  source   = "../../modules/network"
+  source   = "./modules/network"
   vpc_name = format("%s-vpc", local.project)
 
   azs = ["eu-south-1a", "eu-south-1b", "eu-south-1c"]
@@ -65,7 +65,7 @@ module "network" {
 
 }
 module "storage" {
-  source = "../../modules/storage"
+  source = "./modules/storage"
 
   role_prefix = local.project
 
@@ -90,13 +90,13 @@ module "storage" {
 
 ## SNS for alarms ##
 module "sns" {
-  source            = "../../modules/sns"
+  source            = "./modules/sns"
   sns_topic_name    = format("%s-sns", local.project)
   alarm_subscribers = var.alarm_subscribers
 }
 
 module "sqs" {
-  source         = "../../modules/sqs"
+  source         = "./modules/sqs"
   sqs_queue_name = format("%s-pdv-reconciler-sqs", local.project)
   sns_topic_arn  = module.sns.sns_topic_arn
   env_short      = var.env_short
@@ -104,9 +104,9 @@ module "sqs" {
 
 }
 
-## Database ##  
+## Database ##
 module "database" {
-  source                      = "../../modules/database"
+  source                      = "./modules/database"
   sessions_table              = var.sessions_table
   client_registrations_table  = var.client_registrations_table
   idp_metadata_table          = var.idp_metadata_table
@@ -123,7 +123,7 @@ module "database" {
 ## Backend ##
 
 module "backend" {
-  source = "../../modules/backend"
+  source = "./modules/backend"
 
   aws_region = var.aws_region
   env_short  = var.env_short
@@ -502,7 +502,7 @@ module "backend" {
 }
 
 module "frontend" {
-  source = "../../modules/frontend"
+  source = "./modules/frontend"
 
   ## DNS
   domain_name        = module.r53_zones.dns_zone_name
@@ -565,9 +565,6 @@ module "frontend" {
   api_authorizer_admin_name = format("%s-restapi-admin-authorizer", local.project)
   provider_arn              = module.cognito.user_pool_arn
 
-  cognito_domain_cloudfront_distribution         = module.cognito.cloudfront_distribution
-  cognito_domain_cloudfront_distribution_zone_id = module.cognito.cloudfront_distribution_zone_id
-
   cloudfront = {
     name                      = format("%s-cloudfront", local.project)
     bucket_arn                = module.storage.assets_bucket_arn
@@ -581,7 +578,7 @@ module "frontend" {
 module "monitoring" {
   env_short                       = var.env_short
   region_short                    = var.aws_region_short
-  source                          = "../../modules/monitoring"
+  source                          = "./modules/monitoring"
   main_dashboard_name             = format("%s-overall-dashboard", local.project)
   api_methods_dashboard_name      = format("%s-api-methods-dashboard", local.project)
   detailed_metrics_dashboard_name = format("%s-detailed-metrics-dashboard", local.project)
@@ -615,7 +612,7 @@ module "monitoring" {
 }
 
 module "cognito" {
-  source = "../../modules/cognito"
+  source = "./modules/cognito"
   cognito = {
     logout_url           = "https://admin.oneid.pagopa.it/logout", #TBD
     user_pool_client     = format("%s-user_pool_client", local.project),

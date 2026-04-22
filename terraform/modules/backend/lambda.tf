@@ -1,4 +1,4 @@
-## Github 
+## Github
 
 resource "aws_iam_role_policy_attachment" "deploy_lambda" {
   role       = aws_iam_role.github_lambda_deploy.name
@@ -952,7 +952,7 @@ resource "null_resource" "install_client_manager_dependencies" {
   }
 
   triggers = {
-    always_run = "${timestamp()}"
+    always_run = timestamp()
   }
 }
 
@@ -1210,7 +1210,7 @@ resource "null_resource" "install_dependencies" {
   }
 
   triggers = {
-    always_run = "${timestamp()}"
+    always_run = timestamp()
   }
 }
 

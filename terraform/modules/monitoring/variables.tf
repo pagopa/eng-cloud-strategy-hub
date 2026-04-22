@@ -82,11 +82,6 @@ variable "nlb" {
   description = "Network load balancer configurations."
 }
 
-variable "query_files" {
-  type    = list(string)
-  default = [] # Empty list, we'll populate it with locals
-}
-
 variable "alarm_subscribers" {
   type        = string
   description = "SSM parameter store with the list alarm subscribers."

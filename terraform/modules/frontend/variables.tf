@@ -37,16 +37,6 @@ variable "domain_assets_name" {
   default     = null
 }
 
-variable "cognito_domain_cloudfront_distribution" {
-  type    = string
-  default = null
-}
-
-variable "cognito_domain_cloudfront_distribution_zone_id" {
-  type    = string
-  default = null
-}
-
 variable "domain_auth_name" {
   type        = string
   description = "DNS domain name."
@@ -57,12 +47,6 @@ variable "deploy_internal_idp_rest_api" {
   type        = bool
   description = "ApiGW deploy internal idp api."
   default     = false
-}
-
-variable "create_custom_domain_admin_name" {
-  type        = bool
-  description = "ApiGw create custom domain admin name."
-  default     = true
 }
 
 variable "r53_dns_zone_id" {
@@ -81,7 +65,7 @@ variable "dns_record_ttl" {
   description = "DNS records ttl"
 }
 
-## API Gateway ## 
+## API Gateway ##
 
 variable "rest_api_name" {
   type        = string

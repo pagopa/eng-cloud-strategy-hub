@@ -44,13 +44,13 @@ No outputs.
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >=5.49 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.49, < 6.0.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >=5.49 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
 
 ## Modules
 
@@ -90,7 +90,6 @@ No modules.
 | <a name="input_lambda_metadata"></a> [lambda\_metadata](#input\_lambda\_metadata) | n/a | <pre>object({<br/>    log_group_name = string<br/>  })</pre> | n/a | yes |
 | <a name="input_main_dashboard_name"></a> [main\_dashboard\_name](#input\_main\_dashboard\_name) | Name of the main dashboard. | `string` | n/a | yes |
 | <a name="input_nlb"></a> [nlb](#input\_nlb) | Network load balancer configurations. | <pre>object({<br/>    arn_suffix              = string<br/>    target_group_arn_suffix = string<br/>  })</pre> | n/a | yes |
-| <a name="input_query_files"></a> [query\_files](#input\_query\_files) | n/a | `list(string)` | `[]` | no |
 | <a name="input_region_short"></a> [region\_short](#input\_region\_short) | AWS Region short format. | `string` | n/a | yes |
 | <a name="input_sessions_table"></a> [sessions\_table](#input\_sessions\_table) | Dynamodb Sessions table | `string` | n/a | yes |
 

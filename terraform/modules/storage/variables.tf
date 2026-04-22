@@ -78,18 +78,6 @@ variable "idp_metadata_bucket_prefix" {
   default     = ""
 }
 
-variable "create_metadata_bucket" {
-  type        = bool
-  description = "Create metadata bucket."
-  default     = true
-}
-
-variable "metadata_bucket_prefix" {
-  type        = string
-  description = "Metadata bucket prefix."
-  default     = ""
-}
-
 //TODO check if this is needed
 //variable "metadata_bucket" {
 //  type = object({

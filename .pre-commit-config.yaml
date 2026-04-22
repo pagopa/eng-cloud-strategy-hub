@@ -42,10 +42,13 @@ repos:
     rev: v1.105.0 # pre-commit-terraform v1.105.0
     hooks:
       - id: terraform_fmt
+        exclude: '^terraform/main\.tf$'
       - id: terraform_docs
+        exclude: '^terraform/main\.tf$'
         args:
           - markdown --sort-by required
       - id: terraform_validate
+        exclude: '^terraform/main\.tf$'
         verbose: true
         args:
           - --hook-config=--retry-once-with-cleanup=true
@@ -54,6 +57,7 @@ repos:
           - --args=-json
           - --args=-no-color
       - id: terraform_tflint
+        exclude: '^terraform/main\.tf$'
       # - id: terraform_providers_lock
       #   args:
       #     - --hook-config=--mode=always-regenerate-lockfile

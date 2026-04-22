@@ -247,7 +247,7 @@ while [ $# -gt 0 ]; do
       ;;
   esac
 done
-other="${other_args[@]}"
+other="${other_args[*]}"
 
 case "$action" in
   help|-h|\?|clean|list)

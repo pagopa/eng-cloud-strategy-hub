@@ -1,0 +1,8 @@
+{
+  "height": 6,
+  "width": 24,
+  "type": "text",
+  "properties": {
+    "markdown": "### Assertion Counter\nRegion: ${aws_region}"
+  }
+}
