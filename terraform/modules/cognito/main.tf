@@ -1,4 +1,4 @@
-# Cognito user pool 
+# Cognito user pool
 resource "aws_cognito_user_pool" "main" {
   name = var.cognito.user_pool_name
 
@@ -87,7 +87,7 @@ resource "aws_cognito_user_pool" "main" {
 # }
 
 # resource "aws_route53_record" "auth_alias" {
-#   name    = "auth.admin"  
+#   name    = "auth.admin"
 #   type    = "A"
 #   zone_id = var.r53_dns_zone_id
 #   alias {
