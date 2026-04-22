@@ -226,9 +226,9 @@ data "aws_iam_policy_document" "s3_apigw_proxy" {
     actions = ["s3:GetObject", "s3:ListBucket"]
     resources = [
       "${var.assets_bucket_arn}/*",
-      "${var.assets_bucket_arn}",
+      var.assets_bucket_arn,
       "${var.assets_control_panel_bucket_arn}/*",
-      "${var.assets_control_panel_bucket_arn}",
+      var.assets_control_panel_bucket_arn,
     ]
   }
 }
@@ -240,7 +240,7 @@ data "aws_iam_policy_document" "s3_internal_idp_bucket_apigw_proxy" {
     actions = ["s3:GetObject", "s3:ListBucket"]
     resources = [
       "${var.assets_internal_idp_bucket_arn}/*",
-      "${var.assets_internal_idp_bucket_arn}",
+      var.assets_internal_idp_bucket_arn,
     ]
   }
 }
@@ -368,7 +368,7 @@ resource "aws_cloudwatch_metric_alarm" "api_alarms" {
   alarm_actions = each.value.sns_topic_alarm_arn != null ? [each.value.sns_topic_alarm_arn] : []
 }
 
-## Firewall regional web acl  
+## Firewall regional web acl
 resource "aws_wafv2_web_acl" "main" {
   name        = var.web_acl.name
   description = "Api gateway WAF."
@@ -538,7 +538,7 @@ module "rest_api_internal_idp" {
   api_authorizer = {}
 }
 
-## Cloudfront 
+## Cloudfront
 
 resource "aws_cloudfront_origin_access_control" "assets_cdn" {
   count                             = var.deploy_cloudfront ? 1 : 0

@@ -76,7 +76,7 @@ resource "aws_iam_policy" "replication" {
       ],
       "Effect": "Allow",
       "Resource": [
-        "${module.s3_assertions_bucket.s3_bucket_arn}",
+        module.s3_assertions_bucket.s3_bucket_arn,
         "${module.s3_assertions_bucket.s3_bucket_arn}/*"
       ]
     },
@@ -116,7 +116,7 @@ resource "aws_iam_policy" "replication" {
         }
       },
       "Resource": [
-        "${module.kms_assertions_bucket.aliases["assertions/S3"].target_key_arn}"
+        module.kms_assertions_bucket.aliases["assertions/S3"].target_key_arn
       ]
     },
     {
@@ -135,7 +135,7 @@ resource "aws_iam_policy" "replication" {
         }
       },
       "Resource": [
-        "${var.assertion_bucket.replication_configuration.kms_key_replica_arn}"
+        var.assertion_bucket.replication_configuration.kms_key_replica_arn
       ]
     },
     {
@@ -145,7 +145,7 @@ resource "aws_iam_policy" "replication" {
         "kms:GenerateDataKey"
       ],
       "Resource": [
-        "${module.kms_assertions_bucket.aliases["assertions/S3"].target_key_arn}"
+        module.kms_assertions_bucket.aliases["assertions/S3"].target_key_arn
       ]
     },
     {
@@ -155,7 +155,7 @@ resource "aws_iam_policy" "replication" {
         "kms:Encrypt"
       ],
       "Resource": [
-        "${var.assertion_bucket.replication_configuration.kms_key_replica_arn}"
+        var.assertion_bucket.replication_configuration.kms_key_replica_arn
       ]
     }
   ]
@@ -179,7 +179,7 @@ data "aws_iam_policy_document" "lambda_assertions" {
     sid    = "Cross lambda access"
     effect = "Allow"
     resources = [
-      "${module.s3_assertions_bucket.s3_bucket_arn}",
+      module.s3_assertions_bucket.s3_bucket_arn,
       "${module.s3_assertions_bucket.s3_bucket_arn}/*"
     ]
     actions = ["s3:PutObject"]
@@ -187,7 +187,7 @@ data "aws_iam_policy_document" "lambda_assertions" {
     principals {
       type = "AWS"
       identifiers = [
-        "${var.assertion_bucket.lambda_role_arn}"
+        var.assertion_bucket.lambda_role_arn
       ]
     }
   }

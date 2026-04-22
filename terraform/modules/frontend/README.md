@@ -65,15 +65,16 @@
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >=5.49 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.49, < 6.0.0 |
+| <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >=5.49 |
-| <a name="provider_aws.us_east_1"></a> [aws.us\_east\_1](#provider\_aws.us\_east\_1) | >=5.49 |
-| <a name="provider_random"></a> [random](#provider\_random) | n/a |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
+| <a name="provider_aws.us_east_1"></a> [aws.us\_east\_1](#provider\_aws.us\_east\_1) | 5.100.0 |
+| <a name="provider_random"></a> [random](#provider\_random) | 3.8.1 |
 
 ## Modules
 
@@ -145,10 +146,7 @@
 | <a name="input_client_manager_lambda_arn"></a> [client\_manager\_lambda\_arn](#input\_client\_manager\_lambda\_arn) | lambda client manager arn | `string` | n/a | yes |
 | <a name="input_client_registration_lambda_arn"></a> [client\_registration\_lambda\_arn](#input\_client\_registration\_lambda\_arn) | lambda client registration arn | `string` | n/a | yes |
 | <a name="input_cloudfront"></a> [cloudfront](#input\_cloudfront) | n/a | <pre>object({<br/>    name                      = string,<br/>    bucket_origin_domain_name = string,<br/>    bucket_id                 = string,<br/>    bucket_arn                = string<br/>  })</pre> | `null` | no |
-| <a name="input_cognito_domain_cloudfront_distribution"></a> [cognito\_domain\_cloudfront\_distribution](#input\_cognito\_domain\_cloudfront\_distribution) | n/a | `string` | `null` | no |
-| <a name="input_cognito_domain_cloudfront_distribution_zone_id"></a> [cognito\_domain\_cloudfront\_distribution\_zone\_id](#input\_cognito\_domain\_cloudfront\_distribution\_zone\_id) | n/a | `string` | `null` | no |
 | <a name="input_cors_allow_origins"></a> [cors\_allow\_origins](#input\_cors\_allow\_origins) | List of allowed origins for CORS. | `string` | `null` | no |
-| <a name="input_create_custom_domain_admin_name"></a> [create\_custom\_domain\_admin\_name](#input\_create\_custom\_domain\_admin\_name) | ApiGw create custom domain admin name. | `bool` | `true` | no |
 | <a name="input_create_custom_domain_name"></a> [create\_custom\_domain\_name](#input\_create\_custom\_domain\_name) | ApiGw create custom domain admin name. | `bool` | `true` | no |
 | <a name="input_create_dns_record"></a> [create\_dns\_record](#input\_create\_dns\_record) | Create DNS record to associate the API Gateway RestApi to the hosted zone. | `bool` | `true` | no |
 | <a name="input_deploy_cloudfront"></a> [deploy\_cloudfront](#input\_deploy\_cloudfront) | n/a | `bool` | `true` | no |

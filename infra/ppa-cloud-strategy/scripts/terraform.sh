@@ -273,7 +273,7 @@ action=$1
 env=$2
 filetf=$3
 shift 2
-other=$@
+other=$*
 
 if [ -n "$env" ]; then
   # shellcheck source=/dev/null
@@ -282,8 +282,11 @@ if [ -n "$env" ]; then
     echo "az not found, cannot proceed"
     exit 1
   fi
-  az account set -s "${subscription}"
-  export ARM_SUBSCRIPTION_ID=$(az account list --query "[?isDefault].id" --output tsv)
+  if [ -n "${subscription:-}" ]; then
+    az account set -s "${subscription}"
+  fi
+  ARM_SUBSCRIPTION_ID=$(az account show --query id --output tsv)
+  export ARM_SUBSCRIPTION_ID
 fi
 
 # Call appropriate function based on action

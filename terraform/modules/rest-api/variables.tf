@@ -77,12 +77,6 @@ variable "certificate_arn" {
   default     = null
 }
 
-variable "api_mapping_key" {
-  type        = string
-  description = "The API mapping key."
-  default     = null
-}
-
 variable "plan" {
   type = object({
     name                 = string

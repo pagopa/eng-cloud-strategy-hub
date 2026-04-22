@@ -39,10 +39,6 @@ data "aws_ssm_parameter" "certificate" {
   name = var.ssm_cert_key.cert_pem
 }
 
-data "aws_ssm_parameter" "key" {
-  name = var.ssm_cert_key.key_pem
-}
-
 data "aws_ssm_parameter" "internal_idp_certificate" {
   count = var.internal_idp_enabled ? 1 : 0
   name  = var.ssm_idp_internal_cert_key.cert_pem
@@ -107,7 +103,7 @@ resource "aws_iam_policy" "ecs_core_task" {
           "dynamodb:UpdateItem",
         ]
         Resource = [
-          "${var.dynamodb_table_sessions.table_arn}"
+          var.dynamodb_table_sessions.table_arn
         ]
       },
       {
@@ -117,7 +113,7 @@ resource "aws_iam_policy" "ecs_core_task" {
         ]
         Effect = "Allow"
         Resource = [
-          "${var.dynamodb_table_sessions.gsi_code_arn}",
+          var.dynamodb_table_sessions.gsi_code_arn,
         ]
       },
       {
@@ -127,7 +123,7 @@ resource "aws_iam_policy" "ecs_core_task" {
         ]
         Effect = "Allow"
         Resource = [
-          "${var.dynamodb_table_idpMetadata.gsi_pointer_arn}",
+          var.dynamodb_table_idpMetadata.gsi_pointer_arn,
         ]
       },
       {
@@ -137,7 +133,7 @@ resource "aws_iam_policy" "ecs_core_task" {
         ]
         Effect = "Allow"
         Resource = [
-          "${var.dynamodb_table_idpMetadata.table_arn}",
+          var.dynamodb_table_idpMetadata.table_arn,
         ]
       },
       {
@@ -148,7 +144,7 @@ resource "aws_iam_policy" "ecs_core_task" {
           "dynamodb:Scan",
         ]
         Resource = [
-          "${var.table_client_registrations_arn}"
+          var.table_client_registrations_arn
         ]
       },
       {
@@ -160,7 +156,7 @@ resource "aws_iam_policy" "ecs_core_task" {
           "dynamodb:UpdateItem",
         ]
         Resource = [
-          "${var.table_last_idp_used_arn}"
+          var.table_last_idp_used_arn
         ]
       },
       {
@@ -175,7 +171,7 @@ resource "aws_iam_policy" "ecs_core_task" {
         ],
         Condition = {
           StringEquals = {
-            "kms:RequestAlias" = "${module.jwt_sign.aliases.sign-jwt.name}"
+            "kms:RequestAlias" = module.jwt_sign.aliases["sign-jwt"].name
           }
         }
       },
@@ -198,7 +194,7 @@ resource "aws_iam_policy" "ecs_core_task" {
           "kms:Encrypt",
         ]
         Resource = [
-          "${module.kms_key_pem.aliases["keyPem/SSM"].target_key_arn}"
+          module.kms_key_pem.aliases["keyPem/SSM"].target_key_arn
         ]
       },
       {
@@ -210,8 +206,8 @@ resource "aws_iam_policy" "ecs_core_task" {
           "ssm:List*"
         ],
         "Resource" : [
-          "${data.aws_ssm_parameter.certificate.arn}",
-          "${aws_ssm_parameter.key_pem.arn}",
+          data.aws_ssm_parameter.certificate.arn,
+          aws_ssm_parameter.key_pem.arn,
           "arn:aws:ssm:${var.aws_region}:${var.account_id}:parameter/pdv/*"
         ]
       },
@@ -232,7 +228,7 @@ resource "aws_iam_policy" "ecs_core_task" {
           "sqs:SendMessage"
         ],
         "Resource" : [
-          "${var.pdv_reconciler_lambda.pdv_errors_queue_arn}"
+          var.pdv_reconciler_lambda.pdv_errors_queue_arn
         ]
       },
     ]
@@ -256,7 +252,7 @@ resource "aws_iam_policy" "ecs_internal_idp_task" {
           "dynamodb:UpdateItem",
         ]
         Resource = [
-          "${var.dynamodb_table_internal_idp_session_arn}"
+          var.dynamodb_table_internal_idp_session_arn
         ]
       },
       {
@@ -268,7 +264,7 @@ resource "aws_iam_policy" "ecs_internal_idp_task" {
           "dynamodb:UpdateItem",
         ]
         Resource = [
-          "${var.dynamodb_table_internal_idp_users_arn}"
+          var.dynamodb_table_internal_idp_users_arn
         ]
       },
       {
@@ -279,7 +275,7 @@ resource "aws_iam_policy" "ecs_internal_idp_task" {
           "dynamodb:Scan",
         ]
         Resource = [
-          "${var.table_client_registrations_arn}"
+          var.table_client_registrations_arn
         ]
       },
       {
@@ -290,7 +286,7 @@ resource "aws_iam_policy" "ecs_internal_idp_task" {
           "kms:Encrypt",
         ]
         Resource = [
-          "${module.kms_key_pem.aliases["keyPem/SSM"].target_key_arn}"
+          module.kms_key_pem.aliases["keyPem/SSM"].target_key_arn
         ]
       },
       {
@@ -302,10 +298,10 @@ resource "aws_iam_policy" "ecs_internal_idp_task" {
           "ssm:List*"
         ],
         "Resource" : [
-          "${data.aws_ssm_parameter.certificate.arn}",
-          "${aws_ssm_parameter.key_pem.arn}",
-          "${data.aws_ssm_parameter.internal_idp_certificate[0].arn}",
-          "${data.aws_ssm_parameter.internal_idp_key[0].arn}"
+          data.aws_ssm_parameter.certificate.arn,
+          aws_ssm_parameter.key_pem.arn,
+          data.aws_ssm_parameter.internal_idp_certificate[0].arn,
+          data.aws_ssm_parameter.internal_idp_key[0].arn
         ]
       },
     ]
@@ -358,7 +354,7 @@ module "ecs_core_service" {
 
 
   container_definitions = {
-    "${var.service_core.container.name}" = {
+    (var.service_core.container.name) = {
       cpu                         = var.service_core.container.cpu
       memory                      = var.service_core.memory
       create_cloudwatch_log_group = false
@@ -1092,17 +1088,7 @@ module "elb" {
   tags = { Name : var.nlb_name }
 }
 
-locals {
-  service_id = join("/", [
-    "service",
-    module.ecs_cluster.cluster_name,
-    module.ecs_core_service.name
-    ]
-  )
-
-}
-
-## Iam role to switch region ## 
+## Iam role to switch region ##
 
 resource "aws_iam_role" "switch_region_role" {
   count       = var.switch_region_enabled ? 1 : 0
@@ -1150,7 +1136,7 @@ resource "aws_iam_policy" "switch_region_policy" {
           "ecs:DescribeServices"
         ]
         Resource = [
-          "${module.ecs_cluster.cluster_arn}",
+          module.ecs_cluster.cluster_arn,
           "arn:aws:ecs:${var.aws_region}:${var.aws_caller_identity}:service/${var.ecs_cluster_name}/${var.service_core.service_name}",
           "arn:aws:application-autoscaling:${var.aws_region}:${var.aws_caller_identity}:scalable-target/*"
         ]

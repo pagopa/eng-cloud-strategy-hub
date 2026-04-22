@@ -1,0 +1,8 @@
+{
+  "height": 6,
+  "width": 12,
+  "type": "text",
+  "properties": {
+    "markdown": "### SAML Status IDP Widget\nIDP: ${idp}\nRegion: ${aws_region}\nEnvironment: ${env_short}-${region_short}"
+  }
+}

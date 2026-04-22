@@ -1,4 +1,4 @@
-# Cognito user pool 
+# Cognito user pool
 resource "aws_cognito_user_pool" "main" {
   name = var.cognito.user_pool_name
 
@@ -87,7 +87,7 @@ resource "aws_cognito_user_pool" "main" {
 # }
 
 # resource "aws_route53_record" "auth_alias" {
-#   name    = "auth.admin"  
+#   name    = "auth.admin"
 #   type    = "A"
 #   zone_id = var.r53_dns_zone_id
 #   alias {
@@ -147,8 +147,8 @@ resource "aws_cognito_user_pool_client" "client" {
   allowed_oauth_flows  = ["code"]
   allowed_oauth_scopes = ["email", "openid", "profile"]
 
-  callback_urls = ["http://localhost:5173", "${var.cognito.callback_url}"]
-  logout_urls   = ["${var.cognito.logout_url}"] # Update with your app's logout URL
+  callback_urls = ["http://localhost:5173", var.cognito.callback_url]
+  logout_urls   = [var.cognito.logout_url] # Update with your app's logout URL
 
   supported_identity_providers = ["COGNITO"]
 

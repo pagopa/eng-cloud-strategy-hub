@@ -1,0 +1,12 @@
+{
+  "widgets": [
+    {
+      "height": 6,
+      "width": 24,
+      "type": "text",
+      "properties": {
+        "markdown": "# One Identity Overview\nAPI: ${api_name}\nSessions table: ${sessions_table}\nClient registrations table: ${client_registrations_table}\nECS service: ${ecs.service_name}\nNLB suffix: ${nlb.arn_suffix}\nRegion: ${aws_region}"
+      }
+    }
+  ]
+}

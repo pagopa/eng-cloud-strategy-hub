@@ -1,0 +1,8 @@
+{
+  "height": 6,
+  "width": 12,
+  "type": "text",
+  "properties": {
+    "markdown": "### Client Aggregated Widget\nClient: ${friendly_name} (${client_id})\nRegion: ${aws_region}\nEnvironment: ${env_short}-${region_short}"
+  }
+}

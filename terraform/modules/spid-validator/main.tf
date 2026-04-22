@@ -47,7 +47,7 @@ module "ecs_spid_validator" {
   */
 
   container_definitions = {
-    "${var.spid_validator.container.name}" = {
+    (var.spid_validator.container.name) = {
       cpu    = var.spid_validator.container.cpu
       memory = var.spid_validator.container.memory
 

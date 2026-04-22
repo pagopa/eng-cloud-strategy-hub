@@ -69,13 +69,13 @@ No modules.
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >=5.49 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.49, < 6.0.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >=5.49 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
 
 ## Modules
 
@@ -107,7 +107,6 @@ No modules.
 | <a name="input_api_authorizer"></a> [api\_authorizer](#input\_api\_authorizer) | n/a | <pre>object({<br/>    name          = optional(string, "")<br/>    user_pool_arn = optional(string, "")<br/>  })</pre> | n/a | yes |
 | <a name="input_api_cache_cluster_enabled"></a> [api\_cache\_cluster\_enabled](#input\_api\_cache\_cluster\_enabled) | Enablr cache cluster is enabled for the stage. | `bool` | `false` | no |
 | <a name="input_api_cache_cluster_size"></a> [api\_cache\_cluster\_size](#input\_api\_cache\_cluster\_size) | Size of the cache cluster for the stage, if enabled. | `number` | `0.5` | no |
-| <a name="input_api_mapping_key"></a> [api\_mapping\_key](#input\_api\_mapping\_key) | The API mapping key. | `string` | `null` | no |
 | <a name="input_body"></a> [body](#input\_body) | Open api json body | `string` | n/a | yes |
 | <a name="input_certificate_arn"></a> [certificate\_arn](#input\_certificate\_arn) | Api Gateway certificate arn | `string` | `null` | no |
 | <a name="input_create_custom_domain_name"></a> [create\_custom\_domain\_name](#input\_create\_custom\_domain\_name) | Create custom domain name. If true the custom\_domain\_name can not be null. | `bool` | `false` | no |
