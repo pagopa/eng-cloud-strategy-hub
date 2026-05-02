@@ -515,10 +515,10 @@ module "frontend" {
 
   ## API Gateway ##
   rest_api_name         = format("%s-restapi", local.project)
-  openapi_template_file = "../../api/oi.tpl.json"
+  openapi_template_file = "${path.module}/api/oi.tpl.json"
   rest_api_admin_name   = format("%s-restapi-admin", local.project)
 
-  openapi_admin_template_file = "../../api/oi-admin.tpl.json"
+  openapi_admin_template_file = "${path.module}/api/oi-admin.tpl.json"
 
   dns_record_ttl = var.dns_record_ttl
 
