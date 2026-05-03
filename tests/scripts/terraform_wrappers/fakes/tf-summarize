@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+log_file="${FAKE_LOG_DIR:?}/tf-summarize.log"
+output_file=""
+content='Plan Summary'
+
+{
+  printf 'cwd=%s argv=' "$PWD"
+  printf '%q ' "$@"
+  printf '\n'
+} >> "$log_file"
+
+for arg in "$@"; do
+  case "$arg" in
+    -md)
+      content='| Action | Address |
+| --- | --- |
+| create | null_resource.example |'
+      ;;
+    -json)
+      content='{"create":1}'
+      ;;
+    -json-sum)
+      content='{"summary":{"create":1}}'
+      ;;
+    -html)
+      content='<html><body>summary</body></html>'
+      ;;
+    -tree)
+      content='tree summary'
+      ;;
+    -separate-tree)
+      content='separate tree summary'
+      ;;
+    -out=*)
+      output_file="${arg#-out=}"
+      ;;
+  esac
+done
+
+if [[ -n "$output_file" ]]; then
+  printf '%s\n' "$content" > "$output_file"
+fi
+
+printf '%s\n' "$content"

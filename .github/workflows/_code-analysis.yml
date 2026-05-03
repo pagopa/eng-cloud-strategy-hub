@@ -1,0 +1,150 @@
+name: "20 🔬 Code Analysis"
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+    paths:
+      - ".github/workflows/**"
+      - ".github/scripts/**"
+      - "local-actions.sh"
+      - "scripts/**"
+      - "tests/scripts/**"
+      - "tools/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/**"
+      - ".github/scripts/**"
+      - "local-actions.sh"
+      - "scripts/**"
+      - "tests/scripts/**"
+      - "tools/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: code-analysis-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workflow-static-analysis:
+    name: Workflow Static Analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: 🔎 Run actionlint
+        run: |
+          if command -v actionlint >/dev/null 2>&1; then
+            ACTIONLINT_BIN="$(command -v actionlint)"
+          else
+            if ! command -v go >/dev/null 2>&1; then
+              echo "Go is required to install actionlint on this runner." >&2
+              exit 1
+            fi
+
+            export GOBIN="${RUNNER_TEMP}/bin"
+            mkdir -p "${GOBIN}"
+            go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+            ACTIONLINT_BIN="${GOBIN}/actionlint"
+          fi
+
+          "${ACTIONLINT_BIN}" -version
+          "${ACTIONLINT_BIN}" .github/workflows/*.yml
+
+  shell-static-analysis:
+    name: Shell Static Analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: 📂 Collect shell targets
+        run: |
+          shell_targets=()
+
+          while IFS= read -r -d '' candidate; do
+            if head -n 1 "${candidate}" | grep -Eq '^#!/usr/bin/env bash$|^#!/bin/bash$'; then
+              shell_targets+=("${candidate}")
+            fi
+          done < <(
+            find .github/scripts scripts tests/scripts tools local-actions.sh \
+              -type f \
+              ! -name '.gitkeep' \
+              -print0
+          )
+
+          if [[ ${#shell_targets[@]} -eq 0 ]]; then
+            echo "ℹ️ No shell analysis targets found."
+            exit 1
+          fi
+
+          printf '%s\n' "${shell_targets[@]}" | sort > "${RUNNER_TEMP}/shell-targets.txt"
+          cat "${RUNNER_TEMP}/shell-targets.txt"
+
+      - name: 🧪 Run Bash syntax checks
+        run: |
+          mapfile -t shell_targets < "${RUNNER_TEMP}/shell-targets.txt"
+
+          for target in "${shell_targets[@]}"; do
+            bash -n "${target}"
+          done
+
+      - name: 📦 Ensure ShellCheck is available
+        run: |
+          if command -v shellcheck >/dev/null 2>&1; then
+            shellcheck --version
+            exit 0
+          fi
+
+          sudo apt-get update
+          sudo apt-get install --yes shellcheck
+
+      - name: 🔎 Run ShellCheck
+        run: |
+          mapfile -t shell_targets < "${RUNNER_TEMP}/shell-targets.txt"
+          shellcheck -s bash -x "${shell_targets[@]}"
+
+  copilot-customization-entrypoints:
+    name: Copilot Customization Entry Points
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: 🔥 Smoke test bootstrap entry point
+        run: bash .github/scripts/bootstrap-copilot-config.sh --help
+
+      - name: 🔥 Smoke test validation entry point
+        run: bash .github/scripts/validate-copilot-customizations.sh --help

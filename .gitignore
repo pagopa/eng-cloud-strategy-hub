@@ -1,5 +1,6 @@
 # Project
 deleteme
+tmp/
 
 # Local .terraform directories
 **/.terraform/*
@@ -66,5 +67,7 @@ htmlcov/
 .venv/
 venv/
 env/
+!tests/scripts/terraform_wrappers/fixtures/**/env/
+!tests/scripts/terraform_wrappers/fixtures/**/env/**
 .python-version
 /tmp/superpowers/

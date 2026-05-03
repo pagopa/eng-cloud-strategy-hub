@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+log_file="${FAKE_LOG_DIR:?}/az.log"
+
+{
+  printf 'cwd=%s argv=' "$PWD"
+  printf '%q ' "$@"
+  printf '\n'
+} >> "$log_file"
+
+if [[ "${1:-}" == 'account' && "${2:-}" == 'show' ]]; then
+  printf '00000000-0000-0000-0000-000000000001\n'
+fi

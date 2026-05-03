@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+log_file="${FAKE_LOG_DIR:?}/gcloud.log"
+
+{
+  printf 'cwd=%s argv=' "$PWD"
+  printf '%q ' "$@"
+  printf '\n'
+} >> "$log_file"
+
+if [[ "${1:-}" == 'auth' && "${2:-}" == 'list' ]]; then
+  printf 'fake@example.com\n'
+fi

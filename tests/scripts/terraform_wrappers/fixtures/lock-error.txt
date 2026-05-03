@@ -1,0 +1,3 @@
+Error acquiring the state lock
+Lock Info:
+  ID: fake-log-lock-id

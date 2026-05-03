@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+log_file="${FAKE_LOG_DIR:?}/aws.log"
+
+{
+  printf 'cwd=%s argv=' "$PWD"
+  printf '%q ' "$@"
+  printf '\n'
+} >> "$log_file"
+
+case "${1:-}" in
+  configure)
+    case "${2:-}" in
+      list-profiles)
+        printf 'fake-profile\n'
+        ;;
+      get)
+        printf '\n'
+        ;;
+    esac
+    ;;
+  sts)
+    if [[ "${2:-}" == 'get-caller-identity' ]]; then
+      printf '{"Account":"123456789012"}\n'
+    fi
+    ;;
+  sso)
+    ;;
+esac
