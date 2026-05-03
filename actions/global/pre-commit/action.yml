@@ -1,0 +1,118 @@
+name: Pre-commit Container Runner
+description: Run repository pre-commit checks inside the pinned pre-commit-terraform container.
+author: Cloud Strategy Governance
+
+inputs:
+  pre-commit-image:
+    description: Digest-pinned pre-commit container image.
+    required: false
+    default: ghcr.io/antonbabenko/pre-commit-terraform:v1.105.0@sha256:4ef4b8323b27fc263535ad88c9d2f20488fcb3b520258e5e7f0553ed5f6692b5 # pre-commit-terraform v1.105.0
+  pre-commit-config:
+    description: Path to the pre-commit configuration file.
+    required: false
+    default: .pre-commit-config.yaml
+  pre-commit-cache-dir:
+    description: Host path used for the pre-commit cache. Defaults to RUNNER_TEMP/pre-commit-cache when empty.
+    required: false
+    default: ""
+  run-args:
+    description: Whitespace-separated arguments passed to pre-commit run.
+    required: false
+    default: --all-files --verbose --show-diff-on-failure --color always
+
+outputs:
+  cache-dir:
+    description: Resolved host path used for the pre-commit cache.
+    value: ${{ steps.settings.outputs.cache-dir }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve pre-commit settings
+      id: settings
+      shell: bash
+      env:
+        PRE_COMMIT_IMAGE_INPUT: ${{ inputs.pre-commit-image }}
+        PRE_COMMIT_CONFIG_INPUT: ${{ inputs.pre-commit-config }}
+        PRE_COMMIT_CACHE_DIR_INPUT: ${{ inputs.pre-commit-cache-dir }}
+        RUN_ARGS_INPUT: ${{ inputs.run-args }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "${PRE_COMMIT_IMAGE_INPUT}" ]]; then
+          echo "::error::pre-commit-image input is required."
+          exit 1
+        fi
+
+        if [[ "${PRE_COMMIT_IMAGE_INPUT}" != *@sha256:* ]]; then
+          echo "::error::pre-commit-image must be pinned by digest."
+          exit 1
+        fi
+
+        if [[ -z "${PRE_COMMIT_CONFIG_INPUT}" ]]; then
+          echo "::error::pre-commit-config input is required."
+          exit 1
+        fi
+
+        if [[ ! -f "${PRE_COMMIT_CONFIG_INPUT}" ]]; then
+          echo "::error::pre-commit config not found: ${PRE_COMMIT_CONFIG_INPUT}"
+          exit 1
+        fi
+
+        cache_dir="${PRE_COMMIT_CACHE_DIR_INPUT}"
+        if [[ -z "${cache_dir}" ]]; then
+          cache_dir="${RUNNER_TEMP}/pre-commit-cache"
+        fi
+
+        mkdir -p "${cache_dir}"
+
+        {
+          printf 'cache-dir=%s\n' "${cache_dir}"
+          printf 'image=%s\n' "${PRE_COMMIT_IMAGE_INPUT}"
+          printf 'config=%s\n' "${PRE_COMMIT_CONFIG_INPUT}"
+          printf 'run-args=%s\n' "${RUN_ARGS_INPUT}"
+        } >> "${GITHUB_OUTPUT}"
+
+    - name: Pull pre-commit container image
+      shell: bash
+      env:
+        PRE_COMMIT_IMAGE_RESOLVED: ${{ steps.settings.outputs.image }}
+      run: |
+        set -euo pipefail
+
+        docker pull "${PRE_COMMIT_IMAGE_RESOLVED}"
+
+    - name: Show bundled tool versions
+      shell: bash
+      env:
+        PRE_COMMIT_IMAGE_RESOLVED: ${{ steps.settings.outputs.image }}
+      run: |
+        set -euo pipefail
+
+        docker run --rm --entrypoint cat "${PRE_COMMIT_IMAGE_RESOLVED}" /usr/bin/tools_versions_info
+
+    - name: Run pre-commit in container
+      shell: bash
+      env:
+        PRE_COMMIT_IMAGE_RESOLVED: ${{ steps.settings.outputs.image }}
+        PRE_COMMIT_CONFIG_RESOLVED: ${{ steps.settings.outputs.config }}
+        PRE_COMMIT_CACHE_DIR_RESOLVED: ${{ steps.settings.outputs.cache-dir }}
+        RUN_ARGS_RESOLVED: ${{ steps.settings.outputs.run-args }}
+        TF_INPUT: "0"
+        TF_IN_AUTOMATION: "1"
+      run: |
+        set -euo pipefail
+
+        read -r -a pre_commit_run_args <<< "${RUN_ARGS_RESOLVED}"
+
+        docker run --rm \
+          -e USERID="$(id -u):$(id -g)" \
+          -e PRE_COMMIT_HOME=/pre-commit-cache \
+          -e TF_INPUT \
+          -e TF_IN_AUTOMATION \
+          -v "${PRE_COMMIT_CACHE_DIR_RESOLVED}:/pre-commit-cache" \
+          -v "${PWD}:/lint" \
+          -w /lint \
+          "${PRE_COMMIT_IMAGE_RESOLVED}" run \
+          "${pre_commit_run_args[@]}" \
+          --config "${PRE_COMMIT_CONFIG_RESOLVED}"

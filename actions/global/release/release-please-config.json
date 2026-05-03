@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "simple",
+  "include-component-in-tag": true,
+  "include-v-in-tag": true,
+  "separate-pull-requests": true,
+  "packages": {
+    "scripts": {
+      "component": "scripts",
+      "package-name": "scripts"
+    },
+    "code": {
+      "component": "code",
+      "package-name": "code"
+    },
+    "actions": {
+      "component": "actions",
+      "package-name": "actions"
+    }
+  }
+}

@@ -1,0 +1,98 @@
+name: Release Please
+description: Create independent release PRs and GitHub releases for managed repository categories.
+author: Cloud Strategy Governance
+
+inputs:
+  github-token:
+    description: GitHub token used by release-please to create release PRs, tags, and releases.
+    required: true
+  target-branch:
+    description: Branch to target for release PRs. Defaults to release-please auto-detection when empty.
+    required: false
+    default: ""
+  config-file:
+    description: Repository-relative path to the release-please config file.
+    required: false
+    default: actions/global/release/release-please-config.json
+  manifest-file:
+    description: Repository-relative path to the release-please manifest file.
+    required: false
+    default: actions/global/release/.release-please-manifest.json
+  skip-github-release:
+    description: Skip creating GitHub releases after release PRs are merged.
+    required: false
+    default: "false"
+  skip-github-pull-request:
+    description: Skip creating or updating release PRs.
+    required: false
+    default: "false"
+
+outputs:
+  releases-created:
+    description: True when release-please created at least one release.
+    value: ${{ steps.release.outputs.releases_created }}
+  paths-released:
+    description: JSON array of package paths released by release-please.
+    value: ${{ steps.release.outputs.paths_released }}
+  prs-created:
+    description: True when release-please created or updated at least one release PR.
+    value: ${{ steps.release.outputs.prs_created }}
+  prs:
+    description: JSON array of release PRs created or updated by release-please.
+    value: ${{ steps.release.outputs.prs }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate release inputs
+      shell: bash
+      env:
+        GITHUB_TOKEN_INPUT: ${{ inputs.github-token }}
+        CONFIG_FILE_INPUT: ${{ inputs.config-file }}
+        MANIFEST_FILE_INPUT: ${{ inputs.manifest-file }}
+        SKIP_GITHUB_RELEASE_INPUT: ${{ inputs.skip-github-release }}
+        SKIP_GITHUB_PULL_REQUEST_INPUT: ${{ inputs.skip-github-pull-request }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "${GITHUB_TOKEN_INPUT}" ]]; then
+          echo "::error::github-token input is required."
+          exit 1
+        fi
+
+        if [[ ! -f "${CONFIG_FILE_INPUT}" ]]; then
+          echo "::error::release-please config file not found: ${CONFIG_FILE_INPUT}"
+          exit 1
+        fi
+
+        if [[ ! -f "${MANIFEST_FILE_INPUT}" ]]; then
+          echo "::error::release-please manifest file not found: ${MANIFEST_FILE_INPUT}"
+          exit 1
+        fi
+
+        case "${SKIP_GITHUB_RELEASE_INPUT}" in
+          true|false) ;;
+          *)
+            echo "::error::skip-github-release must be 'true' or 'false'."
+            exit 1
+            ;;
+        esac
+
+        case "${SKIP_GITHUB_PULL_REQUEST_INPUT}" in
+          true|false) ;;
+          *)
+            echo "::error::skip-github-pull-request must be 'true' or 'false'."
+            exit 1
+            ;;
+        esac
+
+    - name: Run release-please
+      id: release
+      uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # googleapis/release-please-action@v5.0.0 release: https://github.com/googleapis/release-please-action/releases/tag/v5.0.0
+      with:
+        token: ${{ inputs.github-token }}
+        target-branch: ${{ inputs.target-branch }}
+        config-file: ${{ inputs.config-file }}
+        manifest-file: ${{ inputs.manifest-file }}
+        skip-github-release: ${{ inputs.skip-github-release }}
+        skip-github-pull-request: ${{ inputs.skip-github-pull-request }}
