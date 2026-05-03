@@ -298,7 +298,7 @@ test_target_shortcut() {
     fi
     run_wrapper "$provider" "${provider}-root" "${args[@]}"
     assert_eq "0" "$RUN_STATUS" "${provider} file-target shortcut exits cleanly"
-    assert_contains "$RUN_STDOUT" '-target=null_resource.example' "${provider} derives the resource target"
+    assert_contains "$RUN_STDOUT" '-target=terraform_data.example' "${provider} derives the resource target"
     assert_contains "$RUN_STDOUT" '-target=module.example' "${provider} derives the module target"
   done
 }
