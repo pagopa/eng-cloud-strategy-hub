@@ -1,0 +1,106 @@
+name: Terraform Wrapper Tests
+
+on:
+  pull_request:
+    paths:
+      - scripts/aws/terraform.sh
+      - scripts/azure/terraform.sh
+      - scripts/gcp/terraform.sh
+      - tests/scripts/terraform_wrappers/**
+      - .github/workflows/terraform-wrapper-tests.yml
+  push:
+    paths:
+      - scripts/aws/terraform.sh
+      - scripts/azure/terraform.sh
+      - scripts/gcp/terraform.sh
+      - tests/scripts/terraform_wrappers/**
+      - .github/workflows/terraform-wrapper-tests.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-wrapper-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  terraform-wrapper-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: 🧪 Run Bash syntax checks
+        run: |
+          bash -n \
+            scripts/aws/terraform.sh \
+            scripts/azure/terraform.sh \
+            scripts/gcp/terraform.sh \
+            tests/scripts/terraform_wrappers/lib/assertions.sh \
+            tests/scripts/terraform_wrappers/run.sh \
+            tests/scripts/terraform_wrappers/fakes/terraform \
+            tests/scripts/terraform_wrappers/fakes/tf-summarize \
+            tests/scripts/terraform_wrappers/fakes/az \
+            tests/scripts/terraform_wrappers/fakes/aws \
+            tests/scripts/terraform_wrappers/fakes/gcloud \
+            tests/scripts/terraform_wrappers/fakes/tflist
+
+      - name: 🔎 Run ShellCheck
+        run: |
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y shellcheck
+          fi
+
+          shellcheck -s bash \
+            scripts/aws/terraform.sh \
+            scripts/azure/terraform.sh \
+            scripts/gcp/terraform.sh \
+            tests/scripts/terraform_wrappers/lib/assertions.sh \
+            tests/scripts/terraform_wrappers/run.sh \
+            tests/scripts/terraform_wrappers/fakes/terraform \
+            tests/scripts/terraform_wrappers/fakes/tf-summarize \
+            tests/scripts/terraform_wrappers/fakes/az \
+            tests/scripts/terraform_wrappers/fakes/aws \
+            tests/scripts/terraform_wrappers/fakes/gcloud \
+            tests/scripts/terraform_wrappers/fakes/tflist
+
+      - name: 🧰 Run Terraform wrapper simulation suite
+        run: |
+          chmod +x \
+            scripts/aws/terraform.sh \
+            scripts/azure/terraform.sh \
+            scripts/gcp/terraform.sh \
+            tests/scripts/terraform_wrappers/run.sh \
+            tests/scripts/terraform_wrappers/fakes/terraform \
+            tests/scripts/terraform_wrappers/fakes/tf-summarize \
+            tests/scripts/terraform_wrappers/fakes/az \
+            tests/scripts/terraform_wrappers/fakes/aws \
+            tests/scripts/terraform_wrappers/fakes/gcloud \
+            tests/scripts/terraform_wrappers/fakes/tflist
+
+          bash tests/scripts/terraform_wrappers/run.sh
+
+      - name: 📦 Upload debug logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # actions/upload-artifact@v4.6.2 release: https://github.com/actions/upload-artifact/releases/tag/v4.6.2
+        with:
+          name: terraform-wrapper-test-logs
+          path: |
+            tests/scripts/terraform_wrappers/logs
+            tests/scripts/terraform_wrappers/fixtures/**/tmp/terraform-debug
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: ✅ Report suite result
+        if: ${{ success() }}
+        run: |
+          echo "Terraform wrapper simulation suite passed."

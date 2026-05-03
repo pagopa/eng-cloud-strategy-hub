@@ -1,76 +1,84 @@
-# AI Architecture Contract v1.1.0
+# AI Architecture Contract v1.2.0
 
 ## Repository
 
-`eng-cloud-strategy-hub` is a hub repository for shared cloud strategy assets, reusable infrastructure, Terraform modules, GitHub Actions packaging, and platform scaffolding examples.
+`eng-cloud-strategy-hub` is a governance and enablement repository for GitHub Copilot customization, repository automation, and cross-cloud Terraform wrapper tooling.
 
 ## Purpose
 
-The repository functions as a reuse and distribution hub rather than a single application. It contains reusable actions, code templates, infrastructure roots, and Terraform modules used to standardize cloud strategy delivery.
+The repository does not host a single deployable application. It centralizes:
+
+- Copilot governance assets under `.github/`.
+- Reusable automation under `actions/`.
+- Cross-cloud Terraform operator wrappers under `scripts/`.
+- Offline validation assets under `tests/`.
+- Documentation and retained planning artifacts under `docs/` and `tmp/superpowers/`.
+- Reserved placeholder roots under `code/` and `terraform/`.
 
 ## System Boundaries
 
 In scope:
 
-- Reusable action and automation assets under `actions/`.
-- Shared or sample code assets under `code/`.
-- Platform infrastructure under `infra/ppa-cloud-strategy/`.
-- Terraform root and modules under `terraform/` and `terraform/modules/`.
-- Release and pre-commit workflows under `.github/workflows/`.
+- Instruction architecture, skills, agents, prompts, and workflow governance under `.github/`.
+- Composite automation assets such as `actions/global/stale-close-pr/`.
+- AWS, Azure, and GCP Terraform wrappers under `scripts/aws/`, `scripts/azure/`, and `scripts/gcp/`.
+- Offline simulation fixtures and shell-based tests under `tests/scripts/terraform_wrappers/`.
+- Repository documentation and retained execution plans under `docs/` and `tmp/superpowers/`.
 
 Out of scope:
 
-- Direct ownership of consumer application runtime behavior.
-- Provider-specific authorization or governance data owned by sibling repositories.
-- Ad hoc local customization not represented in reusable assets.
+- Live cloud resource state, remote Terraform backends, or production environment ownership.
+- Consumer application runtime code.
+- Long-lived credentials, secrets, or provider-specific governance data owned elsewhere.
 
 ## Main Components
 
 | Component | Path | Responsibility |
 | --- | --- | --- |
-| Reusable actions | `actions/` | Shared automation/action assets. |
-| Code assets | `code/` | Shared examples, templates, or supporting code. |
-| Platform infrastructure | `infra/ppa-cloud-strategy/` | Environment-oriented platform infrastructure with Terraform scripts. |
-| Terraform root | `terraform/` | Hub Terraform entrypoint. |
-| Terraform modules | `terraform/modules/` | Reusable modules for backend, backup, Cognito, database, DNS, frontend, IAM, monitoring, network, API, messaging, storage, and related concerns. |
-| Workflows | `.github/workflows/` | Pre-commit, release, PR hygiene, and stale PR operations. |
+| Instruction bridge | `AGENTS.md` | Defines repository-wide Copilot governance, precedence, and operating model. |
+| Copilot governance layer | `.github/` | Hosts instructions, skills, agents, templates, workflows, and inventory metadata. |
+| Reusable action | `actions/global/stale-close-pr/` | Provides composite PR stale/auto-close automation consumed by repository workflows. |
+| Terraform wrappers | `scripts/aws/`, `scripts/azure/`, `scripts/gcp/` | Expose a shared operator-facing CLI contract for Terraform across the three cloud providers. |
+| Wrapper simulation suite | `tests/scripts/terraform_wrappers/` | Verifies wrapper parity offline with fake CLIs, fixtures, and shell assertions. |
+| Documentation surface | `docs/` | Stores architecture and other repository-owned technical documentation. |
+| Retained planning workspace | `tmp/superpowers/` | Keeps non-runtime execution plans and work-in-progress artifacts. |
+| Reserved placeholders | `code/`, `terraform/` | Hold space for future assets but are not active architecture surfaces today. |
 
 ## Architecture Flow
 
 ```text
-Reusable code, actions, and infrastructure modules
-  -> hub Terraform roots and module consumers
-  -> workflow packaging and release process
-  -> downstream reuse by cloud strategy projects
+Governance rules, instructions, and reusable automation
+  -> repository workflows and local validation enforce the baseline
+  -> cross-cloud Terraform wrappers expose a common operator contract
+  -> offline simulation tests guard wrapper behavior across AWS, Azure, and GCP
 ```
 
-The repository is modular. The `terraform/modules/` tree is the clearest reusable architecture surface, while `infra/ppa-cloud-strategy/` contains a concrete platform infrastructure implementation.
+The repository is architecture-by-governance rather than architecture-by-runtime. The most active executable surface is the Terraform wrapper layer plus its simulation suite.
 
 ## Validation Surface
 
 Observed validation surfaces include:
 
-- Workflows `_pre-commit.yml`, `pr-stale-close.yml`, `pr-title.yml`, and `release.yml`.
-- Terraform helper scripts under `infra/ppa-cloud-strategy/scripts/`.
-- `ct.yaml` and `force.release` as release/chart or packaging control surfaces.
-
-No `tests/` directory or `Makefile` targets were observed in the current workspace structure.
+- `.pre-commit-config.yaml` for YAML, JSON, shell, Python, Terraform, and workflow linting baselines.
+- Workflows `_pre-commit.yml`, `pr-stale-close.yml`, `pr-title.yml`, `release.yml`, and `terraform-wrapper-tests.yml`.
+- The shell-based simulation suite at `tests/scripts/terraform_wrappers/run.sh`.
+- Local shell validation via `bash -n` and `shellcheck` for the wrapper and test scripts.
 
 ## Operational Notes
 
-- Keep reusable modules generic and avoid embedding consumer-specific assumptions.
-- Keep concrete platform deployment logic in `infra/ppa-cloud-strategy/` rather than mixing it into generic modules.
-- Preserve module boundaries when adding new infrastructure capabilities.
-- Treat releases as the distribution mechanism for reusable assets.
+- The three Terraform wrappers intentionally remain separate files with a shared CLI contract instead of a common Bash library.
+- `tests/scripts/terraform_wrappers/fixtures/` is synthetic and exists only to validate wrapper behavior without cloud credentials or remote state.
+- `code/` and `terraform/` are placeholders today and should not be documented as active delivery surfaces until real assets exist there.
+- `tmp/superpowers/` is a retained working area, not a shipped runtime or reusable API surface.
 
 ## Risks And Open Questions
 
 | Risk | Current evidence | Recommended handling |
 | --- | --- | --- |
-| Hub and concrete implementation can blur | Both `terraform/modules/` and `infra/ppa-cloud-strategy/` exist. | Keep reusable module contracts separate from platform-specific roots. |
-| Limited observed tests | No `tests/` directory observed. | Add module examples or validation checks when changing reusable module behavior. |
-| Asset ownership unclear from README headings | README has minimal headings. | Keep `docs/architecture.md` and module docs current as the navigational layer. |
+| Wrapper parity can drift | The shared CLI contract is duplicated across three provider-specific scripts. | Keep behavior changes synchronized with the simulation suite and the dedicated workflow. |
+| Placeholder roots can be over-interpreted | `code/` and `terraform/` currently contain only `.gitkeep`. | Treat them as reserved space until first-class assets are added and documented. |
+| Retained plans can become stale | `tmp/superpowers/` stores execution plans beside active repository code. | Keep plan files updated while work is active and remove or archive them when the work closes. |
 
 ## Contract Status
 
-This repository is ready for AI Architecture Contract v1.1.0 as a shared cloud strategy hub. The contract should be strengthened when module-level validation or consumer usage documentation is added.
+This repository is ready for AI Architecture Contract v1.2.0 as a governance and operator-tooling hub. Any future addition of deployable application code, Terraform modules, or other first-class runtime assets should update this contract in the same change.

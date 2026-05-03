@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+log_file="${FAKE_LOG_DIR:?}/terraform.log"
+
+{
+  printf 'cwd=%s argv=' "$PWD"
+  printf '%q ' "$@"
+  printf 'env=AWS_PROFILE=%s AWS_REGION=%s ARM_SUBSCRIPTION_ID=%s TF_VAR_subscription_id=%s TF_VAR_project_target=%s\n' \
+    "${AWS_PROFILE:-}" \
+    "${AWS_REGION:-}" \
+    "${ARM_SUBSCRIPTION_ID:-}" \
+    "${TF_VAR_subscription_id:-}" \
+    "${TF_VAR_project_target:-}"
+} >> "$log_file"
+
+subcommand="${1:-}"
+
+case "$subcommand" in
+  version)
+    printf 'Terraform v1.9.0\n'
+    ;;
+  init|apply|destroy|refresh|import|output|taint|untaint|validate|fmt|graph|console|force-unlock)
+    ;;
+  state)
+    if [[ "${2:-}" == 'list' ]]; then
+      printf 'null_resource.example\n'
+      printf 'module.example\n'
+    fi
+    ;;
+  workspace)
+    if [[ "${2:-}" == 'show' ]]; then
+      printf 'default\n'
+    fi
+    ;;
+  providers)
+    if [[ "${2:-}" != 'lock' ]]; then
+      printf 'provider["registry.terraform.io/hashicorp/null"]\n'
+    fi
+    ;;
+  plan)
+    if [[ "${FAKE_TERRAFORM_LOCK_ERROR:-0}" == '1' ]]; then
+      printf 'Error acquiring the state lock\nLock Info:\n  ID: fake-lock-id\n' >&2
+      exit 1
+    fi
+    for arg in "$@"; do
+      case "$arg" in
+        -out=*)
+          : > "${arg#-out=}"
+          ;;
+      esac
+    done
+    ;;
+esac

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+log_file="${FAKE_LOG_DIR:?}/tflist.log"
+
+{
+	printf 'cwd=%s argv=' "$PWD"
+	printf '%q ' "$@"
+	printf '\n'
+} >> "$log_file"
+
+cat
