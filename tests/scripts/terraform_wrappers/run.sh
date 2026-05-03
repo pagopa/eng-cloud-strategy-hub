@@ -320,7 +320,7 @@ test_tlock_dry_run() {
 
 test_unlock_dry_run() {
   local provider=""
-  local lock_log="${FIXTURES_DIR}/lock-error.log"
+  local lock_log="${FIXTURES_DIR}/lock-error.txt"
 
   for provider in aws azure gcp; do
     reset_logs
