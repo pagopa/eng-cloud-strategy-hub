@@ -86,7 +86,7 @@ run_wrapper_internal() {
 
   (
     cd "${FIXTURES_DIR}/${fixture}" || exit 1
-    FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}:$PATH" bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+    CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}:$PATH" bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
   ) >"$stdout_file" 2>"$stderr_file" || RUN_STATUS=$?
 
   RUN_STDOUT="$(cat "$stdout_file")"
@@ -115,7 +115,7 @@ run_wrapper_without_summary() {
 
   (
     cd "${FIXTURES_DIR}/${fixture}" || exit 1
-    FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}" bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+    CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}" bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
   ) >"$stdout_file" 2>"$stderr_file" || RUN_STATUS=$?
 
   RUN_STDOUT="$(cat "$stdout_file")"
