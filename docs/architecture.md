@@ -10,6 +10,7 @@ The repository does not host a single deployable application. It centralizes:
 
 - Copilot governance assets under `.github/`.
 - Reusable automation under `actions/`.
+- Local workflow simulation tooling under `tools/`.
 - Cross-cloud Terraform operator wrappers under `scripts/`.
 - Offline validation assets under `tests/`.
 - Documentation and retained planning artifacts under `docs/` and `tmp/superpowers/`.
@@ -21,6 +22,7 @@ In scope:
 
 - Instruction architecture, skills, agents, prompts, and workflow governance under `.github/`.
 - Composite automation assets such as `actions/global/stale-close-pr/`.
+- Local workflow simulation tools under `tools/local_actions/` and the root `local-actions.sh` launcher.
 - AWS, Azure, and GCP Terraform wrappers under `scripts/aws/`, `scripts/azure/`, and `scripts/gcp/`.
 - Offline simulation fixtures and shell-based tests under `tests/scripts/terraform_wrappers/`.
 - Repository documentation and retained execution plans under `docs/` and `tmp/superpowers/`.
@@ -38,6 +40,7 @@ Out of scope:
 | Instruction bridge | `AGENTS.md` | Defines repository-wide Copilot governance, precedence, and operating model. |
 | Copilot governance layer | `.github/` | Hosts instructions, skills, agents, templates, workflows, and inventory metadata. |
 | Reusable action | `actions/global/stale-close-pr/` | Provides composite PR stale/auto-close automation consumed by repository workflows. |
+| Local action simulator | `tools/local_actions/`, `local-actions.sh` | Runs local equivalents of selected workflow checks before GitHub-hosted CI. |
 | Terraform wrappers | `scripts/aws/`, `scripts/azure/`, `scripts/gcp/` | Expose a shared operator-facing CLI contract for Terraform across the three cloud providers. |
 | Wrapper simulation suite | `tests/scripts/terraform_wrappers/` | Verifies wrapper parity offline with fake CLIs, fixtures, and shell assertions. |
 | Documentation surface | `docs/` | Stores architecture and other repository-owned technical documentation. |
@@ -61,6 +64,7 @@ Observed validation surfaces include:
 
 - `.pre-commit-config.yaml` for YAML, JSON, shell, Python, Terraform, and workflow linting baselines.
 - Workflows `_pre-commit.yml`, `pr-stale-close.yml`, `pr-title.yml`, `release.yml`, and `terraform-wrapper-tests.yml`.
+- Local workflow simulation through `./local-actions.sh` for `_code-analysis.yml`, `_pre-commit.yml`, and `terraform-wrapper-tests.yml`.
 - The shell-based simulation suite at `tests/scripts/terraform_wrappers/run.sh`.
 - Local shell validation via `bash -n` and `shellcheck` for the wrapper and test scripts.
 

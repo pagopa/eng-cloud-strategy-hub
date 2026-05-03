@@ -12,16 +12,20 @@ on:
     paths:
       - ".github/workflows/**"
       - ".github/scripts/**"
+      - "local-actions.sh"
       - "scripts/**"
       - "tests/scripts/**"
+      - "tools/**"
   push:
     branches:
       - main
     paths:
       - ".github/workflows/**"
       - ".github/scripts/**"
+      - "local-actions.sh"
       - "scripts/**"
       - "tests/scripts/**"
+      - "tools/**"
   workflow_dispatch:
 
 permissions:
@@ -88,7 +92,7 @@ jobs:
               shell_targets+=("${candidate}")
             fi
           done < <(
-            find .github/scripts scripts tests/scripts \
+            find .github/scripts scripts tests/scripts tools local-actions.sh \
               -type f \
               ! -name '.gitkeep' \
               -print0
