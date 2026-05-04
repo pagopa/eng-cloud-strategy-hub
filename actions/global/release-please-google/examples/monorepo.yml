@@ -17,6 +17,7 @@ jobs:
       - uses: pagopa/<repo-actions>/actions/global/release-please-google@<sha>
         with:
           github_token: ${{ secrets.RELEASE_GITHUB_APP_TOKEN }}
+          checkout: "true"
           target_branch: main
           config_file: .github/release/release-please-config.json
           manifest_file: .github/release/.release-please-manifest.json

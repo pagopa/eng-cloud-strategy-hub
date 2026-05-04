@@ -1,0 +1,38 @@
+name: Validate PR Title
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - synchronize
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: pagopa/<repo-actions>/actions/global/pr-title@<sha>
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          types: |
+            feat
+            fix
+            docs
+            chore
+            ci
+            build
+            refactor
+            perf
+            test
+            revert
+            breaking
+          scopes: ""
+          require-scope: "false"
+          subject-pattern: .+
+          subject-pattern-error: The pull request title subject must not be empty.
+          validate-single-commit: "false"
+          validate-single-commit-matches-pr-title: "false"

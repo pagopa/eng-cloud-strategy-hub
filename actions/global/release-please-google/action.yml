@@ -73,6 +73,7 @@ runs:
     - name: Validate wrapper inputs
       shell: bash
       env:
+        ACTION_SCRIPT: ${{ github.action_path }}/scripts/validate_inputs.py
         GITHUB_TOKEN_INPUT: ${{ inputs.github_token }}
         CHECKOUT_INPUT: ${{ inputs.checkout }}
         TARGET_BRANCH_INPUT: ${{ inputs.target_branch }}
@@ -81,34 +82,7 @@ runs:
         DEBUG_INPUT: ${{ inputs.debug }}
       run: |
         set -euo pipefail
-
-        if [[ -z "${GITHUB_TOKEN_INPUT}" ]]; then
-          echo "::error::github_token input is required."
-          exit 1
-        fi
-
-        if [[ -z "${TARGET_BRANCH_INPUT}" ]]; then
-          echo "::error::target_branch input must not be empty."
-          exit 1
-        fi
-
-        for boolean_input in CHECKOUT_INPUT AUTO_MERGE_INPUT DEBUG_INPUT; do
-          case "${!boolean_input}" in
-            true|false) ;;
-            *)
-              echo "::error::${boolean_input} must be 'true' or 'false'."
-              exit 1
-              ;;
-          esac
-        done
-
-        case "${MERGE_METHOD_INPUT}" in
-          merge|squash|rebase) ;;
-          *)
-            echo "::error::merge_method must be one of: merge, squash, rebase."
-            exit 1
-            ;;
-        esac
+        "${ACTION_SCRIPT}" --phase wrapper
 
     - name: Checkout repository
       if: ${{ inputs.checkout == 'true' }}
@@ -120,6 +94,7 @@ runs:
     - name: Validate consumer release files
       shell: bash
       env:
+        ACTION_SCRIPT: ${{ github.action_path }}/scripts/validate_inputs.py
         CONFIG_FILE_INPUT: ${{ inputs.config_file }}
         MANIFEST_FILE_INPUT: ${{ inputs.manifest_file }}
         DEBUG_INPUT: ${{ inputs.debug }}
@@ -127,23 +102,7 @@ runs:
         MERGE_METHOD_INPUT: ${{ inputs.merge_method }}
       run: |
         set -euo pipefail
-
-        if [[ ! -f "${CONFIG_FILE_INPUT}" ]]; then
-          echo "::error::release-please config file not found: ${CONFIG_FILE_INPUT}"
-          exit 1
-        fi
-
-        if [[ ! -f "${MANIFEST_FILE_INPUT}" ]]; then
-          echo "::error::release-please manifest file not found: ${MANIFEST_FILE_INPUT}"
-          exit 1
-        fi
-
-        if [[ "${DEBUG_INPUT}" == "true" ]]; then
-          echo "ℹ️  config_file=${CONFIG_FILE_INPUT}"
-          echo "ℹ️  manifest_file=${MANIFEST_FILE_INPUT}"
-          echo "ℹ️  target_branch=${TARGET_BRANCH_INPUT}"
-          echo "ℹ️  merge_method=${MERGE_METHOD_INPUT}"
-        fi
+        "${ACTION_SCRIPT}" --phase files
 
     - name: Run release-please
       id: release
@@ -159,6 +118,7 @@ runs:
       id: release_pr
       shell: bash
       env:
+        ACTION_SCRIPT: ${{ github.action_path }}/scripts/auto_merge_release_pr.py
         GITHUB_TOKEN: ${{ inputs.github_token }}
         GH_TOKEN: ${{ inputs.github_token }}
         RP_TARGET_BRANCH: ${{ inputs.target_branch }}
@@ -170,4 +130,4 @@ runs:
         RP_DEBUG: ${{ inputs.debug }}
       run: |
         set -euo pipefail
-        bash "${{ github.action_path }}/scripts/auto-merge-release-pr.sh"
+        "${ACTION_SCRIPT}"

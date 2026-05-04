@@ -18,7 +18,23 @@ jobs:
       - uses: pagopa/<repo-actions>/actions/global/semantic-release@<sha>
         with:
           github_token: ${{ secrets.RELEASE_GITHUB_APP_TOKEN }}
+          checkout: "true"
+          semantic_version: 24.1.1
           branches: |
             ["main"]
           tag_format: v${version}
+          preset: angular
           changelog_file: CHANGELOG.md
+          git_author_name: github-actions[bot]
+          git_author_email: 41898282+github-actions[bot]@users.noreply.github.com
+          release_rules: |
+            [
+              {"type": "breaking", "release": "major"}
+            ]
+          extra_plugins: |
+            @semantic-release/commit-analyzer@13.0.1
+            @semantic-release/release-notes-generator@14.0.3
+            @semantic-release/changelog@6.0.3
+            @semantic-release/git@10.0.1
+            @semantic-release/github@11.0.1
+          debug: "false"

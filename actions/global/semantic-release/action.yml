@@ -98,6 +98,7 @@ runs:
     - name: Validate wrapper inputs
       shell: bash
       env:
+        ACTION_SCRIPT: ${{ github.action_path }}/scripts/validate_inputs.py
         GITHUB_TOKEN_INPUT: ${{ inputs.github_token }}
         CHECKOUT_INPUT: ${{ inputs.checkout }}
         SEMANTIC_VERSION_INPUT: ${{ inputs.semantic_version }}
@@ -106,28 +107,7 @@ runs:
         DEBUG_INPUT: ${{ inputs.debug }}
       run: |
         set -euo pipefail
-
-        if [[ -z "${GITHUB_TOKEN_INPUT}" ]]; then
-          echo "::error::github_token input is required."
-          exit 1
-        fi
-
-        for required_input in SEMANTIC_VERSION_INPUT TAG_FORMAT_INPUT CHANGELOG_FILE_INPUT; do
-          if [[ -z "${!required_input}" ]]; then
-            echo "::error::${required_input} must not be empty."
-            exit 1
-          fi
-        done
-
-        for boolean_input in CHECKOUT_INPUT DEBUG_INPUT; do
-          case "${!boolean_input}" in
-            true|false) ;;
-            *)
-              echo "::error::${boolean_input} must be 'true' or 'false'."
-              exit 1
-              ;;
-          esac
-        done
+        "${ACTION_SCRIPT}"
 
     - name: Checkout repository
       if: ${{ inputs.checkout == 'true' }}
@@ -139,19 +119,19 @@ runs:
     - name: Generate .releaserc.json
       shell: bash
       env:
+        ACTION_SCRIPT: ${{ github.action_path }}/scripts/generate-releaserc.py
         RELEASERC_OUTPUT_PATH: ${{ github.workspace }}/.releaserc.json
+        SEMANTIC_BRANCHES_INPUT: ${{ inputs.branches }}
+        TAG_FORMAT_INPUT: ${{ inputs.tag_format }}
+        PRESET_INPUT: ${{ inputs.preset }}
+        CHANGELOG_FILE_INPUT: ${{ inputs.changelog_file }}
+        GIT_AUTHOR_NAME_INPUT: ${{ inputs.git_author_name }}
+        GIT_AUTHOR_EMAIL_INPUT: ${{ inputs.git_author_email }}
+        RELEASE_RULES_INPUT: ${{ inputs.release_rules }}
+        DEBUG_INPUT: ${{ inputs.debug }}
       run: |
         set -euo pipefail
-        python3 "${{ github.action_path }}/scripts/generate-releaserc.py" \
-          --output "${RELEASERC_OUTPUT_PATH}" \
-          --branches '${{ inputs.branches }}' \
-          --tag-format '${{ inputs.tag_format }}' \
-          --preset '${{ inputs.preset }}' \
-          --changelog-file '${{ inputs.changelog_file }}' \
-          --git-author-name '${{ inputs.git_author_name }}' \
-          --git-author-email '${{ inputs.git_author_email }}' \
-          --release-rules '${{ inputs.release_rules }}' \
-          --debug '${{ inputs.debug }}'
+        "${ACTION_SCRIPT}"
 
     - name: Run semantic-release
       id: semantic_release

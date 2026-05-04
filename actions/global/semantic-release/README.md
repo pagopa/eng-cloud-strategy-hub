@@ -1,55 +1,166 @@
 # Semantic Release
 
-Run `cycjimmy/semantic-release-action` through an internal wrapper that generates `.releaserc.json` at runtime.
+Runs `cycjimmy/semantic-release-action` through a repository-owned composite action that generates `.releaserc.json` at runtime.
 
-## Purpose
+## Self-Contained Contract
 
-- Standardize direct release automation for private repositories on GitHub.com.
-- Generate `.releaserc.json` internally so the consumer repository does not need to store it.
-- Create tags, GitHub Releases, and a persistent `CHANGELOG.md`.
-- Commit the updated changelog through `@semantic-release/git` with `[skip ci]` to avoid workflow loops.
-
-## Which Release Wrapper Should I Use?
-
-| Action | Use when |
-| --- | --- |
-| `release-please-google` | Monorepo, multiple products, separate changelogs, manifest-based releases, release PR review gate, optional auto-merge |
-| `semantic-release` | Direct single release line, root changelog, no release PR, automatic tag and GitHub Release creation |
+- This action owns one direct semantic-release workflow contract end to end.
+- It does not call or require any other action under `actions/global`.
+- The consumer repository does not need to store `.releaserc.json`.
+- Third-party actions used by the wrapper are pinned inside `action.yml`.
 
 ## When To Use It
 
 - You want direct release publication from the target branch.
-- You need one root `CHANGELOG.md` updated on every release.
-- You do not want a consumer-owned `.releaserc.json` file.
-- You want a generic or polyglot release flow without npm publishing by default.
+- You need one root changelog file updated on release.
+- You want tags and GitHub Releases generated from Conventional Commits.
+- You do not need a release PR review gate before publishing.
 
-## When Not To Use It
+## Behavior
 
-- You need separate release PRs and manual review gates before tagging.
-- You need manifest-based monorepo releases with per-component changelogs.
-- You want the cleanest possible release flow with no changelog commit back to the repository.
-- You plan to mix this action with `release-please-google` in the same workflow without an explicit design reason.
+1. Validates scalar wrapper inputs.
+2. Optionally checks out the repository with full history.
+3. Generates `.releaserc.json` from action inputs with a local Python script.
+4. Runs `cycjimmy/semantic-release-action`.
+5. Forwards semantic-release outputs to the caller.
+
+The generated config uses `@semantic-release/changelog` and `@semantic-release/git`, so successful releases commit the updated changelog back to the repository. The generated git commit message includes `[skip ci]`.
 
 ## Inputs
 
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
-| `github_token` | Yes |  | GitHub token used by `semantic-release`. It can be `GITHUB_TOKEN` or a GitHub App installation token. |
-| `checkout` | No | `true` | Whether the wrapper performs `actions/checkout` internally with `fetch-depth: 0`. |
+| `github_token` | Yes |  | Token used by `semantic-release`. It can be `GITHUB_TOKEN` or a GitHub App installation token. |
+| `checkout` | No | `true` | Whether the wrapper runs `actions/checkout` internally with `fetch-depth: 0`. |
 | `semantic_version` | No | `24.1.1` | `semantic-release` version installed by the upstream action. |
-| `branches` | No | `[{"main"}]` equivalent JSON | JSON array of release branches. |
-| `tag_format` | No | `v${version}` | Tag format passed to the generated config. |
-| `preset` | No | `angular` | Conventional commit preset used by analyzer and notes generator. |
+| `branches` | No | `["main"]` | JSON array of release branches. |
+| `tag_format` | No | `v${version}` | Tag format written to the generated config. |
+| `preset` | No | `angular` | Conventional commit preset for analyzer and notes generator. |
 | `changelog_file` | No | `CHANGELOG.md` | Changelog path updated by the generated config. |
-| `git_author_name` | No | `github-actions[bot]` | Git author name used by `@semantic-release/git`. |
-| `git_author_email` | No | `41898282+github-actions[bot]@users.noreply.github.com` | Git author email used by `@semantic-release/git`. |
+| `git_author_name` | No | `github-actions[bot]` | Git author and committer name. |
+| `git_author_email` | No | `41898282+github-actions[bot]@users.noreply.github.com` | Git author and committer email. |
 | `release_rules` | No | See `action.yml` | JSON array passed to `@semantic-release/commit-analyzer`. |
-| `extra_plugins` | No | See `action.yml` | Additional plugins installed before `semantic-release` runs. |
-| `debug` | No | `false` | Print the generated non-secret `.releaserc.json` content. |
+| `extra_plugins` | No | See `action.yml` | Plugins installed by the upstream action before execution. |
+| `debug` | No | `false` | Print generated non-secret `.releaserc.json`. |
+
+## Outputs
+
+| Output | Description |
+| --- | --- |
+| `new_release_published` | Whether a new release was published. |
+| `new_release_version` | New release version. |
+| `new_release_major_version` | New release major version. |
+| `new_release_minor_version` | New release minor version. |
+| `new_release_patch_version` | New release patch version. |
+| `new_release_git_head` | Git SHA for the new release. |
+| `new_release_git_tag` | Git tag for the new release. |
+| `last_release_version` | Previous release version, if any. |
+| `last_release_git_head` | Previous release git SHA, if any. |
+| `last_release_git_tag` | Previous release git tag, if any. |
+
+## Minimum Permissions
+
+Default permissions:
+
+```yaml
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+```
+
+If your semantic-release GitHub plugin configuration never comments on issues or pull requests, the caller can reduce permissions to:
+
+```yaml
+permissions:
+  contents: write
+```
+
+## Usage
+
+### Basic With Defaults Shown
+
+```yaml
+name: Semantic Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: pagopa/<repo-actions>/actions/global/semantic-release@<sha>
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          checkout: "true"
+          semantic_version: 24.1.1
+          branches: |
+            ["main"]
+          tag_format: v${version}
+          preset: angular
+          changelog_file: CHANGELOG.md
+          git_author_name: github-actions[bot]
+          git_author_email: 41898282+github-actions[bot]@users.noreply.github.com
+          release_rules: |
+            [
+              {"type": "breaking", "release": "major"}
+            ]
+          extra_plugins: |
+            @semantic-release/commit-analyzer@13.0.1
+            @semantic-release/release-notes-generator@14.0.3
+            @semantic-release/changelog@6.0.3
+            @semantic-release/git@10.0.1
+            @semantic-release/github@11.0.1
+          debug: "false"
+```
+
+### With GitHub App Token
+
+```yaml
+name: Semantic Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@<sha>
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      - uses: pagopa/<repo-actions>/actions/global/semantic-release@<sha>
+        with:
+          github_token: ${{ steps.app-token.outputs.token }}
+          debug: "true"
+```
+
+The wrapper does not create the GitHub App token internally. Token creation remains the caller workflow's responsibility.
 
 ## Generated Configuration
 
-The wrapper generates a `.releaserc.json` equivalent to this shape:
+The wrapper generates this config shape:
 
 ```json
 {
@@ -89,145 +200,30 @@ The wrapper generates a `.releaserc.json` equivalent to this shape:
 }
 ```
 
-## Important Behavior Note
-
-Using `@semantic-release/changelog` together with `@semantic-release/git` means the release flow writes and commits `CHANGELOG.md` back to the repository.
-
-This is less pure than a GitHub Release-notes-only flow, but it satisfies the requirement to keep a persistent changelog in the repository.
-
-The generated git commit message contains `[skip ci]` to avoid CI loops on the changelog commit.
-
-## Outputs
-
-| Output | Description |
-| --- | --- |
-| `new_release_published` | Whether a new release was published. |
-| `new_release_version` | New release version. |
-| `new_release_major_version` | New release major version. |
-| `new_release_minor_version` | New release minor version. |
-| `new_release_patch_version` | New release patch version. |
-| `new_release_git_head` | Git SHA for the new release. |
-| `new_release_git_tag` | Git tag for the new release. |
-| `last_release_version` | Previous release version, if any. |
-| `last_release_git_head` | Previous release git SHA, if any. |
-| `last_release_git_tag` | Previous release git tag, if any. |
-
-## Minimum Permissions
-
-Default consumer permissions:
-
-```yaml
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-```
-
-If you customize the semantic-release GitHub plugin so it does not comment on issues or pull requests, you can reduce the permissions to:
-
-```yaml
-permissions:
-  contents: write
-```
-
-## Basic Example
-
-```yaml
-name: Semantic Release
-
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: pagopa/<repo-actions>/actions/global/semantic-release@<sha>
-        with:
-          github_token: ${{ secrets.RELEASE_GITHUB_APP_TOKEN }}
-          branches: |
-            ["main"]
-          tag_format: v${version}
-          changelog_file: CHANGELOG.md
-```
-
-## Example With GitHub App Token
-
-```yaml
-name: Semantic Release
-
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-
-jobs:
-  release:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Mint GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-
-      - uses: pagopa/<repo-actions>/actions/global/semantic-release@<sha>
-        with:
-          github_token: ${{ steps.app-token.outputs.token }}
-          branches: |
-            ["main"]
-          changelog_file: CHANGELOG.md
-          debug: "true"
-```
-
-The wrapper does not create the GitHub App token internally. Token generation remains the responsibility of the consumer workflow.
-
-## Risks And Trade-Offs
-
-- The wrapper updates and commits `CHANGELOG.md`, which changes repository history during the release flow.
-- Protected branches may require a GitHub App token instead of the default `GITHUB_TOKEN`.
-- The generated config is intentionally generic and does not include language-specific publish plugins.
-- The wrapper does not run npm publishing because the generated config does not include `@semantic-release/npm`.
-
 ## Troubleshooting
 
 ### `branches must be valid JSON`
 
-- Ensure the `branches` input is a valid JSON array.
-- Avoid YAML fragments or JavaScript expressions in that input.
+- Pass a JSON array, not YAML list syntax.
+- Keep branch objects or strings valid for `semantic-release`.
 
 ### `release_rules must be valid JSON`
 
-- Ensure the `release_rules` input is a valid JSON array.
-- Keep custom release rules compact and machine-readable.
+- Pass a JSON array.
+- Avoid JavaScript comments or trailing commas.
 
 ### Protected branch push failures
 
-- Use `persist-credentials: false` on checkout, which this wrapper already does.
-- Prefer a GitHub App installation token when branch protection prevents the default `GITHUB_TOKEN` from pushing the changelog commit.
+- Keep `checkout: "true"` or checkout with `persist-credentials: false`.
+- Prefer a GitHub App installation token when branch protection blocks `GITHUB_TOKEN` pushes.
 
 ### Missing changelog updates
 
-- Confirm the commit history follows Conventional Commits.
-- Confirm the generated config points to the intended `changelog_file`.
-- Enable `debug: "true"` to inspect the generated `.releaserc.json` content in workflow logs.
+- Confirm commits follow Conventional Commits.
+- Confirm `changelog_file` points to the intended path.
+- Enable `debug: "true"` to inspect the generated non-secret config.
 
 ## Pinning Notes
 
 - Third-party actions inside this wrapper are pinned to full commit SHAs.
-- Consumer workflows should pin this internal wrapper action with a full commit SHA before production usage.
+- Consumer workflows should pin this wrapper action with a full commit SHA before production usage.

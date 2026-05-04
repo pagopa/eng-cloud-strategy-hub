@@ -1,171 +1,138 @@
-# GitHub PR Auto Close Action
+# GitHub PR Auto Close
 
-This action automatically marks pull requests as stale after a configurable period of inactivity and closes them if no further activity occurs.
+Marks inactive pull requests as stale and optionally closes them after an additional inactivity window.
 
-## Features
+## Self-Contained Contract
 
-- ✅ Automatically marks PRs as stale after a configurable number of days (default: 25 days)
-- ✅ Automatically closes stale PRs after additional days of inactivity (default: 5 days)
-- ✅ Fully configurable with sensible defaults
-- ✅ Support for exemptions by labels or assignees
-- ✅ Customizable messages for stale and close notifications
-- ✅ Excludes draft PRs by default
-- ✅ Removes stale label when PR is updated
-- ✅ Optional branch deletion on auto-close via `delete-branch`
+- This action manages only pull request stale and close behavior.
+- It does not checkout code and does not call or require any other action under `actions/global`.
+- It prepares default comments locally, then delegates stale processing to `actions/stale`.
+- It disables issue processing by setting issue stale and close windows to `-1`.
+
+## Behavior
+
+- Marks inactive PRs after `days-before-stale`.
+- Closes stale PRs after `days-before-close`, unless that value is `-1`.
+- Exempts draft PRs by default.
+- Supports exemption labels and assignees.
+- Removes the stale label when activity resumes by default.
+- Can delete the source branch after auto-close when `delete-branch` is `"true"`.
+
+## Inputs
+
+| Input | Required | Default | Description |
+| --- | --- | --- | --- |
+| `github-token` | No | `${{ github.token }}` | Token used by `actions/stale`. Empty input falls back to the workflow token. |
+| `days-before-stale` | No | `25` | Days of PR inactivity before applying `stale-pr-label`. Use `-1` to disable stale marking. |
+| `days-before-close` | No | `5` | Additional days before closing a stale PR. Use `-1` to mark stale without closing. |
+| `stale-pr-label` | No | `stale` | Label applied when a PR becomes stale. |
+| `close-pr-label` | No | `auto-close` | Label applied when a PR is automatically closed. |
+| `exempt-pr-labels` | No |  | Comma-separated labels that exempt a PR. |
+| `exempt-pr-assignees` | No |  | Comma-separated assignees that exempt a PR. |
+| `exempt-draft-pr` | No | `true` | Exempt draft PRs. |
+| `stale-pr-message` | No | Generated | Comment posted when a PR becomes stale. Empty input uses the generated message. |
+| `close-pr-message` | No | Generated | Comment posted when a PR is closed. Empty input uses the generated message. |
+| `operations-per-run` | No | `30` | Maximum stale operations per run. |
+| `remove-stale-when-updated` | No | `true` | Remove the stale label after new activity. |
+| `ascending` | No | `false` | Process older PRs first when `"true"`. |
+| `delete-branch` | No | `false` | Delete the PR branch after auto-close. |
+
+## Minimum Permissions
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+```
+
+`issues: write` is needed because GitHub pull request comments use the issues API.
 
 ## Usage
 
-### Basic Usage
+### Basic With Defaults Shown
 
 ```yaml
-name: Close Stale PRs
-on:
-  schedule:
-    # Run daily at 1:00 AM UTC
-    - cron: '0 1 * * *'
-  workflow_dispatch: # Allow manual trigger
+name: Stale PR Sweeper
 
-jobs:
-  stale:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Close stale PRs
-        uses: pagopa/eng-cloud-strategy-hub/actions/global/stale-close-pr@500233e7801c969713d6ff58c223b7a8160d383e
-```
-
-### Advanced Usage with Custom Configuration
-
-```yaml
-name: Close Stale PRs
 on:
   schedule:
     - cron: '0 1 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
 jobs:
-  stale:
+  stale-prs:
     runs-on: ubuntu-latest
     steps:
-      - name: Close stale PRs
-        uses: pagopa/eng-cloud-strategy-hub/actions/global/stale-close-pr@500233e7801c969713d6ff58c223b7a8160d383e
+      - uses: pagopa/<repo-actions>/actions/global/stale-close-pr@<sha>
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          days-before-stale: 30
-          days-before-close: 7
-          stale-pr-label: 'inactive'
-          exempt-pr-labels: 'keep-open,in-progress,blocked'
-          exempt-draft-pr: 'true'
-          stale-pr-message: |
-            ⚠️ This PR has been inactive for 30 days and will be closed in 7 days.
-            Please update if you want to keep it open.
-          close-pr-message: |
-            🔒 This PR has been automatically closed due to inactivity.
-          delete-branch: 'true'
+          github-token: ${{ github.token }}
+          days-before-stale: "25"
+          days-before-close: "5"
+          stale-pr-label: stale
+          close-pr-label: auto-close
+          exempt-pr-labels: ""
+          exempt-pr-assignees: ""
+          exempt-draft-pr: "true"
+          stale-pr-message: ""
+          close-pr-message: ""
+          operations-per-run: "30"
+          remove-stale-when-updated: "true"
+          ascending: "false"
+          delete-branch: "false"
 ```
 
-## Inputs
+### Mark Only, Do Not Close
 
-| Input | Description | Required | Default |
-|-------|-------------|----------|---------|
-| `github-token` | GitHub token for authentication | No | `${{ github.token }}` |
-| `days-before-stale` | Number of days of inactivity before a PR is marked as stale | No | `25` |
-| `days-before-close` | Number of days of inactivity before a stale PR is closed | No | `5` |
-| `stale-pr-label` | Label to apply to stale PRs | No | `stale` |
-| `close-pr-label` | Label to apply when a PR is automatically closed | No | `auto-close` |
-| `exempt-pr-labels` | Comma-separated list of labels that exempt a PR from being marked as stale | No | `''` |
-| `exempt-pr-assignees` | Comma-separated list of assignees that exempt a PR from being marked as stale | No | `''` |
-| `exempt-draft-pr` | Exempt draft PRs from being marked as stale | No | `true` |
-| `stale-pr-message` | Message to post on PRs when they are marked as stale | No | See default message |
-| `close-pr-message` | Message to post on PRs when they are closed | No | See default message |
-| `operations-per-run` | Maximum number of operations per run (to avoid rate limits) | No | `30` |
-| `remove-stale-when-updated` | Remove stale label when a PR is updated | No | `true` |
-| `ascending` | Process PRs in ascending order (oldest first) | No | `false` |
-| `delete-branch` | Delete the PR branch when the PR is closed | No | `false` |
+```yaml
+steps:
+  - uses: pagopa/<repo-actions>/actions/global/stale-close-pr@<sha>
+    with:
+      days-before-stale: "30"
+      days-before-close: "-1"
+      exempt-pr-labels: keep-open,blocked
+```
+
+### Custom Messages
+
+```yaml
+steps:
+  - uses: pagopa/<repo-actions>/actions/global/stale-close-pr@<sha>
+    with:
+      days-before-stale: "45"
+      days-before-close: "10"
+      stale-pr-message: |
+        This PR has been inactive for 45 days.
+        Please comment or push commits if it should stay open.
+      close-pr-message: |
+        This PR was closed after the stale grace period expired.
+```
 
 ## How It Works
 
-1. **Detection**: The action runs on a schedule (typically daily) and checks for PRs that have been inactive
-2. **Stale Marking**: After `days-before-stale` days of inactivity (default: 25 days), the PR is labeled with `stale-pr-label` and a warning comment is added
-3. **Auto-Close**: If the stale PR remains inactive for `days-before-close` additional days (default: 5 days), it is automatically closed with a closing message and labeled with `close-pr-label`
-4. **Branch Deletion**: When enabled via `delete-branch`, the associated branch is deleted after the PR is closed (disabled by default)
-5. **Reactivation**: If activity occurs on a stale PR (new commit, comment, review), the stale label is automatically removed
-
-## Examples
-
-### Example 1: Conservative Settings (Longer Grace Period)
-
-```yaml
-- uses: pagopa/eng-cloud-strategy-hub/actions/global/stale-close-pr@500233e7801c969713d6ff58c223b7a8160d383e
-  with:
-    days-before-stale: 45
-    days-before-close: 15
-    exempt-pr-labels: 'priority,urgent,wip'
-```
-
-### Example 2: Aggressive Settings (Faster Cleanup)
-
-```yaml
-- uses: pagopa/eng-cloud-strategy-hub/actions/global/stale-close-pr@500233e7801c969713d6ff58c223b7a8160d383e
-  with:
-    days-before-stale: 14
-    days-before-close: 3
-    stale-pr-label: 'auto-close-pending'
-    close-pr-label: 'closed-by-bot'
-```
-
-### Example 3: Only Label, Don't Close
-
-```yaml
-- uses: pagopa/eng-cloud-strategy-hub/actions/global/stale-close-pr@500233e7801c969713d6ff58c223b7a8160d383e
-  with:
-    days-before-stale: 30
-    days-before-close: -1  # Never close, only mark as stale
-```
-
-### Example 4: Exempt Specific Labels
-
-```yaml
-- uses: pagopa/eng-cloud-strategy-hub/actions/global/stale-close-pr@500233e7801c969713d6ff58c223b7a8160d383e
-  with:
-    exempt-pr-labels: 'dependencies,keep-open,wip'
-```
-
-## Best Practices
-
-1. **Schedule Frequency**: Run the action daily to ensure consistent monitoring
-2. **Communication**: Use clear messages to inform contributors about the policy
-3. **Exemptions**: Use labels like `keep-open` or `blocked` for PRs that need to stay open longer
-4. **Testing**: Test with `workflow_dispatch` before setting up automated schedules
-5. **Rate Limits**: Adjust `operations-per-run` if you have many PRs to avoid GitHub API rate limits
-
-## Notes
-
-- Draft PRs are excluded by default to allow work-in-progress contributions
-- The action only processes PRs, not issues
-- Stale labels are automatically removed when PRs receive new activity
-- Branch deletion on auto-close is available via `delete-branch` (disabled by default)
-- Closed PRs are labeled with `close-pr-label` (default: `auto-close`) for easy identification
-- The action uses GitHub's official `actions/stale@v10` under the hood
+1. The wrapper validates numeric and boolean inputs.
+2. The wrapper generates stale and close messages when custom messages are empty.
+3. `actions/stale` applies labels, comments, stale removal, close behavior, and optional branch deletion.
+4. Issue processing stays disabled; only pull requests are processed.
 
 ## Troubleshooting
 
-### PRs are not being marked as stale
+### PRs are not marked stale
 
-- Verify the workflow is running (check Actions tab)
-- Check if PRs have exempt labels
-- Ensure the `github-token` has proper permissions
+- Confirm the schedule or manual run actually executed.
+- Check `exempt-pr-labels`, `exempt-pr-assignees`, and draft status.
+- Confirm the workflow token has `pull-requests: write` and `issues: write`.
 
-### Rate limit errors
+### Boolean input rejected
 
-- Reduce `operations-per-run` to a lower number
-- Consider running less frequently
+- Use exact string values: `"true"` or `"false"`.
 
-### Specific PRs should not be closed
+### Too many operations in one run
 
-- Add exempt labels to those PRs
-- Add assignees to `exempt-pr-assignees`
-- Enable draft mode for WIP PRs
-
-## License
-
-This action is part of the PagoPA engineering infrastructure templates.
+- Lower `operations-per-run`.
+- Run the workflow more frequently if the repository has many open PRs.

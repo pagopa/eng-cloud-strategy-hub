@@ -2,6 +2,20 @@
 
 Validates pull request titles with Conventional Commit semantics through a local wrapper around `amannn/action-semantic-pull-request`.
 
+## Self-Contained Contract
+
+- This action validates only the pull request title contract.
+- It does not checkout code and does not call or require any other action under `actions/global`.
+- It validates wrapper booleans before delegating to the upstream title validator.
+- It forwards the parsed title fields and upstream error message as action outputs.
+
+## Behavior
+
+- Reads the pull request title from the GitHub event context used by the upstream action.
+- Accepts an optional type allowlist and optional scope allowlist.
+- Allows any scope when `scopes` is empty.
+- Can optionally validate the single commit message for one-commit PRs.
+
 ## Inputs
 
 | Input | Required | Default | Description |
@@ -26,13 +40,71 @@ Validates pull request titles with Conventional Commit semantics through a local
 
 ## Usage
 
+### Basic With Defaults Shown
+
+```yaml
+name: Validate PR Title
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - synchronize
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: pagopa/<repo-actions>/actions/global/pr-title@<sha>
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          types: |
+            feat
+            fix
+            docs
+            chore
+            ci
+            build
+            refactor
+            perf
+            test
+            revert
+            breaking
+          scopes: ""
+          require-scope: "false"
+          subject-pattern: .+
+          subject-pattern-error: The pull request title subject must not be empty.
+          validate-single-commit: "false"
+          validate-single-commit-matches-pr-title: "false"
+```
+
+### Require Scopes
+
 ```yaml
 steps:
-  - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
-    with:
-      persist-credentials: false
-
-  - uses: ./actions/global/pr-title
+  - uses: pagopa/<repo-actions>/actions/global/pr-title@<sha>
     with:
       github-token: ${{ secrets.GITHUB_TOKEN }}
+      scopes: |
+        actions
+        docs
+        terraform
+      require-scope: "true"
 ```
+
+## Troubleshooting
+
+### Boolean input rejected
+
+- Use the exact strings `"true"` or `"false"`.
+- Do not pass YAML booleans when reviewing examples for portability.
+
+### A valid-looking title fails
+
+- Confirm the type is present in `types`.
+- Confirm the scope is present in `scopes` when `scopes` is not empty.

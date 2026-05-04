@@ -1,0 +1,32 @@
+name: Stale PR Sweeper
+
+on:
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  stale-prs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: pagopa/<repo-actions>/actions/global/stale-close-pr@<sha>
+        with:
+          github-token: ${{ github.token }}
+          days-before-stale: "25"
+          days-before-close: "5"
+          stale-pr-label: stale
+          close-pr-label: auto-close
+          exempt-pr-labels: ""
+          exempt-pr-assignees: ""
+          exempt-draft-pr: "true"
+          stale-pr-message: ""
+          close-pr-message: ""
+          operations-per-run: "30"
+          remove-stale-when-updated: "true"
+          ascending: "false"
+          delete-branch: "false"
