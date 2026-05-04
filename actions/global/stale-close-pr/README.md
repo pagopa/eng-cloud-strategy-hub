@@ -47,6 +47,9 @@ permissions:
 ```
 
 `issues: write` is needed because GitHub pull request comments use the issues API.
+Keep `contents: read` for the default `delete-branch: "false"` behavior. Set
+`contents: write` when using `delete-branch: "true"` because `actions/stale`
+needs write access to delete the source branch after closing the PR.
 
 ## Usage
 

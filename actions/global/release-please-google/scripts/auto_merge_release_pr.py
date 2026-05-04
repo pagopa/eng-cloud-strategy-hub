@@ -33,6 +33,10 @@ AUTO_MERGE_ALREADY_PATTERN = re.compile(
     r"already.*auto-merge|auto-merge.*already",
     re.IGNORECASE,
 )
+RELEASE_PLEASE_TITLE_PATTERN = re.compile(
+    r"^\s*chore(?:\([^)\r\n]+\))?: release\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -95,7 +99,7 @@ def read_string(item: Mapping[str, Any], *names: str) -> str:
 
 
 def is_release_please_title(title: str) -> bool:
-    return "chore: release" in title.lower()
+    return RELEASE_PLEASE_TITLE_PATTERN.search(title) is not None
 
 
 def is_release_please_author(author_login: str) -> bool:

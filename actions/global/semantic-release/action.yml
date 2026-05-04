@@ -98,7 +98,6 @@ runs:
     - name: Validate wrapper inputs
       shell: bash
       env:
-        ACTION_SCRIPT: ${{ github.action_path }}/scripts/validate_inputs.py
         GITHUB_TOKEN_INPUT: ${{ inputs.github_token }}
         CHECKOUT_INPUT: ${{ inputs.checkout }}
         SEMANTIC_VERSION_INPUT: ${{ inputs.semantic_version }}
@@ -107,7 +106,33 @@ runs:
         DEBUG_INPUT: ${{ inputs.debug }}
       run: |
         set -euo pipefail
-        "${ACTION_SCRIPT}"
+
+        require_non_empty() {
+          local name="$1"
+          local value="$2"
+          if [[ -z "${value}" ]]; then
+            echo "❌ ${name} must not be empty." >&2
+            exit 1
+          fi
+        }
+
+        require_bool() {
+          local name="$1"
+          local value="$2"
+          if [[ "${value}" != "true" && "${value}" != "false" ]]; then
+            echo "❌ ${name} must be 'true' or 'false'." >&2
+            exit 1
+          fi
+        }
+
+        require_non_empty "GITHUB_TOKEN_INPUT" "${GITHUB_TOKEN_INPUT}"
+        require_non_empty "SEMANTIC_VERSION_INPUT" "${SEMANTIC_VERSION_INPUT}"
+        require_non_empty "TAG_FORMAT_INPUT" "${TAG_FORMAT_INPUT}"
+        require_non_empty "CHANGELOG_FILE_INPUT" "${CHANGELOG_FILE_INPUT}"
+        require_bool "CHECKOUT_INPUT" "${CHECKOUT_INPUT}"
+        require_bool "DEBUG_INPUT" "${DEBUG_INPUT}"
+
+        echo "✅ semantic-release wrapper inputs are valid."
 
     - name: Checkout repository
       if: ${{ inputs.checkout == 'true' }}

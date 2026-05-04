@@ -10,7 +10,6 @@ from types import ModuleType
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_PATH = ROOT / "actions/global/semantic-release/scripts/generate-releaserc.py"
-VALIDATOR_PATH = ROOT / "actions/global/semantic-release/scripts/validate_inputs.py"
 
 
 def load_module(path: Path, module_name: str) -> ModuleType:
@@ -24,7 +23,6 @@ def load_module(path: Path, module_name: str) -> ModuleType:
 
 
 generate_releaserc = load_module(SCRIPT_PATH, "semantic_release_generate_releaserc")
-validate_inputs = load_module(VALIDATOR_PATH, "semantic_release_validate_inputs")
 
 
 class GenerateReleaseRcTests(unittest.TestCase):
@@ -87,35 +85,6 @@ class GenerateReleaseRcTests(unittest.TestCase):
             finally:
                 generate_releaserc.os.environ.clear()
                 generate_releaserc.os.environ.update(original_environment)
-
-
-class SemanticReleaseValidateInputsTests(unittest.TestCase):
-    def test_validate_inputs_accepts_default_scalars(self) -> None:
-        validate_inputs.validate_inputs(
-            {
-                "GITHUB_TOKEN_INPUT": "token",
-                "CHECKOUT_INPUT": "true",
-                "SEMANTIC_VERSION_INPUT": "24.1.1",
-                "TAG_FORMAT_INPUT": "v${version}",
-                "CHANGELOG_FILE_INPUT": "CHANGELOG.md",
-                "DEBUG_INPUT": "false",
-            }
-        )
-
-    def test_validate_inputs_rejects_invalid_boolean(self) -> None:
-        with self.assertRaisesRegex(
-            ValueError, "CHECKOUT_INPUT must be 'true' or 'false'"
-        ):
-            validate_inputs.validate_inputs(
-                {
-                    "GITHUB_TOKEN_INPUT": "token",
-                    "CHECKOUT_INPUT": "maybe",
-                    "SEMANTIC_VERSION_INPUT": "24.1.1",
-                    "TAG_FORMAT_INPUT": "v${version}",
-                    "CHANGELOG_FILE_INPUT": "CHANGELOG.md",
-                    "DEBUG_INPUT": "false",
-                }
-            )
 
 
 if __name__ == "__main__":

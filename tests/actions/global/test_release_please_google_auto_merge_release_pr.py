@@ -31,16 +31,42 @@ validate_inputs = load_module(VALIDATOR_PATH, "release_please_validate_inputs")
 
 
 class AutoMergeReleasePrTests(unittest.TestCase):
+    def test_is_release_please_title_accepts_scoped_and_unscoped_titles(
+        self,
+    ) -> None:
+        accepted_titles = (
+            "chore: release main",
+            "chore(main): release foo-bar v1.2.3",
+            "chore(release-please): release v2.0.0",
+        )
+
+        for title in accepted_titles:
+            with self.subTest(title=title):
+                self.assertTrue(auto_merge.is_release_please_title(title))
+
+    def test_is_release_please_title_rejects_non_release_titles(self) -> None:
+        rejected_titles = (
+            "feat: release foo-bar v1.2.3",
+            "chore(main): update dependencies",
+            "docs: chore(main): release notes",
+        )
+
+        for title in rejected_titles:
+            with self.subTest(title=title):
+                self.assertFalse(auto_merge.is_release_please_title(title))
+
     def test_normalize_release_please_outputs_filters_release_prs(self) -> None:
         release_prs = auto_merge.normalize_release_please_outputs(
             raw_pr=(
                 '{"number":42,"headBranchName":"release-please--branches--main",'
-                '"baseBranchName":"main","title":"chore: release main"}'
+                '"baseBranchName":"main",'
+                '"title":"chore(main): release foo-bar v1.2.3"}'
             ),
             raw_prs=(
                 "["
                 '{"number":42,"headBranchName":"release-please--branches--main",'
-                '"baseBranchName":"main","title":"chore: release main"},'
+                '"baseBranchName":"main",'
+                '"title":"chore(main): release foo-bar v1.2.3"},'
                 '{"number":99,"headBranchName":"feature/not-release",'
                 '"baseBranchName":"main","title":"feat: something"}'
                 "]"
