@@ -1,0 +1,24 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: pagopa/<repo-actions>/actions/global/release-please-google@<sha>
+        with:
+          github_token: ${{ secrets.RELEASE_GITHUB_APP_TOKEN }}
+          target_branch: main
+          config_file: release-please-config.json
+          manifest_file: .release-please-manifest.json
+          auto_merge: "true"
+          merge_method: squash

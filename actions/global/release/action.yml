@@ -1,29 +1,29 @@
 name: Release Please
-description: Create independent release PRs and GitHub releases for managed repository categories.
+description: Compatibility wrapper that delegates to the release-please-google action.
 author: Cloud Strategy Governance
 
 inputs:
   github-token:
-    description: GitHub token used by release-please to create release PRs, tags, and releases.
+    description: GitHub token used by release-please and gh CLI.
     required: true
   target-branch:
-    description: Branch to target for release PRs. Defaults to release-please auto-detection when empty.
+    description: Branch to target for release PRs. Empty falls back to main.
     required: false
     default: ""
   config-file:
     description: Repository-relative path to the release-please config file.
     required: false
-    default: actions/global/release/release-please-config.json
+    default: release-please-config.json
   manifest-file:
     description: Repository-relative path to the release-please manifest file.
     required: false
-    default: actions/global/release/.release-please-manifest.json
+    default: .release-please-manifest.json
   skip-github-release:
-    description: Skip creating GitHub releases after release PRs are merged.
+    description: Legacy input retained for compatibility. Must remain false.
     required: false
     default: "false"
   skip-github-pull-request:
-    description: Skip creating or updating release PRs.
+    description: Legacy input retained for compatibility. Must remain false.
     required: false
     default: "false"
 
@@ -44,31 +44,13 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Validate release inputs
+    - name: Validate legacy compatibility inputs
       shell: bash
       env:
-        GITHUB_TOKEN_INPUT: ${{ inputs.github-token }}
-        CONFIG_FILE_INPUT: ${{ inputs.config-file }}
-        MANIFEST_FILE_INPUT: ${{ inputs.manifest-file }}
         SKIP_GITHUB_RELEASE_INPUT: ${{ inputs.skip-github-release }}
         SKIP_GITHUB_PULL_REQUEST_INPUT: ${{ inputs.skip-github-pull-request }}
       run: |
         set -euo pipefail
-
-        if [[ -z "${GITHUB_TOKEN_INPUT}" ]]; then
-          echo "::error::github-token input is required."
-          exit 1
-        fi
-
-        if [[ ! -f "${CONFIG_FILE_INPUT}" ]]; then
-          echo "::error::release-please config file not found: ${CONFIG_FILE_INPUT}"
-          exit 1
-        fi
-
-        if [[ ! -f "${MANIFEST_FILE_INPUT}" ]]; then
-          echo "::error::release-please manifest file not found: ${MANIFEST_FILE_INPUT}"
-          exit 1
-        fi
 
         case "${SKIP_GITHUB_RELEASE_INPUT}" in
           true|false) ;;
@@ -86,13 +68,16 @@ runs:
             ;;
         esac
 
-    - name: Run release-please
+        if [[ "${SKIP_GITHUB_RELEASE_INPUT}" == "true" || "${SKIP_GITHUB_PULL_REQUEST_INPUT}" == "true" ]]; then
+          echo "::error::actions/global/release now delegates to actions/global/release-please-google and no longer supports skip-github-release or skip-github-pull-request."
+          exit 1
+        fi
+
+    - name: Run release-please-google compatibility wrapper
       id: release
-      uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # googleapis/release-please-action@v5.0.0 release: https://github.com/googleapis/release-please-action/releases/tag/v5.0.0
+      uses: ./actions/global/release-please-google
       with:
-        token: ${{ inputs.github-token }}
-        target-branch: ${{ inputs.target-branch }}
-        config-file: ${{ inputs.config-file }}
-        manifest-file: ${{ inputs.manifest-file }}
-        skip-github-release: ${{ inputs.skip-github-release }}
-        skip-github-pull-request: ${{ inputs.skip-github-pull-request }}
+        github_token: ${{ inputs.github-token }}
+        target_branch: ${{ inputs.target-branch || 'main' }}
+        config_file: ${{ inputs.config-file }}
+        manifest_file: ${{ inputs.manifest-file }}

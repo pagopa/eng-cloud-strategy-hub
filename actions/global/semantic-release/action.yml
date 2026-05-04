@@ -1,0 +1,169 @@
+name: Semantic Release
+description: Run semantic-release through an internal wrapper that generates .releaserc.json.
+author: Cloud Strategy Governance
+
+inputs:
+  github_token:
+    description: GitHub token used by semantic-release. Can be GITHUB_TOKEN or GitHub App installation token.
+    required: true
+  checkout:
+    description: Whether the action should checkout the repository internally.
+    required: false
+    default: "true"
+  semantic_version:
+    description: semantic-release version.
+    required: false
+    default: 24.1.1
+  branches:
+    description: semantic-release branches JSON.
+    required: false
+    default: |
+      ["main"]
+  tag_format:
+    description: semantic-release tag format.
+    required: false
+    default: v${version}
+  preset:
+    description: Conventional commit preset.
+    required: false
+    default: angular
+  changelog_file:
+    description: Changelog file path.
+    required: false
+    default: CHANGELOG.md
+  git_author_name:
+    description: Git author name used by semantic-release git plugin.
+    required: false
+    default: github-actions[bot]
+  git_author_email:
+    description: Git author email used by semantic-release git plugin.
+    required: false
+    default: 41898282+github-actions[bot]@users.noreply.github.com
+  release_rules:
+    description: semantic-release releaseRules JSON.
+    required: false
+    default: |
+      [
+        {"type": "breaking", "release": "major"}
+      ]
+  extra_plugins:
+    description: Extra plugins installed before semantic-release execution.
+    required: false
+    default: |
+      @semantic-release/commit-analyzer@13.0.1
+      @semantic-release/release-notes-generator@14.0.3
+      @semantic-release/changelog@6.0.3
+      @semantic-release/git@10.0.1
+      @semantic-release/github@11.0.1
+  debug:
+    description: Print generated non-secret .releaserc.json.
+    required: false
+    default: "false"
+
+outputs:
+  new_release_published:
+    description: Whether a new release was published.
+    value: ${{ steps.semantic_release.outputs.new_release_published }}
+  new_release_version:
+    description: New release version.
+    value: ${{ steps.semantic_release.outputs.new_release_version }}
+  new_release_major_version:
+    description: New release major version.
+    value: ${{ steps.semantic_release.outputs.new_release_major_version }}
+  new_release_minor_version:
+    description: New release minor version.
+    value: ${{ steps.semantic_release.outputs.new_release_minor_version }}
+  new_release_patch_version:
+    description: New release patch version.
+    value: ${{ steps.semantic_release.outputs.new_release_patch_version }}
+  new_release_git_head:
+    description: New release git head.
+    value: ${{ steps.semantic_release.outputs.new_release_git_head }}
+  new_release_git_tag:
+    description: New release git tag.
+    value: ${{ steps.semantic_release.outputs.new_release_git_tag }}
+  last_release_version:
+    description: Last release version.
+    value: ${{ steps.semantic_release.outputs.last_release_version }}
+  last_release_git_head:
+    description: Last release git head.
+    value: ${{ steps.semantic_release.outputs.last_release_git_head }}
+  last_release_git_tag:
+    description: Last release git tag.
+    value: ${{ steps.semantic_release.outputs.last_release_git_tag }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate wrapper inputs
+      shell: bash
+      env:
+        GITHUB_TOKEN_INPUT: ${{ inputs.github_token }}
+        CHECKOUT_INPUT: ${{ inputs.checkout }}
+        SEMANTIC_VERSION_INPUT: ${{ inputs.semantic_version }}
+        TAG_FORMAT_INPUT: ${{ inputs.tag_format }}
+        CHANGELOG_FILE_INPUT: ${{ inputs.changelog_file }}
+        DEBUG_INPUT: ${{ inputs.debug }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "${GITHUB_TOKEN_INPUT}" ]]; then
+          echo "::error::github_token input is required."
+          exit 1
+        fi
+
+        for required_input in SEMANTIC_VERSION_INPUT TAG_FORMAT_INPUT CHANGELOG_FILE_INPUT; do
+          if [[ -z "${!required_input}" ]]; then
+            echo "::error::${required_input} must not be empty."
+            exit 1
+          fi
+        done
+
+        for boolean_input in CHECKOUT_INPUT DEBUG_INPUT; do
+          case "${!boolean_input}" in
+            true|false) ;;
+            *)
+              echo "::error::${boolean_input} must be 'true' or 'false'."
+              exit 1
+              ;;
+          esac
+        done
+
+    - name: Checkout repository
+      if: ${{ inputs.checkout == 'true' }}
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Generate .releaserc.json
+      shell: bash
+      env:
+        RELEASERC_OUTPUT_PATH: ${{ github.workspace }}/.releaserc.json
+      run: |
+        set -euo pipefail
+        python3 "${{ github.action_path }}/scripts/generate-releaserc.py" \
+          --output "${RELEASERC_OUTPUT_PATH}" \
+          --branches '${{ inputs.branches }}' \
+          --tag-format '${{ inputs.tag_format }}' \
+          --preset '${{ inputs.preset }}' \
+          --changelog-file '${{ inputs.changelog_file }}' \
+          --git-author-name '${{ inputs.git_author_name }}' \
+          --git-author-email '${{ inputs.git_author_email }}' \
+          --release-rules '${{ inputs.release_rules }}' \
+          --debug '${{ inputs.debug }}'
+
+    - name: Run semantic-release
+      id: semantic_release
+      uses: cycjimmy/semantic-release-action@0a51e81a6baff2acad3ee88f4121c589c73d0f0e # cycjimmy/semantic-release-action@v4.2.0 release: https://github.com/cycjimmy/semantic-release-action/releases/tag/v4.2.0
+      with:
+        semantic_version: ${{ inputs.semantic_version }}
+        branches: ${{ inputs.branches }}
+        extra_plugins: ${{ inputs.extra_plugins }}
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GH_TOKEN: ${{ inputs.github_token }}
+        GIT_AUTHOR_NAME: ${{ inputs.git_author_name }}
+        GIT_AUTHOR_EMAIL: ${{ inputs.git_author_email }}
+        GIT_COMMITTER_NAME: ${{ inputs.git_author_name }}
+        GIT_COMMITTER_EMAIL: ${{ inputs.git_author_email }}

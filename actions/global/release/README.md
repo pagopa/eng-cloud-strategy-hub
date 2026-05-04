@@ -1,24 +1,31 @@
 # Release Please
 
-Creates independent category releases for `scripts`, `code`, and `actions` through `release-please` manifest mode.
+Compatibility wrapper for [actions/global/release-please-google](../release-please-google/README.md).
 
-## Behavior
+## Status
 
-- Creates or updates separate Release PRs per configured category.
-- Publishes the category GitHub Release after the corresponding Release PR is merged.
-- Uses component tags such as `scripts-v1.2.3`, `code-v1.2.3`, and `actions-v1.2.3`.
-- Keeps release configuration and manifest state inside `actions/global/release/`.
+- Existing internal workflows can keep using `actions/global/release`.
+- The implementation now delegates to `actions/global/release-please-google`.
+- Default consumer configuration now lives at the repository root:
+  - `release-please-config.json`
+  - `.release-please-manifest.json`
+
+## Compatibility Notes
+
+- `skip-github-release` and `skip-github-pull-request` are retained only as compatibility inputs.
+- Both legacy skip inputs must remain `false`.
+- New consumers should use `actions/global/release-please-google` directly.
 
 ## Inputs
 
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
-| `github-token` | Yes |  | Token used by `release-please`. |
-| `target-branch` | No |  | Target branch for release PRs. Empty lets `release-please` detect it. |
-| `config-file` | No | `actions/global/release/release-please-config.json` | Release Please config path. |
-| `manifest-file` | No | `actions/global/release/.release-please-manifest.json` | Release Please manifest path. |
-| `skip-github-release` | No | `false` | Skip publishing GitHub releases. |
-| `skip-github-pull-request` | No | `false` | Skip creating or updating release PRs. |
+| `github-token` | Yes |  | Token used by `release-please` and `gh`. |
+| `target-branch` | No |  | Target branch for release PRs. Empty falls back to `main`. |
+| `config-file` | No | `release-please-config.json` | Release Please config path. |
+| `manifest-file` | No | `.release-please-manifest.json` | Release Please manifest path. |
+| `skip-github-release` | No | `false` | Legacy compatibility input. Must remain `false`. |
+| `skip-github-pull-request` | No | `false` | Legacy compatibility input. Must remain `false`. |
 
 ## Outputs
 
@@ -27,18 +34,18 @@ Creates independent category releases for `scripts`, `code`, and `actions` throu
 | `releases-created` | True when at least one release was created. |
 | `paths-released` | JSON array of released category paths. |
 | `prs-created` | True when at least one Release PR was created or updated. |
-| `prs` | JSON array with Release PR metadata. |
+| `prs` | Normalized JSON array with resolved Release PR metadata. |
 
 ## Usage
 
 ```yaml
 steps:
-  - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
-    with:
-      persist-credentials: false
-
   - uses: ./actions/global/release
     with:
       github-token: ${{ secrets.GITHUB_TOKEN }}
       target-branch: ${{ github.ref_name }}
+      config-file: release-please-config.json
+      manifest-file: .release-please-manifest.json
 ```
+
+For new integrations, prefer `./actions/global/release-please-google` directly.

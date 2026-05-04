@@ -20,17 +20,15 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write
-      issues: write
       pull-requests: write
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
-        with:
-          persist-credentials: false
-
       - name: Run release action
         id: release
-        uses: ./actions/global/release
+        uses: ./actions/global/release-please-google
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          target-branch: ${{ github.ref_name }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          target_branch: ${{ github.ref_name }}
+          config_file: release-please-config.json
+          manifest_file: .release-please-manifest.json
+          auto_merge: "true"
+          merge_method: squash
