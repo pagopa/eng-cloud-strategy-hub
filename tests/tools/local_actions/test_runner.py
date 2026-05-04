@@ -38,7 +38,10 @@ class LocalActionsRunnerTests(unittest.TestCase):
             write_file(
                 root / "tools/local_actions/runner.py", "#!/usr/bin/env python3\n"
             )
-            write_file(root / "local-actions.sh", "#!/usr/bin/env bash\necho run\n")
+            write_file(
+                root / "validate-repo-locally.sh",
+                "#!/usr/bin/env bash\necho run\n",
+            )
 
             targets = runner.collect_shell_targets(
                 root,
@@ -47,15 +50,15 @@ class LocalActionsRunnerTests(unittest.TestCase):
                     "scripts",
                     "tests/scripts",
                     "tools",
-                    "local-actions.sh",
+                    "validate-repo-locally.sh",
                 ),
             )
 
             self.assertEqual(
                 [
                     ".github/scripts/bootstrap.sh",
-                    "local-actions.sh",
                     "tests/scripts/fake",
+                    "validate-repo-locally.sh",
                 ],
                 [target.relative_to(root).as_posix() for target in targets],
             )

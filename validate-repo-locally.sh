@@ -2,9 +2,9 @@
 #
 # Purpose: Run the local GitHub Actions simulator from the repository root.
 # Usage examples:
-#   ./local-actions.sh
-#   ./local-actions.sh --yes
-#   ./local-actions.sh --skip pre-commit
+#   ./validate-repo-locally.sh
+#   ./validate-repo-locally.sh --yes
+#   ./validate-repo-locally.sh --skip pre-commit
 
 set -euo pipefail
 

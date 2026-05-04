@@ -12,7 +12,7 @@ on:
     paths:
       - ".github/workflows/**"
       - ".github/scripts/**"
-      - "local-actions.sh"
+      - "validate-repo-locally.sh"
       - "scripts/**"
       - "tests/scripts/**"
       - "tools/**"
@@ -22,7 +22,7 @@ on:
     paths:
       - ".github/workflows/**"
       - ".github/scripts/**"
-      - "local-actions.sh"
+      - "validate-repo-locally.sh"
       - "scripts/**"
       - "tests/scripts/**"
       - "tools/**"
@@ -92,7 +92,7 @@ jobs:
               shell_targets+=("${candidate}")
             fi
           done < <(
-            find .github/scripts scripts tests/scripts tools local-actions.sh \
+            find .github/scripts scripts tests/scripts tools validate-repo-locally.sh \
               -type f \
               ! -name '.gitkeep' \
               -print0
