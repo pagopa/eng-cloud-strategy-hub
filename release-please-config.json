@@ -4,15 +4,17 @@
   "include-component-in-tag": true,
   "include-v-in-tag": true,
   "separate-pull-requests": false,
-  "group-pull-request-title-pattern": "chore: release-please generated ${branch}",
+  "group-pull-request-title-pattern": "chore(release): release eng-cloud-strategy-hub ${version} (${branch})",
   "packages": {
+    ".": {
+      "component": "eng-cloud-strategy-hub",
+      "package-name": "eng-cloud-strategy-hub",
+      "include-component-in-tag": false,
+      "changelog-path": "CHANGELOG.md"
+    },
     "scripts": {
       "component": "scripts",
       "package-name": "scripts"
-    },
-    "code": {
-      "component": "code",
-      "package-name": "code"
     },
     "actions": {
       "component": "actions",

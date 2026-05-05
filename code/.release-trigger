@@ -1,0 +1,5 @@
+# Force-release trigger for the `code` package.
+# Bump the counter below and commit with a conventional commit, e.g.:
+#   fix(code): force release
+# release-please will see a commit affecting `code/` and open a release PR.
+counter: 0

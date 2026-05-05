@@ -1,0 +1,5 @@
+# Force-release trigger for the `actions` package.
+# Bump the counter below and commit with a conventional commit, e.g.:
+#   fix(actions): force release
+# release-please will see a commit affecting `actions/` and open a release PR.
+counter: 0

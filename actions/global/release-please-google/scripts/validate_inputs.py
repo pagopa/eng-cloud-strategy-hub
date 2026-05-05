@@ -17,7 +17,12 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Sequence
 
-BOOLEAN_FIELDS = ("CHECKOUT_INPUT", "AUTO_MERGE_INPUT", "DEBUG_INPUT")
+BOOLEAN_FIELDS = (
+    "CHECKOUT_INPUT",
+    "AUTO_MERGE_INPUT",
+    "SKIP_GITHUB_RELEASE_INPUT",
+    "DEBUG_INPUT",
+)
 MERGE_METHODS = {"merge", "squash", "rebase"}
 
 

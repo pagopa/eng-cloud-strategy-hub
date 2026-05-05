@@ -8,6 +8,17 @@ on:
       - "CODEOWNERS"
       - "**.md"
   workflow_dispatch:
+    inputs:
+      target_branch:
+        description: "Target branch for the release PR."
+        type: string
+        required: false
+        default: main
+      auto_merge:
+        description: "Enable auto-merge on the release PR opened by this run."
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: release-${{ github.ref }}
@@ -31,8 +42,8 @@ jobs:
         with:
           client-id: ${{ env.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ env.RELEASE_APP_PRIVATE_KEY }}
-          permission-contents: write
-          permission-pull-requests: write
+          # Diagnostic mode: inherit the installation permissions as-is to verify
+          # whether the 422 comes from requesting an unapproved scoped permission.
 
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
@@ -48,10 +59,15 @@ jobs:
         uses: ./actions/global/release-please-google
         env:
           RELEASE_APP_TOKEN: ${{ steps.release-token.outputs.token }}
-          RELEASE_TARGET_BRANCH: ${{ github.ref_name }}
+          RELEASE_TARGET_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.target_branch || github.ref_name }}
           RELEASE_CONFIG_FILE: release-please-config.json
           RELEASE_MANIFEST_FILE: .release-please-manifest.json
-          RELEASE_AUTO_MERGE: ${{ github.ref_name == 'main' && 'true' || 'false' }}
+          # Manual branch tests may open/update release PRs, but must not publish
+          # real tags or GitHub Releases unless the target is main.
+          RELEASE_SKIP_GITHUB_RELEASE: ${{ (github.event_name == 'workflow_dispatch' && inputs.target_branch != 'main') && 'true' || 'false' }}
+          # Auto-merge is OFF by default to keep the release loop under control.
+          # Re-enable it manually via workflow_dispatch input once the flow is verified.
+          RELEASE_AUTO_MERGE: ${{ (github.event_name == 'workflow_dispatch' && inputs.auto_merge) && 'true' || 'false' }}
         with:
           github_token: ${{ env.RELEASE_APP_TOKEN }}
           checkout: "false"
@@ -60,3 +76,4 @@ jobs:
           manifest_file: ${{ env.RELEASE_MANIFEST_FILE }}
           auto_merge: ${{ env.RELEASE_AUTO_MERGE }}
           merge_method: squash
+          skip_github_release: ${{ env.RELEASE_SKIP_GITHUB_RELEASE }}

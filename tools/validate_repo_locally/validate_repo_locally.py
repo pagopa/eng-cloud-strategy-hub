@@ -2,20 +2,23 @@
 """Purpose: Simulate selected GitHub Actions checks on a local workstation.
 
 Usage examples:
-  python3 tools/local_actions/runner.py --yes
-  python3 tools/local_actions/runner.py --skip pre-commit
-  python3 tools/local_actions/runner.py --only terraform-wrapper-tests
+  python3 tools/validate_repo_locally/validate_repo_locally.py
+  python3 tools/validate_repo_locally/validate_repo_locally.py --interactive
+  python3 tools/validate_repo_locally/validate_repo_locally.py --skip pre-commit
+  python3 tools/validate_repo_locally/validate_repo_locally.py --only terraform-wrapper-tests
 
 Dependency decision note:
-- Candidates: standard library argparse/subprocess, Rich, Typer.
-- Final choice: standard library only.
-- Why: this runner needs direct orchestration, prompts, and ANSI-friendly logs;
-  external CLI/UI dependencies would add setup cost without simplifying the core flow.
+- Candidates: standard library argparse/subprocess, Questionary, Rich.
+- Final choice: standard library for the default execution path, Questionary for
+  the optional interactive selector.
+- Why: default runs must stay dependency-light and CI-safe, while the
+  interactive mode benefits from a purpose-built checkbox prompt.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib
 import os
 import shlex
 import shutil
@@ -33,7 +36,7 @@ PRE_COMMIT_IMAGE = (
     "ghcr.io/antonbabenko/pre-commit-terraform:v1.105.0"
     "@sha256:4ef4b8323b27fc263535ad88c9d2f20488fcb3b520258e5e7f0553ed5f6692b5"
 )
-DEFAULT_TMP_DIR = "tmp/local-actions"
+DEFAULT_TMP_DIR = "tmp/validate-repo-locally"
 SHELL_TARGET_ROOTS = (
     ".github/scripts",
     "scripts",
@@ -63,6 +66,7 @@ STEP_ALIASES = {
     "precommit": ("pre-commit",),
     "terraform": ("terraform-wrapper-tests",),
 }
+INTERACTIVE_REQUIREMENTS = "tools/validate_repo_locally/requirements.txt"
 
 
 @dataclass(frozen=True)
@@ -214,7 +218,12 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         "--no-prompt",
         action="store_true",
         dest="no_prompt",
-        help="Run selected checks without interactive prompts.",
+        help="Compatibility flag for non-interactive runs. Incompatible with --interactive.",
+    )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Open an interactive checkbox menu to choose which checks to run.",
     )
     parser.add_argument(
         "--fail-fast",
@@ -234,14 +243,21 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument(
         "--tmp-dir",
         default=DEFAULT_TMP_DIR,
-        help="Local runtime/cache directory. Defaults to tmp/local-actions.",
+        help="Local runtime/cache directory. Defaults to tmp/validate-repo-locally.",
     )
     parser.add_argument(
         "--no-color",
         action="store_true",
         help="Disable ANSI color output.",
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    validate_args(parser, args)
+    return args
+
+
+def validate_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    if args.interactive and args.no_prompt:
+        parser.error("--interactive cannot be combined with --yes/--no-prompt.")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -259,7 +275,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     selected_steps = select_steps(steps, args.only, args.skip)
-    selected_steps = prompt_for_steps(selected_steps, args.no_prompt, console)
+    selected_steps = prompt_for_steps(
+        selected_steps,
+        interactive=args.interactive,
+        console=console,
+    )
     if not selected_steps:
         console.warn("No checks selected.")
         return 0
@@ -341,20 +361,53 @@ def select_steps(
 
 
 def prompt_for_steps(
-    steps: Sequence[Step], no_prompt: bool, console: Console
+    steps: Sequence[Step], *, interactive: bool, console: Console
 ) -> list[Step]:
-    if no_prompt or not sys.stdin.isatty():
+    if not steps:
+        return []
+
+    if not interactive:
         return list(steps)
 
+    if not sys.stdin.isatty():
+        raise SystemExit("❌ --interactive requires an interactive terminal.")
+
+    questionary = import_questionary()
+    choices = [
+        questionary.Choice(
+            title=f"{step.step_id} - {step.title}",
+            value=step.step_id,
+            checked=True,
+        )
+        for step in steps
+    ]
+
     console.title("Choose Checks")
-    selected: list[Step] = []
-    for step in steps:
-        answer = input(f"Run {step.step_id} ({step.title})? [Y/n] ").strip().lower()
-        if answer in {"", "y", "yes"}:
-            selected.append(step)
-        else:
-            console.warn(f"Skipped {step.step_id}")
-    return selected
+    try:
+        selected_ids = questionary.checkbox(
+            "Select the local checks to run",
+            choices=choices,
+            instruction="Space toggles, Enter confirms",
+        ).ask()
+    except KeyboardInterrupt as error:
+        raise SystemExit(130) from error
+
+    if selected_ids is None:
+        raise SystemExit(130)
+
+    selected_lookup = set(selected_ids)
+    return [step for step in steps if step.step_id in selected_lookup]
+
+
+def import_questionary():
+    try:
+        return importlib.import_module("questionary")
+    except ModuleNotFoundError as error:
+        raise SystemExit(
+            "❌ Missing interactive dependency: questionary.\n"
+            "Run ./validate-repo-locally.sh --interactive so the wrapper can "
+            f"install {INTERACTIVE_REQUIREMENTS}."
+        ) from error
 
 
 def run_steps(

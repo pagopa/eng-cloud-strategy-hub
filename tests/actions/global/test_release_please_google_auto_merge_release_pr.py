@@ -300,6 +300,7 @@ class ReleasePleaseValidateInputsTests(unittest.TestCase):
                 "CHECKOUT_INPUT": "true",
                 "TARGET_BRANCH_INPUT": "main",
                 "AUTO_MERGE_INPUT": "true",
+                "SKIP_GITHUB_RELEASE_INPUT": "false",
                 "MERGE_METHOD_INPUT": "squash",
                 "DEBUG_INPUT": "false",
             }
