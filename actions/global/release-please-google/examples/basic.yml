@@ -25,6 +25,7 @@ jobs:
           private-key: ${{ env.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
           permission-pull-requests: write
+          permission-issues: write
 
       - uses: pagopa/<repo-actions>/actions/global/release-please-google@<sha>
         env:

@@ -120,6 +120,7 @@ jobs:
           private-key: ${{ env.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
           permission-pull-requests: write
+          permission-issues: write
 
       - uses: pagopa/<repo-actions>/actions/global/release-please-google@<sha>
         env:
@@ -165,6 +166,7 @@ jobs:
           private-key: ${{ env.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
           permission-pull-requests: write
+          permission-issues: write
 
       - uses: pagopa/<repo-actions>/actions/global/release-please-google@<sha>
         env:
@@ -249,6 +251,13 @@ Example `.release-please-manifest.json`:
 - Confirm commits on `target_branch` actually trigger a release PR.
 - Enable `debug: "true"` to print non-secret PR resolution diagnostics.
 - If a release was created in the same run, no open release PR is expected.
+
+### `The permissions requested are not granted to this installation`
+
+- The failure happens before `release-please` starts: `actions/create-github-app-token` asked GitHub for a scoped installation token that includes a permission the app installation does not currently have.
+- For this wrapper the required installation permissions are `contents: write`, `pull-requests: write`, and `issues: write`.
+- Update the GitHub App repository permissions and then approve the new permission on the existing installation for the target repository or organization.
+- If the app settings were already updated, re-check the installation approval page: GitHub Apps can expose a permission in app settings before that permission is granted on an older installation.
 
 ### `Repository auto-merge is not enabled`
 

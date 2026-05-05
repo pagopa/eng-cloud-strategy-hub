@@ -39,6 +39,8 @@ jobs:
           private-key: ${{ env.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
           permission-pull-requests: write
+          # Required because release-please labels release PRs to detect merged releases.
+          # The GitHub App installation must already have this repository permission approved.
           permission-issues: write
 
       - name: Checkout repository
