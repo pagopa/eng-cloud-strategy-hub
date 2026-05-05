@@ -297,10 +297,7 @@ def verify_release_please_prs(
         verified_release_pr = release_pr_from_gh_item(
             item, target_branch=target_branch, source="gh-verified"
         )
-        if (
-            verified_release_pr is None
-            or verified_release_pr.number in seen_numbers
-        ):
+        if verified_release_pr is None or verified_release_pr.number in seen_numbers:
             continue
 
         seen_numbers.add(verified_release_pr.number)

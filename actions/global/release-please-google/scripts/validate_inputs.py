@@ -81,7 +81,9 @@ def resolve_workspace_file(
     candidate = Path(raw_path)
 
     if candidate.is_absolute():
-        raise ValueError(f"{label} file must use a repository-relative path: {raw_path}")
+        raise ValueError(
+            f"{label} file must use a repository-relative path: {raw_path}"
+        )
 
     resolved = (workspace / candidate).resolve()
     try:
