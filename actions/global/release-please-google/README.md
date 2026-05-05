@@ -178,6 +178,7 @@ Example `.release-please-manifest.json`:
   - author looks like a bot or GitHub App identity
 - Auto-merge uses `gh pr merge --auto` with the requested merge method.
 - The wrapper does not perform a direct blind merge.
+- If a release PR has merge conflicts, the wrapper keeps the PR open, logs a warning, and continues with the other release PRs.
 
 ## Troubleshooting
 
@@ -202,6 +203,11 @@ Example `.release-please-manifest.json`:
 
 - Enable auto-merge in repository settings.
 - Confirm branch protection allows auto-merge for the selected method.
+
+### `Pull Request has merge conflicts`
+
+- release-please created or updated the PR correctly, but GitHub cannot enable auto-merge until the conflict is resolved.
+- Rebase or merge the release branch against the target branch, or close and regenerate the conflicting release PR if that is simpler for the branch state.
 
 ## Pinning Notes
 

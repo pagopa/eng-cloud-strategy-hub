@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import ModuleType
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[3]
 AUTO_MERGE_PATH = (
@@ -128,6 +129,71 @@ class AutoMergeReleasePrTests(unittest.TestCase):
     def test_validate_merge_method_rejects_unknown_value(self) -> None:
         with self.assertRaisesRegex(ValueError, "RP_MERGE_METHOD must be one of"):
             auto_merge.validate_merge_method({"RP_MERGE_METHOD": "invalid"})
+
+    def test_enable_auto_merge_skips_merge_conflicts_and_continues(self) -> None:
+        release_prs = [
+            auto_merge.ReleasePullRequest(
+                number=28,
+                url="https://github.com/pagopa/eng-cloud-strategy-hub/pull/28",
+                title="chore(main): release code 1.0.0",
+                head_branch_name="release-please--branches--main--components--code",
+                base_branch_name="main",
+                source="release-please-output",
+            ),
+            auto_merge.ReleasePullRequest(
+                number=29,
+                url="https://github.com/pagopa/eng-cloud-strategy-hub/pull/29",
+                title="chore(main): release scripts 1.1.0",
+                head_branch_name="release-please--branches--main--components--scripts",
+                base_branch_name="main",
+                source="release-please-output",
+            ),
+        ]
+
+        conflict = auto_merge.subprocess.CompletedProcess(
+            args=["gh", "pr", "merge"],
+            returncode=1,
+            stdout="",
+            stderr="GraphQL: Pull Request has merge conflicts (mergePullRequest)",
+        )
+        success = auto_merge.subprocess.CompletedProcess(
+            args=["gh", "pr", "merge"],
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
+
+        with patch.object(auto_merge, "gh_available", return_value=True), patch.object(
+            auto_merge.subprocess, "run", side_effect=[conflict, success]
+        ):
+            auto_merge.enable_auto_merge(release_prs, "squash")
+
+    def test_enable_auto_merge_raises_for_permission_errors(self) -> None:
+        release_prs = [
+            auto_merge.ReleasePullRequest(
+                number=28,
+                url="https://github.com/pagopa/eng-cloud-strategy-hub/pull/28",
+                title="chore(main): release code 1.0.0",
+                head_branch_name="release-please--branches--main--components--code",
+                base_branch_name="main",
+                source="release-please-output",
+            )
+        ]
+
+        permission_error = auto_merge.subprocess.CompletedProcess(
+            args=["gh", "pr", "merge"],
+            returncode=1,
+            stdout="",
+            stderr="GraphQL: Resource not accessible by integration (mergePullRequest)",
+        )
+
+        with patch.object(auto_merge, "gh_available", return_value=True), patch.object(
+            auto_merge.subprocess, "run", return_value=permission_error
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError, "does not have enough permissions"
+            ):
+                auto_merge.enable_auto_merge(release_prs, "squash")
 
 
 class ReleasePleaseValidateInputsTests(unittest.TestCase):
