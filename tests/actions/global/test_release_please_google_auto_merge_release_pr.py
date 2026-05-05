@@ -163,8 +163,9 @@ class AutoMergeReleasePrTests(unittest.TestCase):
             stderr="",
         )
 
-        with patch.object(auto_merge, "gh_available", return_value=True), patch.object(
-            auto_merge.subprocess, "run", side_effect=[conflict, success]
+        with (
+            patch.object(auto_merge, "gh_available", return_value=True),
+            patch.object(auto_merge.subprocess, "run", side_effect=[conflict, success]),
         ):
             auto_merge.enable_auto_merge(release_prs, "squash")
 
@@ -210,8 +211,13 @@ class AutoMergeReleasePrTests(unittest.TestCase):
             stderr="",
         )
 
-        with patch.object(auto_merge, "gh_available", return_value=True), patch.object(
-            auto_merge.subprocess, "run", side_effect=[auto_merge_unavailable, success]
+        with (
+            patch.object(auto_merge, "gh_available", return_value=True),
+            patch.object(
+                auto_merge.subprocess,
+                "run",
+                side_effect=[auto_merge_unavailable, success],
+            ),
         ):
             auto_merge.enable_auto_merge(release_prs, "squash")
 
@@ -234,8 +240,9 @@ class AutoMergeReleasePrTests(unittest.TestCase):
             stderr="GraphQL: Resource not accessible by integration (mergePullRequest)",
         )
 
-        with patch.object(auto_merge, "gh_available", return_value=True), patch.object(
-            auto_merge.subprocess, "run", return_value=permission_error
+        with (
+            patch.object(auto_merge, "gh_available", return_value=True),
+            patch.object(auto_merge.subprocess, "run", return_value=permission_error),
         ):
             with self.assertRaisesRegex(
                 RuntimeError, "does not have enough permissions"
