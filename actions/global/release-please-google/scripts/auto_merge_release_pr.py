@@ -25,8 +25,8 @@ PERMISSION_ERROR_PATTERN = re.compile(
     r"resource not accessible by integration|insufficient|permission|forbidden|403",
     re.IGNORECASE,
 )
-AUTO_MERGE_DISABLED_PATTERN = re.compile(
-    r"auto-merge.*(disabled|not enabled)|enable auto-merge",
+AUTO_MERGE_UNAVAILABLE_PATTERN = re.compile(
+    r"auto-merge.*(disabled|not enabled)|enable auto-merge|enablePullRequestAutoMerge|required protected branch rules",
     re.IGNORECASE,
 )
 AUTO_MERGE_ALREADY_PATTERN = re.compile(
@@ -284,8 +284,12 @@ def emit_pr_outputs(
 def classify_gh_merge_error(pr_number: int, error_output: str) -> str:
     if PERMISSION_ERROR_PATTERN.search(error_output):
         return f"The provided github_token does not have enough permissions to enable auto-merge for PR #{pr_number}."
-    if AUTO_MERGE_DISABLED_PATTERN.search(error_output):
-        return f"Repository auto-merge is not enabled or is unavailable for PR #{pr_number}."
+    if AUTO_MERGE_UNAVAILABLE_PATTERN.search(error_output):
+        return (
+            f"GitHub auto-merge is unavailable for PR #{pr_number}. "
+            "Enable repository auto-merge with the required protected branch rules, "
+            "or merge the release PR manually."
+        )
     if MERGE_CONFLICT_PATTERN.search(error_output):
         return f"Release PR #{pr_number} has merge conflicts and needs manual resolution before auto-merge can be enabled."
     return f"gh pr merge --auto failed for PR #{pr_number}: {error_output}"
@@ -317,6 +321,10 @@ def enable_auto_merge(release_prs: list[ReleasePullRequest], merge_method: str) 
 
         classified_error = classify_gh_merge_error(release_pr.number, error_output)
         if MERGE_CONFLICT_PATTERN.search(error_output):
+            log_warn(classified_error)
+            continue
+
+        if AUTO_MERGE_UNAVAILABLE_PATTERN.search(error_output):
             log_warn(classified_error)
             continue
 

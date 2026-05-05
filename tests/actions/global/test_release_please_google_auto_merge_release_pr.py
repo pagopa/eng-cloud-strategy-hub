@@ -168,6 +168,53 @@ class AutoMergeReleasePrTests(unittest.TestCase):
         ):
             auto_merge.enable_auto_merge(release_prs, "squash")
 
+    def test_enable_auto_merge_skips_unavailable_auto_merge_and_continues(
+        self,
+    ) -> None:
+        release_prs = [
+            auto_merge.ReleasePullRequest(
+                number=36,
+                url="https://github.com/pagopa/eng-cloud-strategy-hub/pull/36",
+                title="chore(main): release scripts 1.2.0",
+                head_branch_name=(
+                    "release-please--branches--main--components--scripts"
+                ),
+                base_branch_name="main",
+                source="release-please-output",
+            ),
+            auto_merge.ReleasePullRequest(
+                number=37,
+                url="https://github.com/pagopa/eng-cloud-strategy-hub/pull/37",
+                title="chore(main): release actions 1.1.0",
+                head_branch_name=(
+                    "release-please--branches--main--components--actions"
+                ),
+                base_branch_name="main",
+                source="release-please-output",
+            ),
+        ]
+
+        auto_merge_unavailable = auto_merge.subprocess.CompletedProcess(
+            args=["gh", "pr", "merge"],
+            returncode=1,
+            stdout="",
+            stderr=(
+                "GraphQL: Pull request Branch does not have required protected "
+                "branch rules (enablePullRequestAutoMerge)"
+            ),
+        )
+        success = auto_merge.subprocess.CompletedProcess(
+            args=["gh", "pr", "merge"],
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
+
+        with patch.object(auto_merge, "gh_available", return_value=True), patch.object(
+            auto_merge.subprocess, "run", side_effect=[auto_merge_unavailable, success]
+        ):
+            auto_merge.enable_auto_merge(release_prs, "squash")
+
     def test_enable_auto_merge_raises_for_permission_errors(self) -> None:
         release_prs = [
             auto_merge.ReleasePullRequest(
