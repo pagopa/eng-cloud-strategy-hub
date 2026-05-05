@@ -27,6 +27,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run release action
         id: release
@@ -37,5 +38,5 @@ jobs:
           target_branch: ${{ github.ref_name }}
           config_file: release-please-config.json
           manifest_file: .release-please-manifest.json
-          auto_merge: "true"
+          auto_merge: ${{ github.ref_name == 'main' && 'true' || 'false' }}
           merge_method: squash
