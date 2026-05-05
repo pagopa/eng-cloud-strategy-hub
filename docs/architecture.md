@@ -22,7 +22,7 @@ In scope:
 
 - Instruction architecture, skills, agents, prompts, and workflow governance under `.github/`.
 - Composite automation assets such as `actions/global/stale-close-pr/`, `actions/global/release/`, `actions/global/pr-title/`, and `actions/global/pre-commit/`.
-- Local workflow simulation tools under `tools/local_actions/` and the root `validate-repo-locally.sh` launcher.
+- Local workflow simulation tools under `tools/validate_repo_locally/` and the root `validate-repo-locally.sh` launcher.
 - AWS, Azure, and GCP Terraform wrappers under `scripts/aws/`, `scripts/azure/`, and `scripts/gcp/`.
 - Offline simulation fixtures and shell-based tests under `tests/scripts/terraform_wrappers/`.
 - Repository documentation and retained execution plans under `docs/` and `tmp/superpowers/`.
@@ -40,7 +40,7 @@ Out of scope:
 | Instruction bridge | `AGENTS.md` | Defines repository-wide Copilot governance, precedence, and operating model. |
 | Copilot governance layer | `.github/` | Hosts instructions, skills, agents, templates, workflows, and inventory metadata. |
 | Reusable actions | `actions/global/` | Provides composite release, PR title validation, pre-commit, and PR stale/auto-close automation consumed by repository workflows. |
-| Local action simulator | `tools/local_actions/`, `validate-repo-locally.sh` | Runs local equivalents of selected workflow checks before GitHub-hosted CI. |
+| Local action simulator | `tools/validate_repo_locally/`, `validate-repo-locally.sh` | Runs local equivalents of selected workflow checks before GitHub-hosted CI. |
 | Terraform wrappers | `scripts/aws/`, `scripts/azure/`, `scripts/gcp/` | Expose a shared operator-facing CLI contract for Terraform across the three cloud providers. |
 | Wrapper simulation suite | `tests/scripts/terraform_wrappers/` | Verifies wrapper parity offline with fake CLIs, fixtures, and shell assertions. |
 | Documentation surface | `docs/` | Stores architecture and other repository-owned technical documentation. |
@@ -64,13 +64,14 @@ Observed validation surfaces include:
 
 - `.pre-commit-config.yaml` for YAML, JSON, shell, Python, Terraform, and workflow linting baselines.
 - Workflows `_pre-commit.yml`, `pr-stale-close.yml`, `pr-title.yml`, `release.yml`, and `terraform-wrapper-tests.yml`, with shared workflow logic delegated to `actions/global/` where practical.
-- Local workflow simulation through `./validate-repo-locally.sh` for `_code-analysis.yml`, `_pre-commit.yml`, and `terraform-wrapper-tests.yml`.
+- Local workflow simulation through `./validate-repo-locally.sh` for `_code-analysis.yml`, `_pre-commit.yml`, and `terraform-wrapper-tests.yml`, with a non-interactive default path and an optional interactive selector.
 - The shell-based simulation suite at `tests/scripts/terraform_wrappers/run.sh`.
 - Local shell validation via `bash -n` and `shellcheck` for the wrapper and test scripts.
 
 ## Operational Notes
 
 - The three Terraform wrappers intentionally remain separate files with a shared CLI contract instead of a common Bash library.
+- `validate-repo-locally.sh` stays CI-safe by default and bootstraps the toolkit-local virtual environment at `tools/validate_repo_locally/.venv` from the hash-locked `tools/validate_repo_locally/requirements.txt` only when `--interactive` is requested.
 - `tests/scripts/terraform_wrappers/fixtures/` is synthetic and exists only to validate wrapper behavior without cloud credentials or remote state.
 - `code/` and `terraform/` are placeholders today and should not be documented as active delivery surfaces until real assets exist there.
 - `tmp/superpowers/` is a retained working area, not a shipped runtime or reusable API surface.

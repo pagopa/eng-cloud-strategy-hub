@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from types import ModuleType
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[3]
-RUNNER_PATH = ROOT / "tools/local_actions/runner.py"
+RUNNER_PATH = ROOT / "tools/validate_repo_locally/validate_repo_locally.py"
 
 
 def load_module(path: Path, module_name: str) -> ModuleType:
@@ -22,10 +25,10 @@ def load_module(path: Path, module_name: str) -> ModuleType:
     return module
 
 
-runner = load_module(RUNNER_PATH, "local_actions_runner_source")
+runner = load_module(RUNNER_PATH, "validate_repo_locally_source")
 
 
-class LocalActionsRunnerTests(unittest.TestCase):
+class ValidateRepoLocallyTests(unittest.TestCase):
     def test_collect_shell_targets_keeps_only_bash_shebangs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
             root = Path(temporary_dir)
@@ -36,7 +39,8 @@ class LocalActionsRunnerTests(unittest.TestCase):
             write_file(root / "scripts/plain.txt", "not a shell script\n")
             write_file(root / "tests/scripts/fake", "#!/bin/bash\necho fake\n")
             write_file(
-                root / "tools/local_actions/runner.py", "#!/usr/bin/env python3\n"
+                root / "tools/validate_repo_locally/validate_repo_locally.py",
+                "#!/usr/bin/env python3\n",
             )
             write_file(
                 root / "validate-repo-locally.sh",
@@ -75,10 +79,81 @@ class LocalActionsRunnerTests(unittest.TestCase):
             [step.step_id for step in selected],
         )
 
+    def test_parse_args_rejects_interactive_and_yes_together(self) -> None:
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                runner.parse_args(["--interactive", "--yes"])
+
+    def test_prompt_for_steps_returns_original_selection_when_not_interactive(self) -> None:
+        steps = runner.build_steps()[:2]
+
+        selected = runner.prompt_for_steps(
+            steps,
+            interactive=False,
+            console=runner.Console(use_color=False),
+        )
+
+        self.assertEqual(steps, selected)
+
+    def test_prompt_for_steps_interactive_requires_tty(self) -> None:
+        with mock.patch("sys.stdin.isatty", return_value=False):
+            with self.assertRaises(SystemExit):
+                runner.prompt_for_steps(
+                    runner.build_steps()[:1],
+                    interactive=True,
+                    console=runner.Console(use_color=False),
+                )
+
+    def test_prompt_for_steps_interactive_uses_questionary_checkbox(self) -> None:
+        steps = runner.build_steps()[:3]
+        captured: dict[str, object] = {}
+        console = runner.Console(use_color=False)
+        console.title = lambda _message: None  # type: ignore[method-assign]
+
+        class FakeChoice:
+            def __init__(self, *, title: str, value: str, checked: bool) -> None:
+                self.title = title
+                self.value = value
+                self.checked = checked
+
+        class FakePrompt:
+            def ask(self) -> list[str]:
+                return [steps[0].step_id, steps[2].step_id]
+
+        class FakeQuestionary:
+            Choice = FakeChoice
+
+            @staticmethod
+            def checkbox(message: str, *, choices: list[FakeChoice], instruction: str) -> FakePrompt:
+                captured["message"] = message
+                captured["choices"] = choices
+                captured["instruction"] = instruction
+                return FakePrompt()
+
+        with mock.patch("sys.stdin.isatty", return_value=True):
+            with mock.patch.object(
+                runner, "import_questionary", return_value=FakeQuestionary()
+            ):
+                selected = runner.prompt_for_steps(
+                    steps,
+                    interactive=True,
+                    console=console,
+                )
+
+        self.assertEqual(
+            [steps[0].step_id, steps[2].step_id],
+            [step.step_id for step in selected],
+        )
+        self.assertEqual("Select the local checks to run", captured["message"])
+        self.assertEqual("Space toggles, Enter confirms", captured["instruction"])
+        self.assertTrue(
+            all(choice.checked for choice in captured["choices"])  # type: ignore[arg-type]
+        )
+
     def test_pre_commit_command_matches_workflow_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
             root = Path(temporary_dir)
-            cache_dir = root / "tmp/local-actions/pre-commit-cache"
+            cache_dir = root / "tmp/validate-repo-locally/pre-commit-cache"
 
             command = runner.build_pre_commit_run_command(root, cache_dir)
 
