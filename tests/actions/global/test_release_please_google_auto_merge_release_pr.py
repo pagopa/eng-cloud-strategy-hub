@@ -165,9 +165,16 @@ class AutoMergeReleasePrTests(unittest.TestCase):
 
         with (
             patch.object(auto_merge, "gh_available", return_value=True),
-            patch.object(auto_merge.subprocess, "run", side_effect=[conflict, success]),
+            patch.object(
+                auto_merge.subprocess, "run", side_effect=[conflict, success]
+            ) as run,
         ):
             auto_merge.enable_auto_merge(release_prs, "squash")
+
+        first_call_args = run.call_args_list[0].args[0]
+        second_call_args = run.call_args_list[1].args[0]
+        self.assertIn("--delete-branch", first_call_args)
+        self.assertIn("--delete-branch", second_call_args)
 
     def test_enable_auto_merge_skips_unavailable_auto_merge_and_continues(
         self,

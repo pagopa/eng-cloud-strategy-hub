@@ -24,6 +24,7 @@ Runs `googleapis/release-please-action` in manifest mode through a repository-ow
 4. Runs `googleapis/release-please-action` with `skip-labeling: true`.
 5. Resolves release PRs from upstream outputs, then falls back to `gh pr list` when needed.
 6. Enables auto-merge on resolved release PRs when `auto_merge` is `"true"`.
+7. Requests deletion of the release PR branch when GitHub completes the merge.
 
 When `release-please` creates a release, no open release PR is expected; the wrapper emits empty PR outputs and exits successfully.
 
@@ -86,9 +87,18 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@<sha>
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       - uses: pagopa/<repo-actions>/actions/global/release-please-google@<sha>
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ steps.app-token.outputs.token }}
           checkout: "true"
           target_branch: main
           config_file: release-please-config.json
@@ -121,8 +131,10 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@<sha>
         with:
-          app-id: ${{ secrets.RELEASE_APP_ID }}
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
 
       - uses: pagopa/<repo-actions>/actions/global/release-please-google@<sha>
         with:
@@ -146,6 +158,8 @@ Example `release-please-config.json`:
   "release-type": "simple",
   "separate-pull-requests": false,
   "include-component-in-tag": true,
+  "include-v-in-tag": true,
+  "group-pull-request-title-pattern": "chore: release-please generated ${branch}",
   "packages": {
     "apps/service-a": {
       "component": "service-a",
@@ -177,6 +191,7 @@ Example `.release-please-manifest.json`:
   - title contains `chore: release`
   - author looks like a bot or GitHub App identity
 - Auto-merge uses `gh pr merge --auto` with the requested merge method.
+- Auto-merge passes `--delete-branch`, so GitHub deletes the remote release branch after the PR is merged.
 - The wrapper does not perform a direct blind merge.
 - If a release PR has merge conflicts, the wrapper keeps the PR open, logs a warning, and continues with the other release PRs.
 - If GitHub reports that auto-merge is unavailable for a release PR, the wrapper keeps the PR open, logs a warning, and continues with the other release PRs.

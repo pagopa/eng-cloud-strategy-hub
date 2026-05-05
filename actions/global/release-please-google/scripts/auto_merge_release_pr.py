@@ -303,7 +303,15 @@ def enable_auto_merge(release_prs: list[ReleasePullRequest], merge_method: str) 
 
     for release_pr in release_prs:
         completed = subprocess.run(
-            ["gh", "pr", "merge", release_pr.url, "--auto", f"--{merge_method}"],
+            [
+                "gh",
+                "pr",
+                "merge",
+                release_pr.url,
+                "--auto",
+                f"--{merge_method}",
+                "--delete-branch",
+            ],
             check=False,
             capture_output=True,
             text=True,
