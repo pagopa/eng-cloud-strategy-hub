@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.1](https://github.com/pagopa/eng-cloud-strategy-hub/compare/scripts-v1.11.0...scripts-v1.11.1) (2026-05-05)
+
+
+### Bug Fixes
+
+* **release:** enhance release automation and workflow configuration ([#53](https://github.com/pagopa/eng-cloud-strategy-hub/issues/53)) ([baa3afd](https://github.com/pagopa/eng-cloud-strategy-hub/commit/baa3afd8a12ccd0a1a8c4890ae4526836f253aa2))
+
 ## [1.11.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/scripts-v1.10.0...scripts-v1.11.0) (2026-05-05)
 
 
