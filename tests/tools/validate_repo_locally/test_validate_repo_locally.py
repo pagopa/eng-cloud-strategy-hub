@@ -84,7 +84,9 @@ class ValidateRepoLocallyTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 runner.parse_args(["--interactive", "--yes"])
 
-    def test_prompt_for_steps_returns_original_selection_when_not_interactive(self) -> None:
+    def test_prompt_for_steps_returns_original_selection_when_not_interactive(
+        self,
+    ) -> None:
         steps = runner.build_steps()[:2]
 
         selected = runner.prompt_for_steps(
@@ -124,7 +126,9 @@ class ValidateRepoLocallyTests(unittest.TestCase):
             Choice = FakeChoice
 
             @staticmethod
-            def checkbox(message: str, *, choices: list[FakeChoice], instruction: str) -> FakePrompt:
+            def checkbox(
+                message: str, *, choices: list[FakeChoice], instruction: str
+            ) -> FakePrompt:
                 captured["message"] = message
                 captured["choices"] = choices
                 captured["instruction"] = instruction

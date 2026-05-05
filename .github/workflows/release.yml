@@ -9,6 +9,11 @@ on:
       - "**.md"
   workflow_dispatch:
     inputs:
+      target_branch:
+        description: "Target branch for the release PR."
+        type: string
+        required: false
+        default: main
       auto_merge:
         description: "Enable auto-merge on the release PR opened by this run."
         type: boolean
@@ -54,7 +59,7 @@ jobs:
         uses: ./actions/global/release-please-google
         env:
           RELEASE_APP_TOKEN: ${{ steps.release-token.outputs.token }}
-          RELEASE_TARGET_BRANCH: ${{ github.ref_name }}
+          RELEASE_TARGET_BRANCH: ${{ github.event_name == 'workflow_dispatch' && inputs.target_branch || github.ref_name }}
           RELEASE_CONFIG_FILE: release-please-config.json
           RELEASE_MANIFEST_FILE: .release-please-manifest.json
           # Auto-merge is OFF by default to keep the release loop under control.
