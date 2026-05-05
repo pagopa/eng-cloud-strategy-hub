@@ -18,25 +18,45 @@ jobs:
     name: Release
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    permissions:
-      contents: write
-      pull-requests: write
+    permissions: {}
+    environment:
+      name: ${{ github.event_name == 'workflow_dispatch' && 'release-manual' || 'release' }}
     steps:
+      - name: Create release GitHub App token
+        id: release-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # actions/create-github-app-token@v3.1.1 release: https://github.com/actions/create-github-app-token/releases/tag/v3.1.1
+        env:
+          RELEASE_APP_CLIENT_ID: ${{ vars.AUTOMATION_APP_CLIENT_ID }}
+          RELEASE_APP_PRIVATE_KEY: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+        with:
+          client-id: ${{ env.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ env.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
+        env:
+          RELEASE_APP_TOKEN: ${{ steps.release-token.outputs.token }}
         with:
           fetch-depth: 0
           persist-credentials: false
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ env.RELEASE_APP_TOKEN }}
 
       - name: Run release action
         id: release
         uses: ./actions/global/release-please-google
+        env:
+          RELEASE_APP_TOKEN: ${{ steps.release-token.outputs.token }}
+          RELEASE_TARGET_BRANCH: ${{ github.ref_name }}
+          RELEASE_CONFIG_FILE: release-please-config.json
+          RELEASE_MANIFEST_FILE: .release-please-manifest.json
+          RELEASE_AUTO_MERGE: ${{ github.ref_name == 'main' && 'true' || 'false' }}
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ env.RELEASE_APP_TOKEN }}
           checkout: "false"
-          target_branch: ${{ github.ref_name }}
-          config_file: release-please-config.json
-          manifest_file: .release-please-manifest.json
-          auto_merge: ${{ github.ref_name == 'main' && 'true' || 'false' }}
+          target_branch: ${{ env.RELEASE_TARGET_BRANCH }}
+          config_file: ${{ env.RELEASE_CONFIG_FILE }}
+          manifest_file: ${{ env.RELEASE_MANIFEST_FILE }}
+          auto_merge: ${{ env.RELEASE_AUTO_MERGE }}
           merge_method: squash

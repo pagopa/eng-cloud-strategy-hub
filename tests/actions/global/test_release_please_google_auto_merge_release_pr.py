@@ -130,6 +130,41 @@ class AutoMergeReleasePrTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "RP_MERGE_METHOD must be one of"):
             auto_merge.validate_merge_method({"RP_MERGE_METHOD": "invalid"})
 
+    def test_resolve_release_prs_filters_unverified_upstream_candidate(self) -> None:
+        with (
+            patch.object(auto_merge, "gh_available", return_value=True),
+            patch.object(
+                auto_merge,
+                "run_gh_json",
+                return_value={
+                    "number": 42,
+                    "url": "https://github.com/pagopa/eng-cloud-strategy-hub/pull/42",
+                    "title": "chore(main): release foo-bar v1.2.3",
+                    "headRefName": "release-please--branches--main",
+                    "baseRefName": "main",
+                    "author": {"login": "octocat"},
+                    "isCrossRepository": False,
+                    "state": "OPEN",
+                },
+            ),
+        ):
+            release_prs = auto_merge.resolve_release_prs(
+                {
+                    "RP_TARGET_BRANCH": "main",
+                    "RP_AUTO_MERGE": "true",
+                    "RP_DEBUG": "false",
+                    "RP_PR": (
+                        '{"number":42,"headBranchName":"release-please--branches--main",'
+                        '"baseBranchName":"main",'
+                        '"title":"chore(main): release foo-bar v1.2.3"}'
+                    ),
+                    "RP_PRS": "",
+                },
+                allow_fallback=False,
+            )
+
+        self.assertEqual([], release_prs)
+
     def test_enable_auto_merge_skips_merge_conflicts_and_continues(self) -> None:
         release_prs = [
             auto_merge.ReleasePullRequest(
@@ -165,9 +200,16 @@ class AutoMergeReleasePrTests(unittest.TestCase):
 
         with (
             patch.object(auto_merge, "gh_available", return_value=True),
-            patch.object(auto_merge.subprocess, "run", side_effect=[conflict, success]),
+            patch.object(
+                auto_merge.subprocess, "run", side_effect=[conflict, success]
+            ) as run,
         ):
             auto_merge.enable_auto_merge(release_prs, "squash")
+
+        first_call_args = run.call_args_list[0].args[0]
+        second_call_args = run.call_args_list[1].args[0]
+        self.assertIn("--delete-branch", first_call_args)
+        self.assertIn("--delete-branch", second_call_args)
 
     def test_enable_auto_merge_skips_unavailable_auto_merge_and_continues(
         self,
@@ -276,8 +318,27 @@ class ReleasePleaseValidateInputsTests(unittest.TestCase):
             ):
                 validate_inputs.validate_consumer_files(
                     {
-                        "CONFIG_FILE_INPUT": str(config_file),
-                        "MANIFEST_FILE_INPUT": str(manifest_file),
+                        "GITHUB_WORKSPACE": str(root),
+                        "CONFIG_FILE_INPUT": "release-please-config.json",
+                        "MANIFEST_FILE_INPUT": ".release-please-manifest.json",
+                        "DEBUG_INPUT": "false",
+                    }
+                )
+
+    def test_validate_consumer_files_rejects_paths_outside_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            outside_root = root.parent / "outside.json"
+            outside_root.write_text("{}", encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ValueError, "must use a repository-relative path"
+            ):
+                validate_inputs.validate_consumer_files(
+                    {
+                        "GITHUB_WORKSPACE": str(root),
+                        "CONFIG_FILE_INPUT": str(outside_root),
+                        "MANIFEST_FILE_INPUT": ".release-please-manifest.json",
                         "DEBUG_INPUT": "false",
                     }
                 )

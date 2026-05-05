@@ -202,17 +202,27 @@ def run_gh_json(args: Sequence[str]) -> Any:
         raise RuntimeError(f"gh returned invalid JSON: {error.msg}") from error
 
 
-def release_pr_from_gh_item(item: Mapping[str, Any]) -> ReleasePullRequest | None:
+def release_pr_from_gh_item(
+    item: Mapping[str, Any], target_branch: str, source: str
+) -> ReleasePullRequest | None:
     author = item.get("author") or {}
     author_login = author.get("login", "") if isinstance(author, dict) else ""
     head_branch = read_string(item, "headRefName")
+    base_branch = read_string(item, "baseRefName")
     title = read_string(item, "title")
+    state = read_string(item, "state")
 
     if not head_branch.startswith("release-please--"):
+        return None
+    if base_branch != target_branch:
         return None
     if not is_release_please_title(title):
         return None
     if not is_release_please_author(author_login):
+        return None
+    if state and state != "OPEN":
+        return None
+    if item.get("isCrossRepository") is True:
         return None
 
     number = item.get("number")
@@ -224,8 +234,8 @@ def release_pr_from_gh_item(item: Mapping[str, Any]) -> ReleasePullRequest | Non
         url=read_string(item, "url"),
         title=title,
         head_branch_name=head_branch,
-        base_branch_name=read_string(item, "baseRefName"),
-        source="gh-fallback",
+        base_branch_name=base_branch,
+        source=source,
         author=author_login,
     )
 
@@ -256,11 +266,44 @@ def discover_release_please_prs(target_branch: str) -> list[ReleasePullRequest]:
     for item in items:
         if not isinstance(item, dict):
             continue
-        release_pr = release_pr_from_gh_item(item)
+        release_pr = release_pr_from_gh_item(
+            item, target_branch=target_branch, source="gh-fallback"
+        )
         if release_pr is not None:
             normalized.append(release_pr)
 
     return normalized
+
+
+def verify_release_please_prs(
+    release_prs: list[ReleasePullRequest], target_branch: str
+) -> list[ReleasePullRequest]:
+    verified_release_prs: list[ReleasePullRequest] = []
+    seen_numbers: set[int] = set()
+
+    for release_pr in release_prs:
+        item = run_gh_json(
+            [
+                "pr",
+                "view",
+                release_pr.url,
+                "--json",
+                "number,title,url,headRefName,baseRefName,author,isCrossRepository,state",
+            ]
+        )
+        if not isinstance(item, dict):
+            raise RuntimeError("gh pr view returned an unexpected JSON payload.")
+
+        verified_release_pr = release_pr_from_gh_item(
+            item, target_branch=target_branch, source="gh-verified"
+        )
+        if verified_release_pr is None or verified_release_pr.number in seen_numbers:
+            continue
+
+        seen_numbers.add(verified_release_pr.number)
+        verified_release_prs.append(verified_release_pr)
+
+    return verified_release_prs
 
 
 def output_json(release_prs: list[ReleasePullRequest]) -> str:
@@ -303,7 +346,15 @@ def enable_auto_merge(release_prs: list[ReleasePullRequest], merge_method: str) 
 
     for release_pr in release_prs:
         completed = subprocess.run(
-            ["gh", "pr", "merge", release_pr.url, "--auto", f"--{merge_method}"],
+            [
+                "gh",
+                "pr",
+                "merge",
+                release_pr.url,
+                "--auto",
+                f"--{merge_method}",
+                "--delete-branch",
+            ],
             check=False,
             capture_output=True,
             text=True,
@@ -370,21 +421,25 @@ def resolve_release_prs(
     if environment.get("RP_DEBUG") == "true":
         log_info(f"release-please outputs candidate PRs: {output_json(release_prs)}")
 
-    if release_prs:
-        return release_prs
+    if not release_prs:
+        if not allow_fallback:
+            return []
 
-    if not allow_fallback:
-        return []
+        if not gh_available() and environment.get("RP_AUTO_MERGE") == "false":
+            log_warn(
+                "gh CLI is not available; skipping fallback PR discovery because auto_merge is disabled."
+            )
+            return []
 
-    if not gh_available() and environment.get("RP_AUTO_MERGE") == "false":
-        log_warn(
-            "gh CLI is not available; skipping fallback PR discovery because auto_merge is disabled."
-        )
-        return []
+        release_prs = discover_release_please_prs(target_branch)
+        if environment.get("RP_DEBUG") == "true":
+            log_info(f"gh fallback candidate PRs: {output_json(release_prs)}")
 
-    release_prs = discover_release_please_prs(target_branch)
-    if environment.get("RP_DEBUG") == "true":
-        log_info(f"gh fallback candidate PRs: {output_json(release_prs)}")
+    if gh_available():
+        release_prs = verify_release_please_prs(release_prs, target_branch)
+        if environment.get("RP_DEBUG") == "true":
+            log_info(f"gh verified candidate PRs: {output_json(release_prs)}")
+
     return release_prs
 
 

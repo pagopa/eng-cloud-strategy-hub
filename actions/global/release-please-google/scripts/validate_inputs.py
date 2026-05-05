@@ -74,6 +74,28 @@ def validate_json_file(path: Path, label: str) -> None:
         ) from error
 
 
+def resolve_workspace_file(
+    environment: Mapping[str, str], raw_path: str, label: str
+) -> Path:
+    workspace = Path(environment.get("GITHUB_WORKSPACE", ".")).resolve()
+    candidate = Path(raw_path)
+
+    if candidate.is_absolute():
+        raise ValueError(
+            f"{label} file must use a repository-relative path: {raw_path}"
+        )
+
+    resolved = (workspace / candidate).resolve()
+    try:
+        resolved.relative_to(workspace)
+    except ValueError as error:
+        raise ValueError(
+            f"{label} file must stay inside GITHUB_WORKSPACE: {raw_path}"
+        ) from error
+
+    return resolved
+
+
 def validate_consumer_files(environment: Mapping[str, str]) -> None:
     config_file = environment.get("CONFIG_FILE_INPUT", "")
     manifest_file = environment.get("MANIFEST_FILE_INPUT", "")
@@ -83,8 +105,15 @@ def validate_consumer_files(environment: Mapping[str, str]) -> None:
     if not manifest_file:
         raise ValueError("MANIFEST_FILE_INPUT must not be empty.")
 
-    validate_json_file(Path(config_file), "release-please config")
-    validate_json_file(Path(manifest_file), "release-please manifest")
+    resolved_config_file = resolve_workspace_file(
+        environment, config_file, "release-please config"
+    )
+    resolved_manifest_file = resolve_workspace_file(
+        environment, manifest_file, "release-please manifest"
+    )
+
+    validate_json_file(resolved_config_file, "release-please config")
+    validate_json_file(resolved_manifest_file, "release-please manifest")
 
     if environment.get("DEBUG_INPUT") == "true":
         print(f"ℹ️  config_file={config_file}")
