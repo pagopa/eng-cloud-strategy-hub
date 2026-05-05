@@ -21,7 +21,7 @@ Runs `googleapis/release-please-action` in manifest mode through a repository-ow
 1. Validates scalar wrapper inputs.
 2. Optionally checks out the repository with full history, but skips that internal checkout when the caller workspace already contains a non-shallow Git clone.
 3. Validates that `config_file` and `manifest_file` exist and contain valid JSON.
-4. Runs `googleapis/release-please-action` with `skip-labeling: true`.
+4. Runs `googleapis/release-please-action`. Labeling is left enabled so the action can recognize its own merged release PR (`autorelease: pending` / `autorelease: tagged`) and create the GitHub Release and tags on the next run.
 5. Resolves release PRs from upstream outputs, then falls back to `gh pr list` when needed.
 6. Enables auto-merge on resolved release PRs when `auto_merge` is `"true"`.
 7. Requests deletion of the release PR branch when GitHub completes the merge.
@@ -62,7 +62,7 @@ When `release-please` creates a release, no open release PR is expected; the wra
 permissions: {}
 ```
 
-The wrapper sets `skip-labeling: true` so issue write permission is not needed for labels.
+The wrapper relies on release-please labels (`autorelease: pending`, `autorelease: tagged`) to detect already-merged release PRs and avoid release loops, so the GitHub App installation token must include `issues: write` in addition to `contents: write` and `pull-requests: write`.
 The caller should grant write access only to the minted GitHub App installation token:
 
 ```yaml
@@ -70,7 +70,23 @@ The caller should grant write access only to the minted GitHub App installation 
   with:
     permission-contents: write
     permission-pull-requests: write
+    permission-issues: write
 ```
+
+## Force-release trigger
+
+When release-please does not open a release PR (for example after a recovery, or when only non-conventional commits landed) you can force a release for a specific package by editing a tiny dummy file inside that package path and committing with a conventional commit.
+
+The convention used in this repository: each package owns a `<package>/.release-trigger` file. Bump the counter inside it and commit, e.g.:
+
+```bash
+# Force a release for the `actions` package
+sed -i '' 's/counter: \([0-9][0-9]*\)/counter: \1+1/' actions/.release-trigger # or just bump manually
+git commit -am "fix(actions): force release"
+git push
+```
+
+release-please will see a new commit affecting `actions/`, open a release PR, and bump the patch version on the next run. Use `feat(scope):` to bump the minor version instead.
 
 ## Usage
 

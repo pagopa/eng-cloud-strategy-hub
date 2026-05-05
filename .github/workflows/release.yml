@@ -8,6 +8,12 @@ on:
       - "CODEOWNERS"
       - "**.md"
   workflow_dispatch:
+    inputs:
+      auto_merge:
+        description: "Enable auto-merge on the release PR opened by this run."
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: release-${{ github.ref }}
@@ -33,6 +39,7 @@ jobs:
           private-key: ${{ env.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
           permission-pull-requests: write
+          permission-issues: write
 
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
@@ -51,7 +58,9 @@ jobs:
           RELEASE_TARGET_BRANCH: ${{ github.ref_name }}
           RELEASE_CONFIG_FILE: release-please-config.json
           RELEASE_MANIFEST_FILE: .release-please-manifest.json
-          RELEASE_AUTO_MERGE: ${{ github.ref_name == 'main' && 'true' || 'false' }}
+          # Auto-merge is OFF by default to keep the release loop under control.
+          # Re-enable it manually via workflow_dispatch input once the flow is verified.
+          RELEASE_AUTO_MERGE: ${{ (github.event_name == 'workflow_dispatch' && inputs.auto_merge) && 'true' || 'false' }}
         with:
           github_token: ${{ env.RELEASE_APP_TOKEN }}
           checkout: "false"
