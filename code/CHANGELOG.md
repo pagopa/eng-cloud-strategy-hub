@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.8.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/code-v1.7.0...code-v1.8.0) (2026-05-05)
+
+
+### Features
+
+* create folders ([#2](https://github.com/pagopa/eng-cloud-strategy-hub/issues/2)) ([8ff280d](https://github.com/pagopa/eng-cloud-strategy-hub/commit/8ff280db6df93a0e94275ece2415eceb92c2c40c))
+
+
+### Bug Fixes
+
+* **release:** enhance release automation and checkout strategy ([#35](https://github.com/pagopa/eng-cloud-strategy-hub/issues/35)) ([e55ac2d](https://github.com/pagopa/eng-cloud-strategy-hub/commit/e55ac2df644d4b0dcaab17e434dca1cd5332ef2e))
+* Security warning ([#21](https://github.com/pagopa/eng-cloud-strategy-hub/issues/21)) ([5482dd5](https://github.com/pagopa/eng-cloud-strategy-hub/commit/5482dd545b511d673b1c614738e42b34ea7e4611))
+
 ## [1.7.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/code-v1.6.0...code-v1.7.0) (2026-05-05)
 
 
