@@ -19,7 +19,7 @@ Runs `googleapis/release-please-action` in manifest mode through a repository-ow
 ## Behavior
 
 1. Validates scalar wrapper inputs.
-2. Optionally checks out the repository with full history.
+2. Optionally checks out the repository with full history, but skips that internal checkout when the caller workspace already contains a non-shallow Git clone.
 3. Validates that `config_file` and `manifest_file` exist and contain valid JSON.
 4. Runs `googleapis/release-please-action` with `skip-labeling: true`.
 5. Resolves release PRs from upstream outputs, then falls back to `gh pr list` when needed.
@@ -32,7 +32,7 @@ When `release-please` creates a release, no open release PR is expected; the wra
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
 | `github_token` | Yes |  | Token used by `release-please` and `gh`. It can be `GITHUB_TOKEN` or a GitHub App installation token. |
-| `checkout` | No | `true` | Whether the wrapper runs `actions/checkout` internally with `fetch-depth: 0`. |
+| `checkout` | No | `true` | Whether the wrapper may run `actions/checkout` internally with `fetch-depth: 0`. The wrapper skips that internal checkout when the caller workspace is already a full, non-shallow Git clone. |
 | `target_branch` | No | `main` | Target branch for release PRs. |
 | `config_file` | No | `release-please-config.json` | Repository-relative release-please config path. |
 | `manifest_file` | No | `.release-please-manifest.json` | Repository-relative release-please manifest path. |
@@ -184,6 +184,7 @@ Example `.release-please-manifest.json`:
 ### `release-please config file not found`
 
 - Keep `checkout: "true"` or checkout the repository before this action.
+- If the caller already checked out a full, non-shallow clone, the wrapper skips its internal checkout automatically.
 - Ensure `config_file` points to a committed JSON file.
 
 ### `release-please manifest file must be valid JSON`
