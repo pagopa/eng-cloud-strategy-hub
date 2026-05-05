@@ -5,7 +5,7 @@ Usage examples:
   python3 tools/validate_repo_locally/validate_repo_locally.py
   python3 tools/validate_repo_locally/validate_repo_locally.py --interactive
   python3 tools/validate_repo_locally/validate_repo_locally.py --skip pre-commit
-  python3 tools/validate_repo_locally/validate_repo_locally.py --only terraform-wrapper-tests
+  python3 tools/validate_repo_locally/validate_repo_locally.py --only terraform-sh-tests
 
 Dependency decision note:
 - Candidates: standard library argparse/subprocess, Questionary, Rich.
@@ -64,7 +64,8 @@ STEP_ALIASES = {
         "copilot-entrypoints",
     ),
     "precommit": ("pre-commit",),
-    "terraform": ("terraform-wrapper-tests",),
+    "terraform": ("terraform-sh-tests",),
+    "terraform-wrapper-tests": ("terraform-sh-tests",),
 }
 INTERACTIVE_REQUIREMENTS = "tools/validate_repo_locally/requirements.txt"
 
@@ -184,8 +185,8 @@ def build_steps() -> list[Step]:
             run_pre_commit,
         ),
         Step(
-            "terraform-wrapper-tests",
-            ".github/workflows/terraform-wrapper-tests.yml",
+            "terraform-sh-tests",
+            ".github/workflows/terraform-sh-tests.yml",
             "Terraform wrapper syntax, lint, and simulation suite",
             run_terraform_wrapper_tests,
         ),
