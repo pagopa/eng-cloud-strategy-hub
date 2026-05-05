@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/v2.4.0...v2.5.0) (2026-05-05)
+
+
+### Features
+
+* **tests:** add Terraform.sh tests workflow and update references ([#55](https://github.com/pagopa/eng-cloud-strategy-hub/issues/55)) ([d1a5e40](https://github.com/pagopa/eng-cloud-strategy-hub/commit/d1a5e40ba94c8ad4d98ae1010ee7e5ed581051cc))
+
 ## [2.4.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/v2.3.0...v2.4.0) (2026-05-05)
 
 
