@@ -19,7 +19,7 @@ Runs `googleapis/release-please-action` in manifest mode through a repository-ow
 ## Behavior
 
 1. Validates scalar wrapper inputs.
-2. Optionally checks out the repository with full history.
+2. Optionally checks out the repository with full history, but skips that internal checkout when the caller workspace already contains a non-shallow Git clone.
 3. Validates that `config_file` and `manifest_file` exist and contain valid JSON.
 4. Runs `googleapis/release-please-action` with `skip-labeling: true`.
 5. Resolves release PRs from upstream outputs, then falls back to `gh pr list` when needed.
@@ -32,7 +32,7 @@ When `release-please` creates a release, no open release PR is expected; the wra
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
 | `github_token` | Yes |  | Token used by `release-please` and `gh`. It can be `GITHUB_TOKEN` or a GitHub App installation token. |
-| `checkout` | No | `true` | Whether the wrapper runs `actions/checkout` internally with `fetch-depth: 0`. |
+| `checkout` | No | `true` | Whether the wrapper may run `actions/checkout` internally with `fetch-depth: 0`. The wrapper skips that internal checkout when the caller workspace is already a full, non-shallow Git clone. |
 | `target_branch` | No | `main` | Target branch for release PRs. |
 | `config_file` | No | `release-please-config.json` | Repository-relative release-please config path. |
 | `manifest_file` | No | `.release-please-manifest.json` | Repository-relative release-please manifest path. |
@@ -178,12 +178,14 @@ Example `.release-please-manifest.json`:
   - author looks like a bot or GitHub App identity
 - Auto-merge uses `gh pr merge --auto` with the requested merge method.
 - The wrapper does not perform a direct blind merge.
+- If a release PR has merge conflicts, the wrapper keeps the PR open, logs a warning, and continues with the other release PRs.
 
 ## Troubleshooting
 
 ### `release-please config file not found`
 
 - Keep `checkout: "true"` or checkout the repository before this action.
+- If the caller already checked out a full, non-shallow clone, the wrapper skips its internal checkout automatically.
 - Ensure `config_file` points to a committed JSON file.
 
 ### `release-please manifest file must be valid JSON`
@@ -201,6 +203,11 @@ Example `.release-please-manifest.json`:
 
 - Enable auto-merge in repository settings.
 - Confirm branch protection allows auto-merge for the selected method.
+
+### `Pull Request has merge conflicts`
+
+- release-please created or updated the PR correctly, but GitHub cannot enable auto-merge until the conflict is resolved.
+- Rebase or merge the release branch against the target branch, or close and regenerate the conflicting release PR if that is simpler for the branch state.
 
 ## Pinning Notes
 

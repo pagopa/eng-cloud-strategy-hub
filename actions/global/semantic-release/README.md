@@ -19,7 +19,7 @@ Runs `cycjimmy/semantic-release-action` through a repository-owned composite act
 ## Behavior
 
 1. Validates scalar wrapper inputs.
-2. Optionally checks out the repository with full history.
+2. Optionally checks out the repository with full history, but skips that internal checkout when the caller workspace already contains a non-shallow Git clone.
 3. Generates `.releaserc.json` from action inputs with a local Python script.
 4. Runs `cycjimmy/semantic-release-action`.
 5. Forwards semantic-release outputs to the caller.
@@ -31,7 +31,7 @@ The generated config uses `@semantic-release/changelog` and `@semantic-release/g
 | Input | Required | Default | Description |
 | --- | --- | --- | --- |
 | `github_token` | Yes |  | Token used by `semantic-release`. It can be `GITHUB_TOKEN` or a GitHub App installation token. |
-| `checkout` | No | `true` | Whether the wrapper runs `actions/checkout` internally with `fetch-depth: 0`. |
+| `checkout` | No | `true` | Whether the wrapper may run `actions/checkout` internally with `fetch-depth: 0`. The wrapper skips that internal checkout when the caller workspace is already a full, non-shallow Git clone. |
 | `semantic_version` | No | `24.1.1` | `semantic-release` version installed by the upstream action. |
 | `branches` | No | `["main"]` | JSON array of release branches. |
 | `tag_format` | No | `v${version}` | Tag format written to the generated config. |
@@ -215,6 +215,7 @@ The wrapper generates this config shape:
 ### Protected branch push failures
 
 - Keep `checkout: "true"` or checkout with `persist-credentials: false`.
+- If the caller already checked out a full, non-shallow clone, the wrapper skips its internal checkout automatically.
 - Prefer a GitHub App installation token when branch protection blocks `GITHUB_TOKEN` pushes.
 
 ### Missing changelog updates

@@ -33,6 +33,10 @@ AUTO_MERGE_ALREADY_PATTERN = re.compile(
     r"already.*auto-merge|auto-merge.*already",
     re.IGNORECASE,
 )
+MERGE_CONFLICT_PATTERN = re.compile(
+    r"merge conflicts|has merge conflicts|cannot be merged|conflict",
+    re.IGNORECASE,
+)
 RELEASE_PLEASE_TITLE_PATTERN = re.compile(
     r"^\s*chore(?:\([^)\r\n]+\))?: release\b",
     re.IGNORECASE,
@@ -282,12 +286,16 @@ def classify_gh_merge_error(pr_number: int, error_output: str) -> str:
         return f"The provided github_token does not have enough permissions to enable auto-merge for PR #{pr_number}."
     if AUTO_MERGE_DISABLED_PATTERN.search(error_output):
         return f"Repository auto-merge is not enabled or is unavailable for PR #{pr_number}."
+    if MERGE_CONFLICT_PATTERN.search(error_output):
+        return f"Release PR #{pr_number} has merge conflicts and needs manual resolution before auto-merge can be enabled."
     return f"gh pr merge --auto failed for PR #{pr_number}: {error_output}"
 
 
 def enable_auto_merge(release_prs: list[ReleasePullRequest], merge_method: str) -> None:
     if not gh_available():
         raise RuntimeError("gh CLI is required when auto_merge is true.")
+
+    fatal_errors: list[str] = []
 
     for release_pr in release_prs:
         completed = subprocess.run(
@@ -307,7 +315,15 @@ def enable_auto_merge(release_prs: list[ReleasePullRequest], merge_method: str) 
             log_warn(f"Auto-merge was already enabled for PR #{release_pr.number}.")
             continue
 
-        raise RuntimeError(classify_gh_merge_error(release_pr.number, error_output))
+        classified_error = classify_gh_merge_error(release_pr.number, error_output)
+        if MERGE_CONFLICT_PATTERN.search(error_output):
+            log_warn(classified_error)
+            continue
+
+        fatal_errors.append(classified_error)
+
+    if fatal_errors:
+        raise RuntimeError("\n".join(fatal_errors))
 
 
 def require_env(environment: Mapping[str, str], name: str) -> str:

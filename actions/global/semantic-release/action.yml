@@ -134,8 +134,36 @@ runs:
 
         echo "✅ semantic-release wrapper inputs are valid."
 
+    - name: Resolve checkout strategy
+      id: checkout_strategy
+      shell: bash
+      env:
+        CHECKOUT_INPUT: ${{ inputs.checkout }}
+      run: |
+        set -euo pipefail
+
+        workspace_has_repo="false"
+        workspace_is_shallow="false"
+        should_checkout="${CHECKOUT_INPUT}"
+
+        if git -C "${GITHUB_WORKSPACE}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+          workspace_has_repo="true"
+          workspace_is_shallow="$(git -C "${GITHUB_WORKSPACE}" rev-parse --is-shallow-repository)"
+        fi
+
+        if [[ "${CHECKOUT_INPUT}" == "true" && "${workspace_has_repo}" == "true" && "${workspace_is_shallow}" == "false" ]]; then
+          should_checkout="false"
+          echo "Workspace already contains a full Git checkout. Skipping internal checkout."
+        fi
+
+        {
+          printf 'workspace-has-repo=%s\n' "${workspace_has_repo}"
+          printf 'workspace-is-shallow=%s\n' "${workspace_is_shallow}"
+          printf 'should-checkout=%s\n' "${should_checkout}"
+        } >> "${GITHUB_OUTPUT}"
+
     - name: Checkout repository
-      if: ${{ inputs.checkout == 'true' }}
+      if: ${{ steps.checkout_strategy.outputs.should-checkout == 'true' }}
       uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
       with:
         fetch-depth: 0
