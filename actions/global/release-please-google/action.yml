@@ -30,6 +30,10 @@ inputs:
     description: "Auto-merge method: merge, squash, or rebase."
     required: false
     default: squash
+  skip_github_release:
+    description: Skip creating GitHub Releases and tags. Useful for release PR tests on non-production branches.
+    required: false
+    default: "false"
   debug:
     description: Print non-secret diagnostic information.
     required: false
@@ -78,6 +82,7 @@ runs:
         CHECKOUT_INPUT: ${{ inputs.checkout }}
         TARGET_BRANCH_INPUT: ${{ inputs.target_branch }}
         AUTO_MERGE_INPUT: ${{ inputs.auto_merge }}
+        SKIP_GITHUB_RELEASE_INPUT: ${{ inputs.skip_github_release }}
         MERGE_METHOD_INPUT: ${{ inputs.merge_method }}
         DEBUG_INPUT: ${{ inputs.debug }}
       run: |
@@ -140,6 +145,7 @@ runs:
         target-branch: ${{ inputs.target_branch }}
         config-file: ${{ inputs.config_file }}
         manifest-file: ${{ inputs.manifest_file }}
+        skip-github-release: ${{ inputs.skip_github_release }}
 
     - name: Resolve release PR and optionally enable auto-merge
       id: release_pr

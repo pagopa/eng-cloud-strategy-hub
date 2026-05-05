@@ -39,6 +39,7 @@ When `release-please` creates a release, no open release PR is expected; the wra
 | `manifest_file` | No | `.release-please-manifest.json` | Repository-relative release-please manifest path. |
 | `auto_merge` | No | `true` | Enable GitHub auto-merge on resolved release PRs. |
 | `merge_method` | No | `squash` | Auto-merge method. Allowed values: `merge`, `squash`, `rebase`. |
+| `skip_github_release` | No | `false` | Open/update release PRs without creating GitHub Releases or tags. Use this for non-production branch tests. |
 | `debug` | No | `false` | Print non-secret diagnostics. |
 
 ## Outputs
@@ -133,6 +134,7 @@ jobs:
           manifest_file: .release-please-manifest.json
           auto_merge: "true"
           merge_method: squash
+          skip_github_release: "false"
           debug: "false"
 ```
 
@@ -195,8 +197,14 @@ Example `release-please-config.json`:
   "separate-pull-requests": false,
   "include-component-in-tag": true,
   "include-v-in-tag": true,
-  "group-pull-request-title-pattern": "chore: release-please generated ${branch}",
+  "group-pull-request-title-pattern": "chore(release): release example-repo ${version} (${branch})",
   "packages": {
+    ".": {
+      "component": "example-repo",
+      "package-name": "example-repo",
+      "include-component-in-tag": false,
+      "changelog-path": "CHANGELOG.md"
+    },
     "apps/service-a": {
       "component": "service-a",
       "changelog-path": "CHANGELOG.md"
@@ -213,6 +221,7 @@ Example `.release-please-manifest.json`:
 
 ```json
 {
+  ".": "1.0.0",
   "apps/service-a": "1.0.0",
   "apps/service-b": "1.0.0"
 }
@@ -225,7 +234,7 @@ Example `.release-please-manifest.json`:
 - If those outputs are empty, it uses `gh pr list` and keeps only conservative release-please candidates:
   - open PR against `target_branch`
   - head branch starts with `release-please--`
-  - title contains `chore: release`
+  - title is a release-please title such as `chore: release ...` or `chore(scope): release ...`
   - author looks like a bot or GitHub App identity
 - Auto-merge uses `gh pr merge --auto` with the requested merge method.
 - Auto-merge passes `--delete-branch`, so GitHub deletes the remote release branch after the PR is merged.
