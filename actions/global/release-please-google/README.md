@@ -179,6 +179,7 @@ Example `.release-please-manifest.json`:
 - Auto-merge uses `gh pr merge --auto` with the requested merge method.
 - The wrapper does not perform a direct blind merge.
 - If a release PR has merge conflicts, the wrapper keeps the PR open, logs a warning, and continues with the other release PRs.
+- If GitHub reports that auto-merge is unavailable for a release PR, the wrapper keeps the PR open, logs a warning, and continues with the other release PRs.
 
 ## Troubleshooting
 
@@ -201,8 +202,9 @@ Example `.release-please-manifest.json`:
 
 ### `Repository auto-merge is not enabled`
 
+- The wrapper leaves the release PR open and continues, but auto-merge is not enabled for that PR.
 - Enable auto-merge in repository settings.
-- Confirm branch protection allows auto-merge for the selected method.
+- Confirm the target branch has the required protected branch rules for the selected method.
 
 ### `Pull Request has merge conflicts`
 
