@@ -37,11 +37,8 @@ jobs:
         with:
           client-id: ${{ env.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ env.RELEASE_APP_PRIVATE_KEY }}
-          permission-contents: write
-          permission-pull-requests: write
-          # Required because release-please labels release PRs to detect merged releases.
-          # The GitHub App installation must already have this repository permission approved.
-          permission-issues: write
+          # Diagnostic mode: inherit the installation permissions as-is to verify
+          # whether the 422 comes from requesting an unapproved scoped permission.
 
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
