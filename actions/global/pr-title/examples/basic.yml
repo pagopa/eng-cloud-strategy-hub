@@ -1,4 +1,4 @@
-name: 📝 Validate PR title
+name: Validate PR Title
 
 on:
   pull_request_target:
@@ -12,18 +12,10 @@ permissions:
   pull-requests: read
 
 jobs:
-  main:
-    name: Validate PR title
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
+  title:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
-        with:
-          persist-credentials: false
-
-      - name: Validate semantic PR title
-        uses: ./actions/global/pr-title
+      - uses: pagopa/<repo-actions>/actions/global/pr-title@<sha>
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           types: |
@@ -38,6 +30,7 @@ jobs:
             test
             revert
             breaking
+          scopes: ""
           require-scope: "false"
           subject-pattern: .+
           subject-pattern-error: The pull request title subject must not be empty.

@@ -1,23 +1,28 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import ModuleType
 
 ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT))
+RUNNER_PATH = ROOT / "tools/local_actions/runner.py"
 
-from tools.local_actions.runner import (  # noqa: E402
-    PRE_COMMIT_IMAGE,
-    build_pre_commit_run_command,
-    build_steps,
-    collect_shell_targets,
-    restore_directory_snapshot,
-    select_steps,
-    snapshot_directory,
-)
+
+def load_module(path: Path, module_name: str) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load module from {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+runner = load_module(RUNNER_PATH, "local_actions_runner_source")
 
 
 class LocalActionsRunnerTests(unittest.TestCase):
@@ -33,31 +38,34 @@ class LocalActionsRunnerTests(unittest.TestCase):
             write_file(
                 root / "tools/local_actions/runner.py", "#!/usr/bin/env python3\n"
             )
-            write_file(root / "local-actions.sh", "#!/usr/bin/env bash\necho run\n")
+            write_file(
+                root / "validate-repo-locally.sh",
+                "#!/usr/bin/env bash\necho run\n",
+            )
 
-            targets = collect_shell_targets(
+            targets = runner.collect_shell_targets(
                 root,
                 (
                     ".github/scripts",
                     "scripts",
                     "tests/scripts",
                     "tools",
-                    "local-actions.sh",
+                    "validate-repo-locally.sh",
                 ),
             )
 
             self.assertEqual(
                 [
                     ".github/scripts/bootstrap.sh",
-                    "local-actions.sh",
                     "tests/scripts/fake",
+                    "validate-repo-locally.sh",
                 ],
                 [target.relative_to(root).as_posix() for target in targets],
             )
 
     def test_select_steps_expands_aliases_and_skip_filters(self) -> None:
-        selected = select_steps(
-            build_steps(),
+        selected = runner.select_steps(
+            runner.build_steps(),
             only_values=["code-analysis"],
             skip_values=["shell-static-analysis"],
         )
@@ -72,10 +80,10 @@ class LocalActionsRunnerTests(unittest.TestCase):
             root = Path(temporary_dir)
             cache_dir = root / "tmp/local-actions/pre-commit-cache"
 
-            command = build_pre_commit_run_command(root, cache_dir)
+            command = runner.build_pre_commit_run_command(root, cache_dir)
 
             self.assertEqual("docker", command[0])
-            self.assertIn(PRE_COMMIT_IMAGE, command)
+            self.assertIn(runner.PRE_COMMIT_IMAGE, command)
             self.assertIn("PRE_COMMIT_HOME=/pre-commit-cache", command)
             self.assertIn(f"{cache_dir}:/pre-commit-cache", command)
             self.assertIn(f"{root}:/lint", command)
@@ -90,11 +98,11 @@ class LocalActionsRunnerTests(unittest.TestCase):
             snapshot_path = root / "tmp/snapshot"
             write_file(source / "aws.stdout", "before\n")
 
-            snapshot = snapshot_directory(source, snapshot_path, dry_run=False)
+            snapshot = runner.snapshot_directory(source, snapshot_path, dry_run=False)
             (source / "aws.stdout").unlink()
             write_file(source / "new.log", "after\n")
 
-            restore_directory_snapshot(snapshot, dry_run=False)
+            runner.restore_directory_snapshot(snapshot, dry_run=False)
 
             self.assertEqual("before\n", (source / "aws.stdout").read_text())
             self.assertFalse((source / "new.log").exists())

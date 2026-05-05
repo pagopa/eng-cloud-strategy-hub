@@ -1,7 +1,6 @@
 name: 🚀 Release
 
 on:
-  # Trigger the workflow on push to main branch or manually
   push:
     branches:
       - main
@@ -10,20 +9,26 @@ on:
       - "**.md"
   workflow_dispatch:
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     permissions:
       contents: write
-      packages: write
-      issues: write
       pull-requests: write
     steps:
-      - name: Release action
+      - name: Run release action
         id: release
-        # https://github.com/pagopa/eng-github-actions-iac-template/releases/tag/v1.20.0
-        uses: pagopa/eng-github-actions-iac-template/global/release-action@5c7e5f690ad0f07f3bd945bdebf2a6c7a575b33f
+        uses: ./actions/global/release-please-google
         with:
-          # Use the default GITHUB_TOKEN with repo write permissions to create releases
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          target_branch: ${{ github.ref_name }}
+          config_file: release-please-config.json
+          manifest_file: .release-please-manifest.json
+          auto_merge: "true"
+          merge_method: squash

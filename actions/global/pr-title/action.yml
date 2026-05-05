@@ -1,0 +1,103 @@
+name: Semantic PR Title
+description: Validate pull request titles with Conventional Commit semantics.
+author: Cloud Strategy Governance
+
+inputs:
+  github-token:
+    description: GitHub token used by the semantic PR title action.
+    required: true
+  types:
+    description: Allowed Conventional Commit types, one per line.
+    required: false
+    default: |
+      feat
+      fix
+      docs
+      chore
+      ci
+      build
+      refactor
+      perf
+      test
+      revert
+      breaking
+  scopes:
+    description: Allowed scopes, one per line. Empty allows any scope.
+    required: false
+    default: ""
+  require-scope:
+    description: Require a scope in every PR title.
+    required: false
+    default: "false"
+  subject-pattern:
+    description: Regular expression that the PR title subject must match.
+    required: false
+    default: .+
+  subject-pattern-error:
+    description: Error shown when subject-pattern does not match.
+    required: false
+    default: The pull request title subject must not be empty.
+  validate-single-commit:
+    description: Validate the single commit message when a PR has exactly one commit.
+    required: false
+    default: "false"
+  validate-single-commit-matches-pr-title:
+    description: Require the single commit message to match the PR title.
+    required: false
+    default: "false"
+
+outputs:
+  type:
+    description: Parsed Conventional Commit type.
+    value: ${{ steps.semantic-pull-request.outputs.type }}
+  scope:
+    description: Parsed Conventional Commit scope.
+    value: ${{ steps.semantic-pull-request.outputs.scope }}
+  subject:
+    description: Parsed Conventional Commit subject.
+    value: ${{ steps.semantic-pull-request.outputs.subject }}
+  error-message:
+    description: Validation error message from the upstream action.
+    value: ${{ steps.semantic-pull-request.outputs.error_message }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate PR title inputs
+      shell: bash
+      env:
+        GITHUB_TOKEN_INPUT: ${{ inputs.github-token }}
+        REQUIRE_SCOPE_INPUT: ${{ inputs.require-scope }}
+        VALIDATE_SINGLE_COMMIT_INPUT: ${{ inputs.validate-single-commit }}
+        VALIDATE_SINGLE_COMMIT_MATCHES_INPUT: ${{ inputs.validate-single-commit-matches-pr-title }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "${GITHUB_TOKEN_INPUT}" ]]; then
+          echo "::error::github-token input is required."
+          exit 1
+        fi
+
+        for boolean_input in REQUIRE_SCOPE_INPUT VALIDATE_SINGLE_COMMIT_INPUT VALIDATE_SINGLE_COMMIT_MATCHES_INPUT; do
+          case "${!boolean_input}" in
+            true|false) ;;
+            *)
+              echo "::error::${boolean_input} must be 'true' or 'false'."
+              exit 1
+              ;;
+          esac
+        done
+
+    - name: Validate semantic pull request title
+      id: semantic-pull-request
+      uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # amannn/action-semantic-pull-request@v6.1.1 release: https://github.com/amannn/action-semantic-pull-request/releases/tag/v6.1.1
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      with:
+        types: ${{ inputs.types }}
+        scopes: ${{ inputs.scopes }}
+        requireScope: ${{ inputs.require-scope }}
+        subjectPattern: ${{ inputs.subject-pattern }}
+        subjectPatternError: ${{ inputs.subject-pattern-error }}
+        validateSingleCommit: ${{ inputs.validate-single-commit }}
+        validateSingleCommitMatchesPrTitle: ${{ inputs.validate-single-commit-matches-pr-title }}

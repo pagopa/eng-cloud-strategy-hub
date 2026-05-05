@@ -39,7 +39,7 @@ SHELL_TARGET_ROOTS = (
     "scripts",
     "tests/scripts",
     "tools",
-    "local-actions.sh",
+    "validate-repo-locally.sh",
 )
 TERRAFORM_WRAPPER_TARGETS = (
     "scripts/aws/terraform.sh",

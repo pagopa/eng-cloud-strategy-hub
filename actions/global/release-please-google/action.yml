@@ -1,0 +1,133 @@
+name: Release Please Google
+description: Run release-please in manifest mode with conservative release PR auto-merge.
+author: Cloud Strategy Governance
+
+inputs:
+  github_token:
+    description: GitHub token used by release-please and gh CLI. Can be GITHUB_TOKEN or GitHub App installation token.
+    required: true
+  checkout:
+    description: Whether the action should checkout the repository internally.
+    required: false
+    default: "true"
+  target_branch:
+    description: Target branch for release PRs.
+    required: false
+    default: main
+  config_file:
+    description: Path to release-please config file.
+    required: false
+    default: release-please-config.json
+  manifest_file:
+    description: Path to release-please manifest file.
+    required: false
+    default: .release-please-manifest.json
+  auto_merge:
+    description: Enable auto-merge for release-please PRs.
+    required: false
+    default: "true"
+  merge_method:
+    description: "Auto-merge method: merge, squash, or rebase."
+    required: false
+    default: squash
+  debug:
+    description: Print non-secret diagnostic information.
+    required: false
+    default: "false"
+
+outputs:
+  release_created:
+    description: Whether any release was created.
+    value: ${{ steps.release.outputs.releases_created }}
+  pr:
+    description: Release PR URL, when available.
+    value: ${{ steps.release_pr.outputs.pr }}
+  prs:
+    description: Release PRs JSON, when available.
+    value: ${{ steps.release_pr.outputs.prs }}
+  tag_name:
+    description: Created tag name, when available.
+    value: ${{ steps.release.outputs.tag_name }}
+  config_file:
+    description: Config file used.
+    value: ${{ inputs.config_file }}
+  manifest_file:
+    description: Manifest file used.
+    value: ${{ inputs.manifest_file }}
+  auto_merge_enabled:
+    description: Whether auto-merge was requested or enabled.
+    value: ${{ steps.release_pr.outputs.auto_merge_enabled }}
+  releases_created:
+    description: Whether release-please created at least one release.
+    value: ${{ steps.release.outputs.releases_created }}
+  paths_released:
+    description: JSON array of paths released by release-please.
+    value: ${{ steps.release.outputs.paths_released }}
+  prs_created:
+    description: Whether release-please created or updated at least one PR.
+    value: ${{ steps.release.outputs.prs_created }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate wrapper inputs
+      shell: bash
+      env:
+        ACTION_SCRIPT: ${{ github.action_path }}/scripts/validate_inputs.py
+        GITHUB_TOKEN_INPUT: ${{ inputs.github_token }}
+        CHECKOUT_INPUT: ${{ inputs.checkout }}
+        TARGET_BRANCH_INPUT: ${{ inputs.target_branch }}
+        AUTO_MERGE_INPUT: ${{ inputs.auto_merge }}
+        MERGE_METHOD_INPUT: ${{ inputs.merge_method }}
+        DEBUG_INPUT: ${{ inputs.debug }}
+      run: |
+        set -euo pipefail
+        "${ACTION_SCRIPT}" --phase wrapper
+
+    - name: Checkout repository
+      if: ${{ inputs.checkout == 'true' }}
+      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Validate consumer release files
+      shell: bash
+      env:
+        ACTION_SCRIPT: ${{ github.action_path }}/scripts/validate_inputs.py
+        CONFIG_FILE_INPUT: ${{ inputs.config_file }}
+        MANIFEST_FILE_INPUT: ${{ inputs.manifest_file }}
+        DEBUG_INPUT: ${{ inputs.debug }}
+        TARGET_BRANCH_INPUT: ${{ inputs.target_branch }}
+        MERGE_METHOD_INPUT: ${{ inputs.merge_method }}
+      run: |
+        set -euo pipefail
+        "${ACTION_SCRIPT}" --phase files
+
+    - name: Run release-please
+      id: release
+      uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # googleapis/release-please-action@v5.0.0 release: https://github.com/googleapis/release-please-action/releases/tag/v5.0.0
+      with:
+        token: ${{ inputs.github_token }}
+        target-branch: ${{ inputs.target_branch }}
+        config-file: ${{ inputs.config_file }}
+        manifest-file: ${{ inputs.manifest_file }}
+        skip-labeling: true
+
+    - name: Resolve release PR and optionally enable auto-merge
+      id: release_pr
+      shell: bash
+      env:
+        ACTION_SCRIPT: ${{ github.action_path }}/scripts/auto_merge_release_pr.py
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GH_TOKEN: ${{ inputs.github_token }}
+        RP_TARGET_BRANCH: ${{ inputs.target_branch }}
+        RP_AUTO_MERGE: ${{ inputs.auto_merge }}
+        RP_MERGE_METHOD: ${{ inputs.merge_method }}
+        RP_RELEASE_CREATED: ${{ steps.release.outputs.releases_created }}
+        RP_PR: ${{ steps.release.outputs.pr }}
+        RP_PRS: ${{ steps.release.outputs.prs }}
+        RP_DEBUG: ${{ inputs.debug }}
+      run: |
+        set -euo pipefail
+        "${ACTION_SCRIPT}"

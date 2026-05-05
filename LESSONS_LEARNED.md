@@ -24,3 +24,4 @@ This file retains durable lessons discovered while completing tasks in this repo
 | --- | --- | --- | --- |
 | 2026-05-03 | Test fixtures should avoid ignored extensions such as `.log`; a local ignored fixture can make tests pass locally while CI fails from a clean checkout. | Pending | Terraform wrapper test guidance or fixture conventions |
 | 2026-05-03 | `pull_request_target` PR validation uses the default-branch workflow configuration, so workflow fixes in the current PR do not repair that PR's own target-triggered check until the base branch has the fix. | Pending | GitHub Actions guidance |
+| 2026-05-03 | When extracting an existing validation workflow into a local wrapper action, preserve current default validation semantics and make stricter policy such as scope allowlists opt-in unless the user explicitly requests the tighter gate. | Pending | GitHub Actions/composite action wrapper guidance |

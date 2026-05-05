@@ -1,4 +1,0 @@
-ℹ️  CICD mode enabled: skipping interactive AWS credential checks
-🧪 DRY-RUN: terraform init -reconfigure -backend-config=bucket=aws-dev-state -backend-config=key=terraform/dev.tfstate -backend-config=dynamodb_table=aws-dev-locks -backend-config=region=eu-south-1 
-⚠️  Using -target derived from /Users/diego.lagosmorales/code/cloud-strategy-governance/eng-cloud-strategy-hub/tests/scripts/terraform_wrappers/fixtures/target-test.tf. Targeted runs can hide dependencies and should stay exceptional.
-🧪 DRY-RUN: terraform apply -compact-warnings -var-file=./env/dev/terraform.tfvars -target=terraform_data.example -target=module.example 
