@@ -1,0 +1,5 @@
+# Force-release trigger for the `scripts` package.
+# Bump the counter below and commit with a conventional commit, e.g.:
+#   fix(scripts): force release
+# release-please will see a commit affecting `scripts/` and open a release PR.
+counter: 0
