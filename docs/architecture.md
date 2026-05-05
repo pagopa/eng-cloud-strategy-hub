@@ -63,8 +63,8 @@ The repository is architecture-by-governance rather than architecture-by-runtime
 Observed validation surfaces include:
 
 - `.pre-commit-config.yaml` for YAML, JSON, shell, Python, Terraform, and workflow linting baselines.
-- Workflows `_pre-commit.yml`, `pr-stale-close.yml`, `pr-title.yml`, `release.yml`, and `terraform-wrapper-tests.yml`, with shared workflow logic delegated to `actions/global/` where practical.
-- Local workflow simulation through `./validate-repo-locally.sh` for `_code-analysis.yml`, `_pre-commit.yml`, and `terraform-wrapper-tests.yml`, with a non-interactive default path and an optional interactive selector.
+- Workflows `_pre-commit.yml`, `pr-stale-close.yml`, `pr-title.yml`, `release.yml`, and `terraform-sh-tests.yml`, with shared workflow logic delegated to `actions/global/` where practical.
+- Local workflow simulation through `./validate-repo-locally.sh` for `_code-analysis.yml`, `_pre-commit.yml`, and `terraform-sh-tests.yml`, with a non-interactive default path and an optional interactive selector.
 - The shell-based simulation suite at `tests/scripts/terraform_wrappers/run.sh`.
 - Local shell validation via `bash -n` and `shellcheck` for the wrapper and test scripts.
 
