@@ -12,9 +12,9 @@ terraform {
     }
   }
 
-  backend "s3" {
-    # Configure your backend here
-  }
+  # backend "s3" {
+  #   # Configure your backend here
+  # }
 }
 
 provider "aws" {
