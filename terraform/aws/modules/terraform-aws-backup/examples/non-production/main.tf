@@ -28,7 +28,8 @@ provider "aws" {
 }
 
 module "backup" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup?ref=v1.0.0"
+  #source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup?ref=v1.0.0"
+  source = "../../"
 
   providers = {
     aws    = aws
@@ -60,7 +61,8 @@ module "backup" {
 ###############################################################################
 
 module "backup_alerting" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup-alerting?ref=v1.0.0"
+  #source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup-alerting?ref=v1.0.0"
+  source = "../../backup-alerting"
 
   solution_prefix = "team-payments-dev"
 
