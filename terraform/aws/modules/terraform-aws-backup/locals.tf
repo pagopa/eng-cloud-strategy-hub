@@ -65,4 +65,61 @@ locals {
     },
     var.tags
   )
+
+  default_plan_additional_rules = [
+    for rule in var.default_plan_additional_rules : {
+      rule_name         = rule.rule_name
+      target_vault_name = aws_backup_vault.primary.name
+      schedule          = rule.schedule
+
+      start_window       = coalesce(rule.start_window, var.backup_window_minutes)
+      completion_window  = coalesce(rule.completion_window, var.backup_window_minutes * 2)
+      cold_storage_after = rule.cold_storage_after
+      delete_after       = rule.delete_after
+
+      recovery_point_tags = merge(local.common_tags, rule.recovery_point_tags)
+      copy_actions = coalesce(rule.copy_to_dr, local.enable_cross_region_copy) ? [
+        {
+          destination_vault_arn = aws_backup_vault.dr[0].arn
+          cold_storage_after    = coalesce(rule.copy_cold_storage_after, rule.cold_storage_after)
+          delete_after          = coalesce(rule.copy_delete_after, rule.delete_after)
+        }
+      ] : []
+    }
+  ]
+
+  default_plan_rules = concat(
+    [
+      {
+        rule_name           = "daily-backup"
+        target_vault_name   = aws_backup_vault.primary.name
+        schedule            = var.backup_schedule
+        start_window        = var.backup_window_minutes
+        completion_window   = var.backup_window_minutes * 2
+        cold_storage_after  = local.cold_storage_after
+        delete_after        = local.retention_days
+        recovery_point_tags = local.common_tags
+        copy_actions = local.enable_cross_region_copy ? [
+          {
+            destination_vault_arn = aws_backup_vault.dr[0].arn
+            cold_storage_after    = local.cold_storage_after
+            delete_after          = local.copy_retention_days
+          }
+        ] : []
+      }
+    ],
+    local.continuous_in_default_plan ? [
+      {
+        rule_name                = "continuous-backup"
+        target_vault_name        = aws_backup_vault.primary.name
+        schedule                 = var.backup_schedule
+        start_window             = var.backup_window_minutes
+        completion_window        = var.backup_window_minutes * 2
+        enable_continuous_backup = true
+        delete_after             = local.continuous_retention_days
+        recovery_point_tags      = local.common_tags
+      }
+    ] : [],
+    local.default_plan_additional_rules
+  )
 }

@@ -82,39 +82,7 @@ module "default_plan" {
   resource_arns          = var.resource_arns
   excluded_resource_arns = var.excluded_resource_arns
 
-  rules = concat(
-    [
-      {
-        rule_name           = "daily-backup"
-        target_vault_name   = aws_backup_vault.primary.name
-        schedule            = var.backup_schedule
-        start_window        = var.backup_window_minutes
-        completion_window   = var.backup_window_minutes * 2
-        cold_storage_after  = local.cold_storage_after
-        delete_after        = local.retention_days
-        recovery_point_tags = local.common_tags
-        copy_actions = local.enable_cross_region_copy ? [
-          {
-            destination_vault_arn = aws_backup_vault.dr[0].arn
-            cold_storage_after    = local.cold_storage_after
-            delete_after          = local.copy_retention_days
-          }
-        ] : []
-      }
-    ],
-    local.continuous_in_default_plan ? [
-      {
-        rule_name                = "continuous-backup"
-        target_vault_name        = aws_backup_vault.primary.name
-        schedule                 = var.backup_schedule
-        start_window             = var.backup_window_minutes
-        completion_window        = var.backup_window_minutes * 2
-        enable_continuous_backup = true
-        delete_after             = local.continuous_retention_days
-        recovery_point_tags      = local.common_tags
-      }
-    ] : []
-  )
+  rules = local.default_plan_rules
 }
 
 ###############################################################################

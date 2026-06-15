@@ -1,7 +1,8 @@
 ###############################################################################
 # Example: Core backup + extra plans (presets and a bespoke plan)
 #
-# Shows how a team extends the default plan with:
+# Shows how a team extends backups with:
+#   - an extra rule appended to the core module's default plan
 #   - the long-retention preset (regulatory 10-year retention)
 #   - the hourly-backup preset (low RPO)
 #   - a bespoke plan built directly on the backup-plan sub-module
@@ -49,6 +50,21 @@ module "backup" {
   selection_tags = {
     "backup-policy" = "enabled"
   }
+
+  # Add an extra weekly rule to the default plan while keeping the same
+  # resource selection, vault, and IAM role managed by the core module.
+  default_plan_additional_rules = [
+    {
+      rule_name          = "weekly-compliance-copy"
+      schedule           = "cron(0 5 ? * SUN *)"
+      cold_storage_after = 30
+      delete_after       = 120
+      copy_delete_after  = 180
+      recovery_point_tags = {
+        "backup-frequency" = "weekly"
+      }
+    }
+  ]
 
   cross_region_copy = "CopyToSecondaryRegion"
   dr_region         = "eu-central-1"

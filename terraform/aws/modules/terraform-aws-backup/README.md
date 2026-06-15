@@ -171,6 +171,8 @@ La variabile `environment` (`prod` o `nonprod`) guida i valori di default. Ogni 
 
 Oltre al piano giornaliero di default puoi aggiungere altri piani. I **preset** sono wrapper pronti all'uso sopra il sotto-modulo `backup-plan`: si invocano come moduli aggiuntivi accanto al core.
 
+Se la **stessa selezione di risorse** del piano di default ha bisogno di una o più schedule aggiuntive, senza creare un piano separato, usa `default_plan_additional_rules` direttamente sul modulo core. Se invece cambiano la selezione delle risorse o il piano deve avere un ciclo di vita indipendente, continua a usare un preset o il sotto-modulo `backup-plan`.
+
 | Preset | Percorso | Caso d'uso |
 |--------|----------|------------|
 | Hourly Backup | `modules/presets/hourly-backup/` | Workload a basso RPO (≤ 1h) |
@@ -245,6 +247,7 @@ L'elenco completo di variabili, con descrizioni e default, è in [variables.tf](
 | `resource_types` | list(string) | no¹ | `[]` | Tipi di servizio da proteggere interamente. |
 | `resource_arns` | list(string) | no¹ | `[]` | ARN espliciti/wildcard da includere. |
 | `retention_days` | number | no | 35 prod / 14 nonprod | Giorni di conservazione dei recovery point. |
+| `default_plan_additional_rules` | list(object) | no | `[]` | Regole schedulate aggiuntive sul piano di default, riusando selezione, vault e ruolo IAM del core. |
 | `cross_region_copy` | string | no | `Default` | `Default` / `DoNotCopyToOtherRegions` / `CopyToSecondaryRegion`. |
 | `dr_region` | string | no² | `null` | Regione DR (deve combaciare col provider `aws.dr`). |
 | `vault_lock_mode` | string | no | COMPLIANCE prod / GOVERNANCE nonprod | Modalità del Vault Lock. |

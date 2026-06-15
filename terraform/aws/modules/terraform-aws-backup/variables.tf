@@ -216,6 +216,75 @@ variable "backup_window_minutes" {
   default     = 480
 }
 
+variable "default_plan_additional_rules" {
+  description = <<-EOT
+    Optional scheduled rules appended to the default backup plan. Use this
+    when the same selection of resources needs extra schedules or retention
+    policies without creating a separate backup-plan module.
+
+    These rules reuse the core module's primary vault, default selection, and
+    backup IAM role. For separate selections or fully custom plans, use the
+    backup-plan sub-module or one of the preset wrappers instead.
+  EOT
+  type = list(object({
+    rule_name               = string
+    schedule                = string
+    start_window            = optional(number)
+    completion_window       = optional(number)
+    cold_storage_after      = optional(number, 0)
+    delete_after            = number
+    recovery_point_tags     = optional(map(string), {})
+    copy_to_dr              = optional(bool)
+    copy_cold_storage_after = optional(number)
+    copy_delete_after       = optional(number)
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for rule in var.default_plan_additional_rules : !contains([
+        "daily-backup",
+        "continuous-backup"
+      ], rule.rule_name)
+    ])
+    error_message = "default_plan_additional_rules cannot reuse reserved rule names: daily-backup, continuous-backup."
+  }
+
+  validation {
+    condition     = length(var.default_plan_additional_rules) == length(distinct([for rule in var.default_plan_additional_rules : rule.rule_name]))
+    error_message = "default_plan_additional_rules rule_name values must be unique."
+  }
+
+  validation {
+    condition = alltrue([
+      for rule in var.default_plan_additional_rules :
+      try(rule.copy_to_dr, null) != true || (
+        var.cross_region_copy == "CopyToSecondaryRegion" ||
+        (var.cross_region_copy == "Default" && var.environment == "prod")
+      )
+    ])
+    error_message = "default_plan_additional_rules[*].copy_to_dr can be true only when cross_region_copy enables DR copies."
+  }
+
+  validation {
+    condition = alltrue([
+      for rule in var.default_plan_additional_rules :
+      (
+        try(rule.copy_cold_storage_after, null) == null &&
+        try(rule.copy_delete_after, null) == null
+      ) || (
+        try(rule.copy_to_dr, null) == true || (
+          try(rule.copy_to_dr, null) == null && (
+            var.cross_region_copy == "CopyToSecondaryRegion" ||
+            (var.cross_region_copy == "Default" && var.environment == "prod")
+          )
+        )
+      )
+    ])
+    error_message = "default_plan_additional_rules copy_cold_storage_after and copy_delete_after require DR copy to be enabled for that rule."
+  }
+}
+
 ###############################################################################
 # Restore Testing
 ###############################################################################
