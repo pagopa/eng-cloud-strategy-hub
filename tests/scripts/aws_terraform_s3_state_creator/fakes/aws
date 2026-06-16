@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Fake AWS CLI for aws-terraform-s3-state-creator.sh tests.
+set -euo pipefail
+
+log_file="${FAKE_AWS_LOG:-}"
+if [[ -n "${log_file}" ]]; then
+  printf '%s\n' "$*" >>"${log_file}"
+fi
+
+args=("$@")
+index=0
+while [[ ${index} -lt ${#args[@]} ]]; do
+  case "${args[${index}]}" in
+    --profile|--region)
+      index=$((index + 2))
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+service="${args[${index}]:-}"
+command="${args[$((index + 1))]:-}"
+
+if [[ -z "${service}" || -z "${command}" ]]; then
+  echo "fake aws: missing service or command" >&2
+  exit 2
+fi
+
+case "${service} ${command}" in
+  "sts get-caller-identity")
+    cat <<EOF
+{"UserId":"AIDAEXAMPLE","Account":"${FAKE_ACCOUNT_ID:-123456789012}","Arn":"${FAKE_CALLER_ARN:-arn:aws:iam::123456789012:user/tester}"}
+EOF
+    ;;
+  "iam list-account-aliases")
+    if [[ "${FAKE_ALIAS_MODE:-ok}" == "none" ]]; then
+      echo "None"
+    else
+      echo "${FAKE_ACCOUNT_ALIAS:-sandbox}"
+    fi
+    ;;
+  "s3api head-bucket")
+    case "${FAKE_HEAD_BUCKET_MODE:-exists}" in
+      exists)
+        exit 0
+        ;;
+      notfound)
+        echo "An error occurred (404) when calling the HeadBucket operation: Not Found" >&2
+        exit 254
+        ;;
+      forbidden)
+        echo "An error occurred (403) when calling the HeadBucket operation: Forbidden" >&2
+        exit 254
+        ;;
+      moved)
+        echo "An error occurred (301) when calling the HeadBucket operation: Moved Permanently" >&2
+        exit 254
+        ;;
+      *)
+        echo "An error occurred (500) when calling the HeadBucket operation: Internal Error" >&2
+        exit 254
+        ;;
+    esac
+    ;;
+  "s3api create-bucket"|"s3api put-bucket-versioning"|"s3api put-public-access-block"|"s3api put-bucket-ownership-controls"|"s3api put-bucket-encryption"|"s3api put-bucket-policy"|"s3api put-bucket-tagging")
+    echo "{}"
+    ;;
+  *)
+    echo "fake aws: unhandled command '${service} ${command}'" >&2
+    exit 2
+    ;;
+esac

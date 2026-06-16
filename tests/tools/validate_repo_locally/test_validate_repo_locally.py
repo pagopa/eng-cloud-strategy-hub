@@ -79,6 +79,18 @@ class ValidateRepoLocallyTests(unittest.TestCase):
             [step.step_id for step in selected],
         )
 
+    def test_terraform_alias_includes_both_terraform_suites(self) -> None:
+        selected = runner.select_steps(
+            runner.build_steps(),
+            only_values=["terraform"],
+            skip_values=[],
+        )
+
+        self.assertEqual(
+            ["terraform-sh-tests", "aws-s3-state-creator-tests"],
+            [step.step_id for step in selected],
+        )
+
     def test_parse_args_rejects_interactive_and_yes_together(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit):

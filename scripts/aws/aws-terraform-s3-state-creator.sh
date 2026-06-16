@@ -1,0 +1,508 @@
+#!/usr/bin/env bash
+#
+# Purpose: Create or align an S3 bucket for Terraform remote state on AWS.
+# Usage examples:
+#   ./scripts/aws/aws-terraform-s3-state-creator.sh --region eu-south-1 --account-name sandbox --bucket my-tf-state
+#   ./scripts/aws/aws-terraform-s3-state-creator.sh --region eu-south-1 --account-name sandbox --bucket my-tf-state --tag Environment=dev --yes
+#   ./scripts/aws/aws-terraform-s3-state-creator.sh --region eu-south-1 --account-name sandbox --bucket my-tf-state --dry-run
+
+set -euo pipefail
+
+SCRIPT_NAME="$(basename "$0")"
+readonly SCRIPT_NAME
+readonly SCRIPT_PATH="scripts/aws/aws-terraform-s3-state-creator.sh"
+
+REGION=""
+ACCOUNT_NAME=""
+BUCKET_NAME=""
+PROFILE=""
+DRY_RUN=false
+ASSUME_YES=false
+
+declare -a USER_TAGS=()
+declare -a DEFAULT_TAGS=()
+
+CALLER_ARN=""
+CALLER_ACCOUNT_ID=""
+CALLER_ALIAS=""
+BUCKET_MODE=""
+
+log_info() {
+  echo "ℹ️  $*"
+}
+
+log_success() {
+  echo "✅ $*"
+}
+
+log_warn() {
+  echo "⚠️  $*"
+}
+
+log_error() {
+  echo "❌ $*" >&2
+}
+
+die() {
+  log_error "$*"
+  exit 1
+}
+
+usage() {
+  cat <<EOF
+Usage: ${SCRIPT_NAME} [OPTIONS]
+
+Create or align a secure S3 bucket for Terraform remote state.
+
+Options:
+  --region <aws-region>         AWS region for bucket operations (required)
+  --account-name <alias>        Expected AWS account alias (required)
+  --bucket <bucket-name>        Target S3 bucket name (required)
+  --profile <aws-profile>       Optional AWS CLI profile
+  --tag <Key=Value>             Additional tag (repeatable)
+  --dry-run                     Print planned actions without mutating S3 settings
+  --yes                         Skip y/N confirmation prompt
+  -h, --help                    Show this help message
+
+Examples:
+  ${SCRIPT_NAME} --region eu-south-1 --account-name sandbox --bucket my-tf-state
+  ${SCRIPT_NAME} --region eu-south-1 --account-name sandbox --bucket my-tf-state --tag Environment=dev --yes
+  ${SCRIPT_NAME} --region eu-south-1 --account-name sandbox --bucket my-tf-state --dry-run
+EOF
+}
+
+require_command() {
+  local cmd="$1"
+  if ! command -v "${cmd}" >/dev/null 2>&1; then
+    die "Required command not found: ${cmd}"
+  fi
+}
+
+parse_args() {
+  if [[ $# -eq 0 ]]; then
+    usage
+    exit 0
+  fi
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --region)
+      [[ $# -ge 2 ]] || die "Missing value for --region"
+      REGION="$2"
+      shift 2
+      ;;
+    --account-name)
+      [[ $# -ge 2 ]] || die "Missing value for --account-name"
+      ACCOUNT_NAME="$2"
+      shift 2
+      ;;
+    --bucket)
+      [[ $# -ge 2 ]] || die "Missing value for --bucket"
+      BUCKET_NAME="$2"
+      shift 2
+      ;;
+    --profile)
+      [[ $# -ge 2 ]] || die "Missing value for --profile"
+      PROFILE="$2"
+      shift 2
+      ;;
+    --tag)
+      [[ $# -ge 2 ]] || die "Missing value for --tag"
+      USER_TAGS+=("$2")
+      shift 2
+      ;;
+    --dry-run)
+      DRY_RUN=true
+      shift
+      ;;
+    --yes)
+      ASSUME_YES=true
+      shift
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      die "Unknown option: $1"
+      ;;
+    esac
+  done
+}
+
+validate_args() {
+  [[ -n "${REGION}" ]] || die "--region is required"
+  [[ -n "${ACCOUNT_NAME}" ]] || die "--account-name is required"
+  [[ -n "${BUCKET_NAME}" ]] || die "--bucket is required"
+
+  if [[ "${BUCKET_NAME}" =~ [A-Z] ]]; then
+    die "Bucket name must be lowercase"
+  fi
+
+  local user_tag
+  if [[ ${#USER_TAGS[@]} -gt 0 ]]; then
+    for user_tag in "${USER_TAGS[@]}"; do
+      validate_tag_format "${user_tag}"
+    done
+  fi
+}
+
+validate_tag_format() {
+  local tag_pair="$1"
+  local key_part="${tag_pair%%=*}"
+  local value_part="${tag_pair#*=}"
+
+  if [[ "${tag_pair}" != *"="* ]]; then
+    die "Invalid --tag format '${tag_pair}'. Expected Key=Value"
+  fi
+
+  if [[ -z "${key_part}" ]]; then
+    die "Invalid --tag format '${tag_pair}'. Key cannot be empty"
+  fi
+
+  if [[ -z "${value_part}" ]]; then
+    die "Invalid --tag format '${tag_pair}'. Value cannot be empty"
+  fi
+}
+
+build_aws_cmd() {
+  AWS_CMD=(aws)
+  if [[ -n "${PROFILE}" ]]; then
+    AWS_CMD+=(--profile "${PROFILE}")
+  fi
+  AWS_CMD+=(--region "${REGION}")
+}
+
+aws_query_text() {
+  local service="$1"
+  shift
+  "${AWS_CMD[@]}" "${service}" "$@"
+}
+
+collect_identity() {
+  local sts_json
+  sts_json="$(aws_query_text sts get-caller-identity --output json)"
+
+  CALLER_ARN="$(echo "${sts_json}" | sed -n 's/.*"Arn"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  CALLER_ACCOUNT_ID="$(echo "${sts_json}" | sed -n 's/.*"Account"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+
+  [[ -n "${CALLER_ARN}" ]] || die "Unable to read caller ARN from sts get-caller-identity"
+  [[ -n "${CALLER_ACCOUNT_ID}" ]] || die "Unable to read caller account ID from sts get-caller-identity"
+
+  CALLER_ALIAS="$(aws_query_text iam list-account-aliases --query 'AccountAliases[0]' --output text 2>/dev/null || true)"
+  if [[ -z "${CALLER_ALIAS}" || "${CALLER_ALIAS}" == "None" ]]; then
+    die "Unable to determine account alias. --account-name cannot be verified"
+  fi
+
+  if [[ "${CALLER_ALIAS}" != "${ACCOUNT_NAME}" ]]; then
+    die "Account alias mismatch. Expected '${ACCOUNT_NAME}', found '${CALLER_ALIAS}'"
+  fi
+}
+
+detect_bucket_mode() {
+  local output
+  local exit_code
+
+  set +e
+  output="$(aws_query_text s3api head-bucket --bucket "${BUCKET_NAME}" 2>&1)"
+  exit_code=$?
+  set -e
+
+  if [[ ${exit_code} -eq 0 ]]; then
+    BUCKET_MODE="update"
+    return
+  fi
+
+  if echo "${output}" | grep -Eiq '403|forbidden|accessdenied'; then
+    die "Bucket exists but is not accessible with current credentials: ${BUCKET_NAME}"
+  fi
+
+  if echo "${output}" | grep -Eiq '301|moved permanently'; then
+    die "Bucket exists in a different region or endpoint context: ${BUCKET_NAME}"
+  fi
+
+  if echo "${output}" | grep -Eiq '404|not found|nosuchbucket'; then
+    BUCKET_MODE="create"
+    return
+  fi
+
+  die "Unable to determine bucket state for ${BUCKET_NAME}: ${output}"
+}
+
+build_default_tags() {
+  local created_at
+  created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  DEFAULT_TAGS=(
+    "ScriptName=${SCRIPT_NAME}"
+    "ManagedBy=manual"
+    "CreatedByArn=${CALLER_ARN}"
+    "CreatedAt=${created_at}"
+    "Purpose=terraform-state"
+    "StateBackend=s3"
+    "Repository=eng-cloud-strategy-hub"
+    "SourcePath=${SCRIPT_PATH}"
+    "AutomationLevel=bootstrap"
+    "DataClassification=internal"
+  )
+}
+
+json_escape() {
+  local raw="$1"
+  raw="${raw//\\/\\\\}"
+  raw="${raw//\"/\\\"}"
+  printf '%s' "${raw}"
+}
+
+build_tagging_payload() {
+  local -a merged_tags=()
+  merged_tags=("${DEFAULT_TAGS[@]}")
+  if [[ ${#USER_TAGS[@]} -gt 0 ]]; then
+    merged_tags+=("${USER_TAGS[@]}")
+  fi
+
+  local json='{"TagSet":['
+  local first=true
+  local tag_pair
+  for tag_pair in "${merged_tags[@]}"; do
+    local key_part="${tag_pair%%=*}"
+    local value_part="${tag_pair#*=}"
+    local key_escaped
+    local value_escaped
+    key_escaped="$(json_escape "${key_part}")"
+    value_escaped="$(json_escape "${value_part}")"
+
+    if [[ "${first}" == true ]]; then
+      first=false
+    else
+      json+=','
+    fi
+    json+="{\"Key\":\"${key_escaped}\",\"Value\":\"${value_escaped}\"}"
+  done
+  json+=']}'
+
+  printf '%s' "${json}"
+}
+
+render_report() {
+  echo ""
+  echo "============================================================"
+  echo "Terraform State Bucket Plan"
+  echo "============================================================"
+  echo "Principal ARN : ${CALLER_ARN}"
+  echo "Account ID    : ${CALLER_ACCOUNT_ID}"
+  echo "Account Alias : ${CALLER_ALIAS}"
+  echo "Region        : ${REGION}"
+  echo "Bucket        : ${BUCKET_NAME}"
+  echo "Mode          : ${BUCKET_MODE}"
+  echo "Dry Run       : ${DRY_RUN}"
+  if [[ -n "${PROFILE}" ]]; then
+    echo "Profile       : ${PROFILE}"
+  fi
+  echo ""
+  echo "Security controls to apply:"
+  echo "  - Versioning enabled"
+  echo "  - Block Public Access (all flags true)"
+  echo "  - Object Ownership: BucketOwnerEnforced"
+  echo "  - Default encryption: SSE-S3 (AES256)"
+  echo "  - TLS-only bucket policy"
+  if [[ "${BUCKET_MODE}" == "create" ]]; then
+    echo "  - Object Lock capability enabled at creation"
+  else
+    echo "  - Object Lock capability unchanged (cannot be enabled post-creation)"
+  fi
+  echo "  - Tags merged (defaults + optional --tag values)"
+  echo ""
+  echo "Tags:"
+  local tag_pair
+  for tag_pair in "${DEFAULT_TAGS[@]}"; do
+    echo "  - ${tag_pair}"
+  done
+  if [[ ${#USER_TAGS[@]} -gt 0 ]]; then
+    for tag_pair in "${USER_TAGS[@]}"; do
+      echo "  - ${tag_pair}"
+    done
+  fi
+  echo ""
+}
+
+confirm_or_exit() {
+  if [[ "${ASSUME_YES}" == true ]]; then
+    log_info "Confirmation bypassed with --yes"
+    return
+  fi
+
+  local answer
+  read -r -p "Proceed with these actions? [y/N] " answer
+  case "${answer}" in
+  y | Y | yes | YES)
+    log_info "Confirmed by operator"
+    ;;
+  *)
+    log_warn "Operation cancelled"
+    exit 0
+    ;;
+  esac
+}
+
+create_bucket_if_needed() {
+  if [[ "${BUCKET_MODE}" != "create" ]]; then
+    return
+  fi
+
+  log_info "Creating bucket ${BUCKET_NAME} in ${REGION} with Object Lock capability"
+  if [[ "${DRY_RUN}" == true ]]; then
+    log_info "DRY-RUN: s3api create-bucket with object lock capability"
+    return
+  fi
+
+  if [[ "${REGION}" == "us-east-1" ]]; then
+    aws_query_text s3api create-bucket \
+      --bucket "${BUCKET_NAME}" \
+      --object-lock-enabled-for-bucket
+  else
+    aws_query_text s3api create-bucket \
+      --bucket "${BUCKET_NAME}" \
+      --create-bucket-configuration "LocationConstraint=${REGION}" \
+      --object-lock-enabled-for-bucket
+  fi
+}
+
+apply_versioning() {
+  log_info "Ensuring versioning is enabled"
+  if [[ "${DRY_RUN}" == true ]]; then
+    log_info "DRY-RUN: s3api put-bucket-versioning"
+    return
+  fi
+
+  aws_query_text s3api put-bucket-versioning \
+    --bucket "${BUCKET_NAME}" \
+    --versioning-configuration Status=Enabled
+}
+
+apply_public_access_block() {
+  log_info "Ensuring public access is blocked"
+  if [[ "${DRY_RUN}" == true ]]; then
+    log_info "DRY-RUN: s3api put-public-access-block"
+    return
+  fi
+
+  aws_query_text s3api put-public-access-block \
+    --bucket "${BUCKET_NAME}" \
+    --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+}
+
+apply_ownership_controls() {
+  log_info "Ensuring bucket owner enforced object ownership"
+  if [[ "${DRY_RUN}" == true ]]; then
+    log_info "DRY-RUN: s3api put-bucket-ownership-controls"
+    return
+  fi
+
+  aws_query_text s3api put-bucket-ownership-controls \
+    --bucket "${BUCKET_NAME}" \
+    --ownership-controls 'Rules=[{ObjectOwnership=BucketOwnerEnforced}]'
+}
+
+apply_default_encryption() {
+  log_info "Ensuring default SSE-S3 encryption"
+  if [[ "${DRY_RUN}" == true ]]; then
+    log_info "DRY-RUN: s3api put-bucket-encryption"
+    return
+  fi
+
+  aws_query_text s3api put-bucket-encryption \
+    --bucket "${BUCKET_NAME}" \
+    --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+}
+
+build_tls_only_policy() {
+  cat <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+	{
+	  "Sid": "DenyInsecureTransport",
+	  "Effect": "Deny",
+	  "Principal": "*",
+	  "Action": "s3:*",
+	  "Resource": [
+		"arn:aws:s3:::${BUCKET_NAME}",
+		"arn:aws:s3:::${BUCKET_NAME}/*"
+	  ],
+	  "Condition": {
+		"Bool": {
+		  "aws:SecureTransport": "false"
+		}
+	  }
+	}
+  ]
+}
+EOF
+}
+
+apply_bucket_policy() {
+  log_info "Ensuring TLS-only bucket policy"
+  if [[ "${DRY_RUN}" == true ]]; then
+    log_info "DRY-RUN: s3api put-bucket-policy"
+    return
+  fi
+
+  local policy_json
+  policy_json="$(build_tls_only_policy)"
+
+  aws_query_text s3api put-bucket-policy \
+    --bucket "${BUCKET_NAME}" \
+    --policy "${policy_json}"
+}
+
+apply_tags() {
+  log_info "Applying bucket tags"
+  if [[ "${DRY_RUN}" == true ]]; then
+    log_info "DRY-RUN: s3api put-bucket-tagging"
+    return
+  fi
+
+  local tagging_payload
+  tagging_payload="$(build_tagging_payload)"
+  aws_query_text s3api put-bucket-tagging \
+    --bucket "${BUCKET_NAME}" \
+    --tagging "${tagging_payload}"
+}
+
+apply_configuration() {
+  create_bucket_if_needed
+  apply_versioning
+  apply_public_access_block
+  apply_ownership_controls
+  apply_default_encryption
+  apply_bucket_policy
+  apply_tags
+}
+
+main() {
+  parse_args "$@"
+  validate_args
+  require_command aws
+  build_aws_cmd
+
+  collect_identity
+  detect_bucket_mode
+  build_default_tags
+
+  render_report
+  confirm_or_exit
+
+  apply_configuration
+
+  if [[ "${DRY_RUN}" == true ]]; then
+    log_success "Dry run completed. No AWS mutations executed"
+  else
+    log_success "Bucket ${BUCKET_NAME} is configured for Terraform state (${BUCKET_MODE} mode)"
+  fi
+
+  log_info "Object Lock default retention is intentionally not configured"
+  log_info "Use Terraform backend use_lockfile=true with this bucket as needed"
+}
+
+main "$@"
