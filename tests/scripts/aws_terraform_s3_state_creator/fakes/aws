@@ -8,6 +8,7 @@ if [[ -n "${log_file}" ]]; then
 fi
 
 args=("$@")
+command_line="$*"
 index=0
 while [[ ${index} -lt ${#args[@]} ]]; do
   case "${args[${index}]}" in
@@ -22,6 +23,26 @@ done
 
 service="${args[${index}]:-}"
 command="${args[$((index + 1))]:-}"
+
+arg_value() {
+  local wanted="$1"
+  local arg_index=0
+
+  while [[ ${arg_index} -lt ${#args[@]} ]]; do
+    if [[ "${args[${arg_index}]}" == "${wanted}" ]]; then
+      printf '%s' "${args[$((arg_index + 1))]:-}"
+      return
+    fi
+    arg_index=$((arg_index + 1))
+  done
+}
+
+require_expected_bucket_owner() {
+  if [[ "${command_line}" != *"--expected-bucket-owner ${FAKE_ACCOUNT_ID:-123456789012}"* ]]; then
+    echo "fake aws: missing expected bucket owner for ${service} ${command}" >&2
+    exit 2
+  fi
+}
 
 if [[ -z "${service}" || -z "${command}" ]]; then
   echo "fake aws: missing service or command" >&2
@@ -57,6 +78,7 @@ EOF
     fi
     ;;
   "s3api head-bucket")
+    require_expected_bucket_owner
     case "${FAKE_HEAD_BUCKET_MODE:-exists}" in
       exists)
         exit 0
@@ -79,7 +101,67 @@ EOF
         ;;
     esac
     ;;
-  "s3api create-bucket"|"s3api put-bucket-versioning"|"s3api put-public-access-block"|"s3api put-bucket-ownership-controls"|"s3api put-bucket-encryption"|"s3api put-bucket-policy"|"s3api put-bucket-tagging")
+  "s3api get-bucket-policy")
+    require_expected_bucket_owner
+    case "${FAKE_BUCKET_POLICY_MODE:-exists}" in
+      none)
+        echo "An error occurred (NoSuchBucketPolicy) when calling the GetBucketPolicy operation: The bucket policy does not exist" >&2
+        exit 254
+        ;;
+      exists)
+        cat <<'EOF'
+{"Policy":"{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"KeepExistingAccess\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::123456789012:role/reader\"},\"Action\":\"s3:GetObject\",\"Resource\":\"arn:aws:s3:::my-tf-state/*\"}]}"}
+EOF
+        ;;
+      *)
+        echo "An error occurred (500) when calling the GetBucketPolicy operation: Internal Error" >&2
+        exit 254
+        ;;
+    esac
+    ;;
+  "s3api get-bucket-tagging")
+    require_expected_bucket_owner
+    case "${FAKE_BUCKET_TAGGING_MODE:-exists}" in
+      none)
+        echo "An error occurred (NoSuchTagSet) when calling the GetBucketTagging operation: The TagSet does not exist" >&2
+        exit 254
+        ;;
+      exists)
+        cat <<'EOF'
+{"TagSet":[{"Key":"CostCenter","Value":"platform"},{"Key":"Environment","Value":"old"},{"Key":"ManagedBy","Value":"legacy"}]}
+EOF
+        ;;
+      *)
+        echo "An error occurred (500) when calling the GetBucketTagging operation: Internal Error" >&2
+        exit 254
+        ;;
+    esac
+    ;;
+  "s3api put-bucket-policy")
+    require_expected_bucket_owner
+    policy_payload="$(arg_value --policy)"
+    if [[ "${FAKE_ASSERT_POLICY_MERGE:-false}" == "true" ]]; then
+      printf '%s' "${policy_payload}" | jq -e '.Statement[] | select(.Sid == "KeepExistingAccess")' >/dev/null
+      printf '%s' "${policy_payload}" | jq -e '.Statement[] | select(.Sid == "DenyInsecureTransport")' >/dev/null
+    fi
+    echo "{}"
+    ;;
+  "s3api put-bucket-tagging")
+    require_expected_bucket_owner
+    tagging_payload="$(arg_value --tagging)"
+    if [[ "${FAKE_ASSERT_TAG_MERGE:-false}" == "true" ]]; then
+      printf '%s' "${tagging_payload}" | jq -e '.TagSet[] | select(.Key == "CostCenter" and .Value == "platform")' >/dev/null
+      printf '%s' "${tagging_payload}" | jq -e '.TagSet[] | select(.Key == "ManagedBy" and .Value == "manual")' >/dev/null
+      printf '%s' "${tagging_payload}" | jq -e '.TagSet[] | select(.Key == "Environment" and .Value == "dev")' >/dev/null
+      [[ "$(printf '%s' "${tagging_payload}" | jq '[.TagSet[].Key] | length == ([.[]] | unique | length)')" == "true" ]]
+    fi
+    echo "{}"
+    ;;
+  "s3api create-bucket")
+    echo "{}"
+    ;;
+  "s3api put-bucket-versioning"|"s3api put-public-access-block"|"s3api put-bucket-ownership-controls"|"s3api put-bucket-encryption")
+    require_expected_bucket_owner
     echo "{}"
     ;;
   *)

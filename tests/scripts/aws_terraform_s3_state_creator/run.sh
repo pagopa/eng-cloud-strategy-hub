@@ -90,6 +90,13 @@ test_uppercase_bucket_is_rejected() {
   assert_contains "${RUN_STDERR}" "Bucket name must be lowercase" "uppercase validation error is shown"
 }
 
+test_invalid_bucket_shape_is_rejected() {
+  reset_logs
+  run_script "" --region eu-south-1 --account-name sandbox --bucket 192.168.0.1
+  assert_eq "1" "${RUN_STATUS}" "ip-like bucket exits with failure"
+  assert_contains "${RUN_STDERR}" "Bucket name is not a valid S3 bucket name" "invalid bucket shape is reported"
+}
+
 test_invalid_tag_format_is_rejected() {
   reset_logs
   run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --tag InvalidTag
@@ -140,6 +147,47 @@ test_update_mode_applies_controls() {
   assert_aws_log_contains "s3api put-bucket-tagging" "tagging call is executed"
 }
 
+test_update_mode_uses_expected_bucket_owner() {
+  reset_logs
+  export FAKE_ACCOUNT_NAME="sandbox"
+  export FAKE_HEAD_BUCKET_MODE="exists"
+  run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --yes
+  unset FAKE_ACCOUNT_NAME
+  unset FAKE_HEAD_BUCKET_MODE
+  assert_eq "0" "${RUN_STATUS}" "update mode exits cleanly with expected owner guards"
+  assert_aws_log_contains "--expected-bucket-owner 123456789012" "bucket owner guard is passed to S3 calls"
+}
+
+test_update_mode_merges_existing_bucket_policy() {
+  reset_logs
+  export FAKE_ACCOUNT_NAME="sandbox"
+  export FAKE_HEAD_BUCKET_MODE="exists"
+  export FAKE_BUCKET_POLICY_MODE="exists"
+  export FAKE_ASSERT_POLICY_MERGE="true"
+  run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --yes
+  unset FAKE_ACCOUNT_NAME
+  unset FAKE_HEAD_BUCKET_MODE
+  unset FAKE_BUCKET_POLICY_MODE
+  unset FAKE_ASSERT_POLICY_MERGE
+  assert_eq "0" "${RUN_STATUS}" "update mode preserves existing bucket policy statements"
+  assert_aws_log_contains "s3api get-bucket-policy" "existing bucket policy is read before writing"
+}
+
+test_update_mode_merges_existing_tags_with_user_precedence() {
+  reset_logs
+  export FAKE_ACCOUNT_NAME="sandbox"
+  export FAKE_HEAD_BUCKET_MODE="exists"
+  export FAKE_BUCKET_TAGGING_MODE="exists"
+  export FAKE_ASSERT_TAG_MERGE="true"
+  run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --tag Environment=dev --yes
+  unset FAKE_ACCOUNT_NAME
+  unset FAKE_HEAD_BUCKET_MODE
+  unset FAKE_BUCKET_TAGGING_MODE
+  unset FAKE_ASSERT_TAG_MERGE
+  assert_eq "0" "${RUN_STATUS}" "update mode preserves existing tags and lets user tags win"
+  assert_aws_log_contains "s3api get-bucket-tagging" "existing bucket tags are read before writing"
+}
+
 test_account_service_fallback_when_org_denied() {
   reset_logs
   export FAKE_ORG_MODE="denied"
@@ -181,10 +229,14 @@ main() {
     test_help_without_args
     test_missing_required_args
     test_uppercase_bucket_is_rejected
+    test_invalid_bucket_shape_is_rejected
     test_invalid_tag_format_is_rejected
     test_account_name_mismatch_fails
     test_dry_run_create_mode
     test_update_mode_applies_controls
+    test_update_mode_uses_expected_bucket_owner
+    test_update_mode_merges_existing_bucket_policy
+    test_update_mode_merges_existing_tags_with_user_precedence
     test_account_service_fallback_when_org_denied
     test_operator_can_cancel
   )

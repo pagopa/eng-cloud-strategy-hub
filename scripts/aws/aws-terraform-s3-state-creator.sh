@@ -21,6 +21,7 @@ ASSUME_YES=false
 
 declare -a USER_TAGS=()
 declare -a DEFAULT_TAGS=()
+declare -a AWS_CMD=()
 
 CALLER_ARN=""
 CALLER_ACCOUNT_ID=""
@@ -53,6 +54,8 @@ usage() {
 Usage: ${SCRIPT_NAME} [OPTIONS]
 
 Create or align a secure S3 bucket for Terraform remote state.
+
+Requirements: aws, jq
 
 Options:
   --region <aws-region>         AWS region for bucket operations (required)
@@ -139,11 +142,39 @@ validate_args() {
     die "Bucket name must be lowercase"
   fi
 
+  validate_bucket_name
+
   local user_tag
   if [[ ${#USER_TAGS[@]} -gt 0 ]]; then
     for user_tag in "${USER_TAGS[@]}"; do
       validate_tag_format "${user_tag}"
     done
+  fi
+}
+
+validate_bucket_name() {
+  if [[ ${#BUCKET_NAME} -lt 3 || ${#BUCKET_NAME} -gt 63 ]]; then
+    die "Bucket name is not a valid S3 bucket name"
+  fi
+
+  if [[ ! "${BUCKET_NAME}" =~ ^[a-z0-9][a-z0-9.-]*[a-z0-9]$ ]]; then
+    die "Bucket name is not a valid S3 bucket name"
+  fi
+
+  if [[ "${BUCKET_NAME}" == *..* || "${BUCKET_NAME}" == *.-* || "${BUCKET_NAME}" == *-.* ]]; then
+    die "Bucket name is not a valid S3 bucket name"
+  fi
+
+  if [[ "${BUCKET_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    die "Bucket name is not a valid S3 bucket name"
+  fi
+
+  if [[ "${BUCKET_NAME}" == xn--* || "${BUCKET_NAME}" == sthree-* || "${BUCKET_NAME}" == amzn-s3-demo-* ]]; then
+    die "Bucket name is not a valid S3 bucket name"
+  fi
+
+  if [[ "${BUCKET_NAME}" == *-s3alias || "${BUCKET_NAME}" == *--ol-s3 || "${BUCKET_NAME}" == *.mrap || "${BUCKET_NAME}" == *--x-s3 || "${BUCKET_NAME}" == *--table-s3 ]]; then
+    die "Bucket name is not a valid S3 bucket name"
   fi
 }
 
@@ -201,11 +232,8 @@ collect_identity() {
   local sts_json
   sts_json="$(aws_query_text sts get-caller-identity --output json)"
 
-  CALLER_ARN="$(echo "${sts_json}" | sed -n 's/.*"Arn"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-  CALLER_ACCOUNT_ID="$(echo "${sts_json}" | sed -n 's/.*"Account"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-
-  [[ -n "${CALLER_ARN}" ]] || die "Unable to read caller ARN from sts get-caller-identity"
-  [[ -n "${CALLER_ACCOUNT_ID}" ]] || die "Unable to read caller account ID from sts get-caller-identity"
+  CALLER_ARN="$(printf '%s' "${sts_json}" | jq -er '.Arn')" || die "Unable to read caller ARN from sts get-caller-identity"
+  CALLER_ACCOUNT_ID="$(printf '%s' "${sts_json}" | jq -er '.Account')" || die "Unable to read caller account ID from sts get-caller-identity"
 
   CALLER_ACCOUNT_NAME="$(resolve_account_name)"
 
@@ -219,7 +247,7 @@ detect_bucket_mode() {
   local exit_code
 
   set +e
-  output="$(aws_query_text s3api head-bucket --bucket "${BUCKET_NAME}" 2>&1)"
+  output="$(aws_query_text s3api head-bucket --bucket "${BUCKET_NAME}" --expected-bucket-owner "${CALLER_ACCOUNT_ID}" 2>&1)"
   exit_code=$?
   set -e
 
@@ -262,41 +290,69 @@ build_default_tags() {
   )
 }
 
-json_escape() {
-  local raw="$1"
-  raw="${raw//\\/\\\\}"
-  raw="${raw//\"/\\\"}"
-  printf '%s' "${raw}"
+tag_pairs_to_json_array() {
+  local json="[]"
+  local tag_pair
+
+  for tag_pair in "$@"; do
+    local key_part="${tag_pair%%=*}"
+    local value_part="${tag_pair#*=}"
+    json="$(printf '%s' "${json}" | jq -c --arg key "${key_part}" --arg value "${value_part}" '. + [{Key: $key, Value: $value}]')"
+  done
+
+  printf '%s' "${json}"
+}
+
+get_existing_tag_set_json() {
+  if [[ "${BUCKET_MODE}" == "create" ]]; then
+    printf '[]'
+    return
+  fi
+
+  local output
+  local exit_code
+
+  set +e
+  output="$(aws_query_text s3api get-bucket-tagging --bucket "${BUCKET_NAME}" --expected-bucket-owner "${CALLER_ACCOUNT_ID}" --output json 2>&1)"
+  exit_code=$?
+  set -e
+
+  if [[ ${exit_code} -eq 0 ]]; then
+    printf '%s' "${output}" | jq -c '.TagSet // []'
+    return
+  fi
+
+  if echo "${output}" | grep -Eiq 'NoSuchTagSet|tagset does not exist'; then
+    printf '[]'
+    return
+  fi
+
+  die "Unable to read existing bucket tags for ${BUCKET_NAME}: ${output}"
 }
 
 build_tagging_payload() {
-  local -a merged_tags=()
-  merged_tags=("${DEFAULT_TAGS[@]}")
-  if [[ ${#USER_TAGS[@]} -gt 0 ]]; then
-    merged_tags+=("${USER_TAGS[@]}")
+  local existing_tag_set_json
+  local default_tags_json
+  local user_tags_json
+  local tagging_payload
+  local tag_count
+
+  existing_tag_set_json="$(get_existing_tag_set_json)"
+  default_tags_json="$(tag_pairs_to_json_array "${DEFAULT_TAGS[@]}")"
+  user_tags_json="$(tag_pairs_to_json_array "${USER_TAGS[@]}")"
+
+  tagging_payload="$(jq -cn \
+    --argjson existing "${existing_tag_set_json}" \
+    --argjson defaults "${default_tags_json}" \
+    --argjson user "${user_tags_json}" \
+    '{TagSet: ([ $existing[], $defaults[], $user[] ] | reduce .[] as $tag ({}; .[$tag.Key] = $tag.Value) | to_entries | map({Key: .key, Value: .value}) | sort_by(.Key))}')"
+
+  tag_count="$(printf '%s' "${tagging_payload}" | jq '.TagSet | length')"
+  if [[ ${tag_count} -gt 50 ]]; then
+    die "Merged tag set exceeds S3 bucket limit of 50 tags"
   fi
 
-  local json='{"TagSet":['
-  local first=true
-  local tag_pair
-  for tag_pair in "${merged_tags[@]}"; do
-    local key_part="${tag_pair%%=*}"
-    local value_part="${tag_pair#*=}"
-    local key_escaped
-    local value_escaped
-    key_escaped="$(json_escape "${key_part}")"
-    value_escaped="$(json_escape "${value_part}")"
-
-    if [[ "${first}" == true ]]; then
-      first=false
-    else
-      json+=','
-    fi
-    json+="{\"Key\":\"${key_escaped}\",\"Value\":\"${value_escaped}\"}"
-  done
-  json+=']}'
-
-  printf '%s' "${json}"
+  printf '%s' "${tagging_payload}"
 }
 
 render_report() {
@@ -320,13 +376,13 @@ render_report() {
   echo "  - 🚫 Public access blocked at bucket level (ACL + bucket policy public exposure prevented)"
   echo "  - 👤 Object Ownership: BucketOwnerEnforced"
   echo "  - 🔐 Default encryption: SSE-S3 (AES256)"
-  echo "  - 🌐 TLS-only bucket policy (deny non-HTTPS requests)"
+  echo "  - 🌐 TLS-only bucket policy (preserve existing statements and deny non-HTTPS requests)"
   if [[ "${BUCKET_MODE}" == "create" ]]; then
     echo "  - 🧱 Object Lock capability enabled at creation"
   else
     echo "  - 🧱 Object Lock capability unchanged (cannot be enabled post-creation)"
   fi
-  echo "  - 🏷️  Tags merged (defaults + optional --tag values)"
+  echo "  - 🏷️  Tags merged (existing + defaults + optional --tag values)"
   echo ""
   echo "Tags:"
   local tag_pair
@@ -392,6 +448,7 @@ apply_versioning() {
 
   aws_query_text s3api put-bucket-versioning \
     --bucket "${BUCKET_NAME}" \
+    --expected-bucket-owner "${CALLER_ACCOUNT_ID}" \
     --versioning-configuration Status=Enabled
 }
 
@@ -404,6 +461,7 @@ apply_public_access_block() {
 
   aws_query_text s3api put-public-access-block \
     --bucket "${BUCKET_NAME}" \
+    --expected-bucket-owner "${CALLER_ACCOUNT_ID}" \
     --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 }
 
@@ -416,6 +474,7 @@ apply_ownership_controls() {
 
   aws_query_text s3api put-bucket-ownership-controls \
     --bucket "${BUCKET_NAME}" \
+    --expected-bucket-owner "${CALLER_ACCOUNT_ID}" \
     --ownership-controls 'Rules=[{ObjectOwnership=BucketOwnerEnforced}]'
 }
 
@@ -428,32 +487,69 @@ apply_default_encryption() {
 
   aws_query_text s3api put-bucket-encryption \
     --bucket "${BUCKET_NAME}" \
+    --expected-bucket-owner "${CALLER_ACCOUNT_ID}" \
     --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
 }
 
-build_tls_only_policy() {
-  cat <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-	{
-	  "Sid": "DenyInsecureTransport",
-	  "Effect": "Deny",
-	  "Principal": "*",
-	  "Action": "s3:*",
-	  "Resource": [
-		"arn:aws:s3:::${BUCKET_NAME}",
-		"arn:aws:s3:::${BUCKET_NAME}/*"
-	  ],
-	  "Condition": {
-		"Bool": {
-		  "aws:SecureTransport": "false"
-		}
-	  }
-	}
-  ]
+empty_bucket_policy_json() {
+  printf '{"Version":"2012-10-17","Statement":[]}'
 }
-EOF
+
+build_tls_only_statement() {
+  jq -cn --arg bucket "${BUCKET_NAME}" '{
+    Sid: "DenyInsecureTransport",
+    Effect: "Deny",
+    Principal: "*",
+    Action: "s3:*",
+    Resource: ["arn:aws:s3:::" + $bucket, "arn:aws:s3:::" + $bucket + "/*"],
+    Condition: {Bool: {"aws:SecureTransport": "false"}}
+  }'
+}
+
+get_existing_bucket_policy_json() {
+  if [[ "${BUCKET_MODE}" == "create" ]]; then
+    empty_bucket_policy_json
+    return
+  fi
+
+  local output
+  local exit_code
+  local policy_text
+
+  set +e
+  output="$(aws_query_text s3api get-bucket-policy --bucket "${BUCKET_NAME}" --expected-bucket-owner "${CALLER_ACCOUNT_ID}" --output json 2>&1)"
+  exit_code=$?
+  set -e
+
+  if [[ ${exit_code} -ne 0 ]]; then
+    if echo "${output}" | grep -Eiq 'NoSuchBucketPolicy|policy does not exist'; then
+      empty_bucket_policy_json
+      return
+    fi
+
+    die "Unable to read existing bucket policy for ${BUCKET_NAME}: ${output}"
+  fi
+
+  policy_text="$(printf '%s' "${output}" | jq -er '.Policy // empty')" || die "Unable to parse existing bucket policy response for ${BUCKET_NAME}"
+  if [[ -z "${policy_text}" ]]; then
+    empty_bucket_policy_json
+    return
+  fi
+
+  printf '%s' "${policy_text}" | jq -ce '.' || die "Existing bucket policy for ${BUCKET_NAME} is not valid JSON"
+}
+
+build_tls_only_policy() {
+  local existing_policy_json
+  local tls_statement_json
+
+  existing_policy_json="$(get_existing_bucket_policy_json)"
+  tls_statement_json="$(build_tls_only_statement)"
+
+  printf '%s' "${existing_policy_json}" | jq -c --argjson tls_statement "${tls_statement_json}" '
+    .Version = (.Version // "2012-10-17")
+    | .Statement = ((.Statement // []) | if type == "array" then . else [.] end | map(select(.Sid != "DenyInsecureTransport")) + [$tls_statement])
+  '
 }
 
 apply_bucket_policy() {
@@ -468,6 +564,7 @@ apply_bucket_policy() {
 
   aws_query_text s3api put-bucket-policy \
     --bucket "${BUCKET_NAME}" \
+    --expected-bucket-owner "${CALLER_ACCOUNT_ID}" \
     --policy "${policy_json}"
 }
 
@@ -482,6 +579,7 @@ apply_tags() {
   tagging_payload="$(build_tagging_payload)"
   aws_query_text s3api put-bucket-tagging \
     --bucket "${BUCKET_NAME}" \
+    --expected-bucket-owner "${CALLER_ACCOUNT_ID}" \
     --tagging "${tagging_payload}"
 }
 
@@ -499,6 +597,7 @@ main() {
   parse_args "$@"
   validate_args
   require_command aws
+  require_command jq
   build_aws_cmd
 
   collect_identity
