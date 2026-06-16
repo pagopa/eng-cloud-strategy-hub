@@ -121,7 +121,10 @@ test_dry_run_create_mode() {
   unset FAKE_ACCOUNT_NAME
   unset FAKE_HEAD_BUCKET_MODE
   assert_eq "0" "${RUN_STATUS}" "dry-run create mode exits cleanly"
-  assert_contains "${RUN_STDOUT}" "Mode          : create" "plan reports create mode"
+  assert_contains "${RUN_STDOUT}" "Operation     : 🆕 CREATE - new bucket will be created before applying baseline controls" "plan reports create operation"
+  assert_not_contains "${RUN_STDOUT}" "Mode          :" "plan omits duplicate mode row"
+  assert_not_contains "${RUN_STDOUT}" "Bucket State  :" "plan omits duplicate bucket state row"
+  assert_contains "${RUN_STDOUT}" "[🆕 CREATE] DRY-RUN: s3api create-bucket" "dry-run create action is labeled"
   assert_contains "${RUN_STDOUT}" "DRY-RUN: s3api create-bucket" "dry-run includes create-bucket action"
   assert_contains "${RUN_STDOUT}" "Dry run completed" "dry-run completion is reported"
   assert_aws_log_contains "sts get-caller-identity" "identity check was executed"
@@ -138,7 +141,10 @@ test_update_mode_applies_controls() {
   unset FAKE_ACCOUNT_NAME
   unset FAKE_HEAD_BUCKET_MODE
   assert_eq "0" "${RUN_STATUS}" "update mode exits cleanly"
-  assert_contains "${RUN_STDOUT}" "Mode          : update" "plan reports update mode"
+  assert_contains "${RUN_STDOUT}" "Operation     : ♻️ UPDATE - existing bucket will be updated in place with baseline controls" "plan reports update operation"
+  assert_not_contains "${RUN_STDOUT}" "Mode          :" "plan omits duplicate mode row"
+  assert_not_contains "${RUN_STDOUT}" "Bucket State  :" "plan omits duplicate bucket state row"
+  assert_contains "${RUN_STDOUT}" "[♻️ UPDATE] Applying bucket tags" "update tagging step is labeled"
   assert_aws_log_contains "s3api put-bucket-versioning" "versioning call is executed"
   assert_aws_log_contains "s3api put-public-access-block" "public access block call is executed"
   assert_aws_log_contains "s3api put-bucket-ownership-controls" "ownership controls call is executed"

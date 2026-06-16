@@ -28,6 +28,37 @@ CALLER_ACCOUNT_ID=""
 CALLER_ACCOUNT_NAME=""
 BUCKET_MODE=""
 
+operation_label() {
+  if [[ "${BUCKET_MODE}" == "create" ]]; then
+    printf '%s' 'CREATE'
+    return
+  fi
+
+  printf '%s' 'UPDATE'
+}
+
+operation_emoji() {
+  if [[ "${BUCKET_MODE}" == "create" ]]; then
+    printf '%s' '🆕'
+    return
+  fi
+
+  printf '%s' '♻️'
+}
+
+operation_plan_summary() {
+  if [[ "${BUCKET_MODE}" == "create" ]]; then
+    printf '%s' 'new bucket will be created before applying baseline controls'
+    return
+  fi
+
+  printf '%s' 'existing bucket will be updated in place with baseline controls'
+}
+
+log_bucket_step() {
+  log_info "[$(operation_emoji) $(operation_label)] $*"
+}
+
 log_info() {
   echo "ℹ️  $*"
 }
@@ -339,7 +370,10 @@ build_tagging_payload() {
 
   existing_tag_set_json="$(get_existing_tag_set_json)"
   default_tags_json="$(tag_pairs_to_json_array "${DEFAULT_TAGS[@]}")"
-  user_tags_json="$(tag_pairs_to_json_array "${USER_TAGS[@]}")"
+  user_tags_json='[]'
+  if [[ ${#USER_TAGS[@]} -gt 0 ]]; then
+    user_tags_json="$(tag_pairs_to_json_array "${USER_TAGS[@]}")"
+  fi
 
   tagging_payload="$(jq -cn \
     --argjson existing "${existing_tag_set_json}" \
@@ -356,6 +390,9 @@ build_tagging_payload() {
 }
 
 render_report() {
+  local planned_operation
+  planned_operation="$(operation_label)"
+
   echo ""
   echo "============================================================"
   echo "Terraform State Bucket Plan"
@@ -365,7 +402,7 @@ render_report() {
   echo "Account Name  : ${CALLER_ACCOUNT_NAME}"
   echo "Region        : ${REGION}"
   echo "Bucket        : ${BUCKET_NAME}"
-  echo "Mode          : ${BUCKET_MODE}"
+  echo "Operation     : $(operation_emoji) ${planned_operation} - $(operation_plan_summary)"
   echo "Dry Run       : ${DRY_RUN}"
   if [[ -n "${PROFILE}" ]]; then
     echo "Profile       : ${PROFILE}"
@@ -399,15 +436,15 @@ render_report() {
 
 confirm_or_exit() {
   if [[ "${ASSUME_YES}" == true ]]; then
-    log_info "Confirmation bypassed with --yes"
+    log_bucket_step "Confirmation bypassed with --yes"
     return
   fi
 
   local answer
-  read -r -p "Proceed with these actions? [y/N] " answer
+  read -r -p "Proceed with $(operation_emoji) $(operation_label) for bucket ${BUCKET_NAME}? [y/N] " answer
   case "${answer}" in
   y | Y | yes | YES)
-    log_info "Confirmed by operator"
+    log_bucket_step "Confirmed by operator"
     ;;
   *)
     log_warn "Operation cancelled"
@@ -421,9 +458,9 @@ create_bucket_if_needed() {
     return
   fi
 
-  log_info "Creating bucket ${BUCKET_NAME} in ${REGION} with Object Lock capability"
+  log_bucket_step "Creating bucket ${BUCKET_NAME} in ${REGION} with Object Lock capability"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_info "DRY-RUN: s3api create-bucket with object lock capability"
+    log_bucket_step "DRY-RUN: s3api create-bucket with object lock capability"
     return
   fi
 
@@ -440,9 +477,9 @@ create_bucket_if_needed() {
 }
 
 apply_versioning() {
-  log_info "Ensuring versioning is enabled"
+  log_bucket_step "Ensuring versioning is enabled"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_info "DRY-RUN: s3api put-bucket-versioning"
+    log_bucket_step "DRY-RUN: s3api put-bucket-versioning"
     return
   fi
 
@@ -453,9 +490,9 @@ apply_versioning() {
 }
 
 apply_public_access_block() {
-  log_info "Ensuring public access is blocked"
+  log_bucket_step "Ensuring public access is blocked"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_info "DRY-RUN: s3api put-public-access-block"
+    log_bucket_step "DRY-RUN: s3api put-public-access-block"
     return
   fi
 
@@ -466,9 +503,9 @@ apply_public_access_block() {
 }
 
 apply_ownership_controls() {
-  log_info "Ensuring bucket owner enforced object ownership"
+  log_bucket_step "Ensuring bucket owner enforced object ownership"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_info "DRY-RUN: s3api put-bucket-ownership-controls"
+    log_bucket_step "DRY-RUN: s3api put-bucket-ownership-controls"
     return
   fi
 
@@ -479,9 +516,9 @@ apply_ownership_controls() {
 }
 
 apply_default_encryption() {
-  log_info "Ensuring default SSE-S3 encryption"
+  log_bucket_step "Ensuring default SSE-S3 encryption"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_info "DRY-RUN: s3api put-bucket-encryption"
+    log_bucket_step "DRY-RUN: s3api put-bucket-encryption"
     return
   fi
 
@@ -553,9 +590,9 @@ build_tls_only_policy() {
 }
 
 apply_bucket_policy() {
-  log_info "Ensuring TLS-only bucket policy"
+  log_bucket_step "Ensuring TLS-only bucket policy"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_info "DRY-RUN: s3api put-bucket-policy"
+    log_bucket_step "DRY-RUN: s3api put-bucket-policy"
     return
   fi
 
@@ -569,9 +606,9 @@ apply_bucket_policy() {
 }
 
 apply_tags() {
-  log_info "Applying bucket tags"
+  log_bucket_step "Applying bucket tags"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_info "DRY-RUN: s3api put-bucket-tagging"
+    log_bucket_step "DRY-RUN: s3api put-bucket-tagging"
     return
   fi
 
@@ -584,6 +621,7 @@ apply_tags() {
 }
 
 apply_configuration() {
+  log_bucket_step "Starting bucket configuration flow"
   create_bucket_if_needed
   apply_versioning
   apply_public_access_block
@@ -610,9 +648,9 @@ main() {
   apply_configuration
 
   if [[ "${DRY_RUN}" == true ]]; then
-    log_success "Dry run completed. No AWS mutations executed"
+    log_success "Dry run completed for $(operation_emoji) $(operation_label). No AWS mutations executed"
   else
-    log_success "Bucket ${BUCKET_NAME} is configured for Terraform state (${BUCKET_MODE} mode)"
+    log_success "$(operation_emoji) $(operation_label) completed. Bucket ${BUCKET_NAME} is configured for Terraform state"
   fi
 
   log_info "Object Lock default retention is intentionally not configured"
