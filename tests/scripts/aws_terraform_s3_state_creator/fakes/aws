@@ -34,11 +34,26 @@ case "${service} ${command}" in
 {"UserId":"AIDAEXAMPLE","Account":"${FAKE_ACCOUNT_ID:-123456789012}","Arn":"${FAKE_CALLER_ARN:-arn:aws:iam::123456789012:user/tester}"}
 EOF
     ;;
-  "iam list-account-aliases")
-    if [[ "${FAKE_ALIAS_MODE:-ok}" == "none" ]]; then
+  "organizations describe-account")
+    if [[ "${FAKE_ORG_MODE:-ok}" == "denied" ]]; then
+      echo "An error occurred (AccessDeniedException) when calling the DescribeAccount operation: User is not authorized" >&2
+      exit 254
+    fi
+    if [[ "${FAKE_ORG_MODE:-ok}" == "none" ]]; then
       echo "None"
     else
-      echo "${FAKE_ACCOUNT_ALIAS:-sandbox}"
+      echo "${FAKE_ACCOUNT_NAME:-sandbox}"
+    fi
+    ;;
+  "account get-account-information")
+    if [[ "${FAKE_ACCOUNT_SERVICE_MODE:-ok}" == "denied" ]]; then
+      echo "An error occurred (AccessDeniedException) when calling the GetAccountInformation operation: User is not authorized" >&2
+      exit 254
+    fi
+    if [[ "${FAKE_ACCOUNT_SERVICE_MODE:-ok}" == "none" ]]; then
+      echo "None"
+    else
+      echo "${FAKE_ACCOUNT_NAME:-sandbox}"
     fi
     ;;
   "s3api head-bucket")

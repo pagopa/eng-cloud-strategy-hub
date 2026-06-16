@@ -97,38 +97,38 @@ test_invalid_tag_format_is_rejected() {
   assert_contains "${RUN_STDERR}" "Invalid --tag format" "invalid tag format is reported"
 }
 
-test_account_alias_mismatch_fails() {
+test_account_name_mismatch_fails() {
   reset_logs
-  export FAKE_ACCOUNT_ALIAS="prod"
+  export FAKE_ACCOUNT_NAME="prod"
   run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --yes
-  unset FAKE_ACCOUNT_ALIAS
-  assert_eq "1" "${RUN_STATUS}" "account alias mismatch exits with failure"
-  assert_contains "${RUN_STDERR}" "Account alias mismatch" "alias mismatch is reported"
+  unset FAKE_ACCOUNT_NAME
+  assert_eq "1" "${RUN_STATUS}" "account name mismatch exits with failure"
+  assert_contains "${RUN_STDERR}" "Account name mismatch" "account name mismatch is reported"
 }
 
 test_dry_run_create_mode() {
   reset_logs
-  export FAKE_ACCOUNT_ALIAS="sandbox"
+  export FAKE_ACCOUNT_NAME="sandbox"
   export FAKE_HEAD_BUCKET_MODE="notfound"
   run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --dry-run --yes
-  unset FAKE_ACCOUNT_ALIAS
+  unset FAKE_ACCOUNT_NAME
   unset FAKE_HEAD_BUCKET_MODE
   assert_eq "0" "${RUN_STATUS}" "dry-run create mode exits cleanly"
   assert_contains "${RUN_STDOUT}" "Mode          : create" "plan reports create mode"
   assert_contains "${RUN_STDOUT}" "DRY-RUN: s3api create-bucket" "dry-run includes create-bucket action"
   assert_contains "${RUN_STDOUT}" "Dry run completed" "dry-run completion is reported"
   assert_aws_log_contains "sts get-caller-identity" "identity check was executed"
-  assert_aws_log_contains "iam list-account-aliases" "account alias check was executed"
+  assert_aws_log_contains "organizations describe-account" "account name lookup was executed"
   assert_aws_log_contains "s3api head-bucket" "bucket mode detection was executed"
   assert_aws_log_not_contains "s3api put-bucket-tagging" "dry-run skips mutating calls"
 }
 
 test_update_mode_applies_controls() {
   reset_logs
-  export FAKE_ACCOUNT_ALIAS="sandbox"
+  export FAKE_ACCOUNT_NAME="sandbox"
   export FAKE_HEAD_BUCKET_MODE="exists"
   run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --yes
-  unset FAKE_ACCOUNT_ALIAS
+  unset FAKE_ACCOUNT_NAME
   unset FAKE_HEAD_BUCKET_MODE
   assert_eq "0" "${RUN_STATUS}" "update mode exits cleanly"
   assert_contains "${RUN_STDOUT}" "Mode          : update" "plan reports update mode"
@@ -140,12 +140,28 @@ test_update_mode_applies_controls() {
   assert_aws_log_contains "s3api put-bucket-tagging" "tagging call is executed"
 }
 
+test_account_service_fallback_when_org_denied() {
+  reset_logs
+  export FAKE_ORG_MODE="denied"
+  export FAKE_ACCOUNT_SERVICE_MODE="ok"
+  export FAKE_ACCOUNT_NAME="sandbox"
+  export FAKE_HEAD_BUCKET_MODE="exists"
+  run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --dry-run --yes
+  unset FAKE_ORG_MODE
+  unset FAKE_ACCOUNT_SERVICE_MODE
+  unset FAKE_ACCOUNT_NAME
+  unset FAKE_HEAD_BUCKET_MODE
+  assert_eq "0" "${RUN_STATUS}" "fallback to account service exits cleanly"
+  assert_aws_log_contains "organizations describe-account" "organizations lookup is attempted first"
+  assert_aws_log_contains "account get-account-information" "account service fallback is executed"
+}
+
 test_operator_can_cancel() {
   reset_logs
-  export FAKE_ACCOUNT_ALIAS="sandbox"
+  export FAKE_ACCOUNT_NAME="sandbox"
   export FAKE_HEAD_BUCKET_MODE="exists"
   run_script $'n\n' --region eu-south-1 --account-name sandbox --bucket my-tf-state
-  unset FAKE_ACCOUNT_ALIAS
+  unset FAKE_ACCOUNT_NAME
   unset FAKE_HEAD_BUCKET_MODE
   assert_eq "0" "${RUN_STATUS}" "operator cancellation exits cleanly"
   assert_contains "${RUN_STDOUT}" "Operation cancelled" "cancellation is reported"
@@ -166,9 +182,10 @@ main() {
     test_missing_required_args
     test_uppercase_bucket_is_rejected
     test_invalid_tag_format_is_rejected
-    test_account_alias_mismatch_fails
+    test_account_name_mismatch_fails
     test_dry_run_create_mode
     test_update_mode_applies_controls
+    test_account_service_fallback_when_org_denied
     test_operator_can_cancel
   )
   local test_name=""

@@ -24,7 +24,7 @@ declare -a DEFAULT_TAGS=()
 
 CALLER_ARN=""
 CALLER_ACCOUNT_ID=""
-CALLER_ALIAS=""
+CALLER_ACCOUNT_NAME=""
 BUCKET_MODE=""
 
 log_info() {
@@ -56,7 +56,7 @@ Create or align a secure S3 bucket for Terraform remote state.
 
 Options:
   --region <aws-region>         AWS region for bucket operations (required)
-  --account-name <alias>        Expected AWS account alias (required)
+  --account-name <name>         Expected AWS account name (required)
   --bucket <bucket-name>        Target S3 bucket name (required)
   --profile <aws-profile>       Optional AWS CLI profile
   --tag <Key=Value>             Additional tag (repeatable)
@@ -179,6 +179,24 @@ aws_query_text() {
   "${AWS_CMD[@]}" "${service}" "$@"
 }
 
+resolve_account_name() {
+  local account_name=""
+
+  account_name="$(aws_query_text organizations describe-account --account-id "${CALLER_ACCOUNT_ID}" --query 'Account.Name' --output text 2>/dev/null || true)"
+  if [[ -n "${account_name}" && "${account_name}" != "None" ]]; then
+    printf '%s' "${account_name}"
+    return
+  fi
+
+  account_name="$(aws_query_text account get-account-information --query 'AccountName' --output text 2>/dev/null || true)"
+  if [[ -n "${account_name}" && "${account_name}" != "None" ]]; then
+    printf '%s' "${account_name}"
+    return
+  fi
+
+  die "Unable to determine account name. Grant organizations:DescribeAccount or account:GetAccountInformation to verify --account-name"
+}
+
 collect_identity() {
   local sts_json
   sts_json="$(aws_query_text sts get-caller-identity --output json)"
@@ -189,13 +207,10 @@ collect_identity() {
   [[ -n "${CALLER_ARN}" ]] || die "Unable to read caller ARN from sts get-caller-identity"
   [[ -n "${CALLER_ACCOUNT_ID}" ]] || die "Unable to read caller account ID from sts get-caller-identity"
 
-  CALLER_ALIAS="$(aws_query_text iam list-account-aliases --query 'AccountAliases[0]' --output text 2>/dev/null || true)"
-  if [[ -z "${CALLER_ALIAS}" || "${CALLER_ALIAS}" == "None" ]]; then
-    die "Unable to determine account alias. --account-name cannot be verified"
-  fi
+  CALLER_ACCOUNT_NAME="$(resolve_account_name)"
 
-  if [[ "${CALLER_ALIAS}" != "${ACCOUNT_NAME}" ]]; then
-    die "Account alias mismatch. Expected '${ACCOUNT_NAME}', found '${CALLER_ALIAS}'"
+  if [[ "${CALLER_ACCOUNT_NAME}" != "${ACCOUNT_NAME}" ]]; then
+    die "Account name mismatch. Expected '${ACCOUNT_NAME}', found '${CALLER_ACCOUNT_NAME}'"
   fi
 }
 
@@ -291,7 +306,7 @@ render_report() {
   echo "============================================================"
   echo "Principal ARN : ${CALLER_ARN}"
   echo "Account ID    : ${CALLER_ACCOUNT_ID}"
-  echo "Account Alias : ${CALLER_ALIAS}"
+  echo "Account Name  : ${CALLER_ACCOUNT_NAME}"
   echo "Region        : ${REGION}"
   echo "Bucket        : ${BUCKET_NAME}"
   echo "Mode          : ${BUCKET_MODE}"
@@ -301,17 +316,17 @@ render_report() {
   fi
   echo ""
   echo "Security controls to apply:"
-  echo "  - Versioning enabled"
-  echo "  - Block Public Access (all flags true)"
-  echo "  - Object Ownership: BucketOwnerEnforced"
-  echo "  - Default encryption: SSE-S3 (AES256)"
-  echo "  - TLS-only bucket policy"
+  echo "  - 🧾 Versioning enabled"
+  echo "  - 🚫 Public access blocked at bucket level (ACL + bucket policy public exposure prevented)"
+  echo "  - 👤 Object Ownership: BucketOwnerEnforced"
+  echo "  - 🔐 Default encryption: SSE-S3 (AES256)"
+  echo "  - 🌐 TLS-only bucket policy (deny non-HTTPS requests)"
   if [[ "${BUCKET_MODE}" == "create" ]]; then
-    echo "  - Object Lock capability enabled at creation"
+    echo "  - 🧱 Object Lock capability enabled at creation"
   else
-    echo "  - Object Lock capability unchanged (cannot be enabled post-creation)"
+    echo "  - 🧱 Object Lock capability unchanged (cannot be enabled post-creation)"
   fi
-  echo "  - Tags merged (defaults + optional --tag values)"
+  echo "  - 🏷️  Tags merged (defaults + optional --tag values)"
   echo ""
   echo "Tags:"
   local tag_pair
