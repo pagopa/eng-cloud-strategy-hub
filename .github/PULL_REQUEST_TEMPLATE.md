@@ -1,11 +1,3 @@
-# eng-cloud-strategy-hub
-
-<!-- markdownlint-disable-file MD041 -->
-<!-- PR title format: <type>(<scope>): <summary> -->
-<!-- Examples: feat(terraform): add new SCP policy -->
-<!--           fix(scripts): correct JSON validation logic -->
-<!-- Complete every section in English. If something does not apply, write N/A. -->
-
 ## Description
 
 <!-- State the outcome first, then summarize the main changes and downstream impact. -->
