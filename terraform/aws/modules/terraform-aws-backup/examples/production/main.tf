@@ -29,7 +29,7 @@ provider "aws" {
 ###############################################################################
 # Core Backup Module
 ###############################################################################
-
+# Vault lock mode is by default set to COMPLIANCE in production, but can be overridden to GOVERNANCE if the team is not ready for non-deletable backups.
 module "backup" {
   source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup?ref=v1.0.0"
 

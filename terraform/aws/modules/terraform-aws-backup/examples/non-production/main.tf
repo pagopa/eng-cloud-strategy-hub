@@ -26,7 +26,7 @@ provider "aws" {
   alias  = "dr"
   region = "eu-central-1"
 }
-
+# Vault lock mode is by default set to GOVERNANCE in non-production
 module "backup" {
   #source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup?ref=v1.0.0"
   source = "../../"
