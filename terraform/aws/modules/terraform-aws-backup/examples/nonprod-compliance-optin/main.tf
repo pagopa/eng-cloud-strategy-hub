@@ -56,7 +56,8 @@ module "backup" {
   retention_days                = 35
   vault_lock_min_retention_days = 35
 
-  # Longer cooling-off window gives more time to undo a mistaken lock.
+  # In COMPLIANCE mode this sets the grace period before the lock date: for 7
+  # days the vault lock can still be changed or removed before it becomes immutable.
   vault_lock_changeable_for_days = 7
 
   tags = {
