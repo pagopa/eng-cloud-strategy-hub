@@ -27,28 +27,19 @@ Ogni team usa questo modulo nel **proprio account** per proteggere i workload co
 
 ## Utilizzo rapido
 
-L'integrazione minima richiede: i due provider (regione primaria e DR), l'ambiente, un prefisso e il criterio di selezione delle risorse.
+L'integrazione minima richiede: il provider AWS della regione primaria, `aws_region`, l'ambiente, un prefisso e il criterio di selezione delle risorse. `dr_region` serve solo quando abiliti la copia cross-region.
 
 ```hcl
-# I due provider richiesti dal modulo
 provider "aws" {
   region = "eu-south-1" # regione primaria del workload
-}
-
-provider "aws" {
-  alias  = "dr"
-  region = "eu-central-1" # regione di disaster recovery
 }
 
 module "backup" {
   source = "git::https://github.com/pagopa/<nome-repo>.git//modules/backup?ref=v1.0.0"
 
-  providers = {
-    aws    = aws
-    aws.dr = aws.dr
-  }
+  aws_region = "eu-south-1"
+  environment = "prod"
 
-  environment     = "prod"
   solution_prefix = "team-payments-vault"
 
   # Seleziona le risorse da proteggere in base al tag (metodo predefinito)
@@ -84,23 +75,22 @@ Nella cartella [`examples/`](./examples/) trovi configurazioni complete ed esegu
 
 ## Provider
 
-Il modulo richiede **due configurazioni di provider**:
+Il modulo richiede **una configurazione di provider nel caller**:
 
 - `aws` — regione primaria dove vive il workload.
-- `aws.dr` — regione di DR per la copia cross-region. **Va dichiarata anche se la copia cross-region è disattivata** (è un requisito di Terraform per i provider con alias).
+
+Il modulo configura internamente l'alias `aws.dr` usando:
+
+- `aws_region` come fallback quando la copia cross-region è disattivata.
+- `dr_region` quando la copia cross-region è attiva.
 
 ```hcl
 provider "aws" {
   region = "eu-south-1"
 }
-
-provider "aws" {
-  alias  = "dr"
-  region = "eu-central-1"
-}
 ```
 
-> La regione di DR effettiva è determinata dal provider `aws.dr`. Quando abiliti la copia cross-region devi anche valorizzare la variabile `dr_region` con la stessa regione: serve alla validazione contro l'allow-list delle regioni UE.
+> Quando abiliti la copia cross-region devi valorizzare `dr_region`: il modulo lo usa sia per configurare l'alias interno `aws.dr` sia per validare la regione contro l'allow-list delle regioni UE.
 
 ## Architettura
 
@@ -243,13 +233,14 @@ L'elenco completo di variabili, con descrizioni e default, è in [variables.tf](
 |-----------|------|--------------|---------|-------------|
 | `environment` | string | sì | — | `prod` o `nonprod`. Guida i default di Vault Lock, copia, retention. |
 | `solution_prefix` | string | no | `backup-solution` | Prefisso per le risorse (vault, ruoli IAM, alias KMS, piani). |
+| `aws_region` | string | sì | — | Regione primaria del workload, passata al modulo per configurare il provider DR interno quando la copia cross-region è disattivata. |
 | `selection_tags` | map(string) | no¹ | `{}` | Tag per selezionare le risorse (metodo predefinito). |
 | `resource_types` | list(string) | no¹ | `[]` | Tipi di servizio da proteggere interamente. |
 | `resource_arns` | list(string) | no¹ | `[]` | ARN espliciti/wildcard da includere. |
 | `retention_days` | number | no | 35 prod / 14 nonprod | Giorni di conservazione dei recovery point. |
 | `default_plan_additional_rules` | list(object) | no | `[]` | Regole schedulate aggiuntive sul piano di default, riusando selezione, vault e ruolo IAM del core. |
 | `cross_region_copy` | string | no | `Default` | `Default` / `DoNotCopyToOtherRegions` / `CopyToSecondaryRegion`. |
-| `dr_region` | string | no² | `null` | Regione DR (deve combaciare col provider `aws.dr`). |
+| `dr_region` | string | no² | `null` | Regione DR usata per configurare l'alias interno `aws.dr` quando la copia cross-region è attiva. |
 | `vault_lock_mode` | string | no | COMPLIANCE prod / GOVERNANCE nonprod | Modalità del Vault Lock. |
 | `enable_continuous_backup` | bool | no | true prod / false nonprod | Abilita PITR sui servizi supportati. |
 | `enable_restore_testing` | bool | no | `false` | Crea il Restore Testing Plan. |
@@ -285,4 +276,4 @@ L'elenco completo di variabili, con descrizioni e default, è in [variables.tf](
 
 ## Validazione
 
-- `terraform fmt` / `terraform validate`. Il modulo dichiara un alias di provider `aws.dr`, quindi `terraform validate` va eseguito da un chiamante che fornisce sia `aws` sia `aws.dr` (vedi una qualsiasi configurazione in `examples/`).
+- `terraform fmt` / `terraform validate`. I caller devono fornire il provider `aws` della regione primaria e il valore `aws_region`; `dr_region` serve solo quando la copia cross-region è attiva.

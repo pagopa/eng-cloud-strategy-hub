@@ -21,22 +21,14 @@ provider "aws" {
   region = "eu-south-1"
 }
 
-# DR provider still required by module signature, even if cross-region copy is off
-provider "aws" {
-  alias  = "dr"
-  region = "eu-central-1"
-}
 # Vault lock mode is by default set to GOVERNANCE in non-production
 module "backup" {
   #source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup?ref=v1.0.0"
   source = "../../"
 
-  providers = {
-    aws    = aws
-    aws.dr = aws.dr
-  }
+  aws_region  = "eu-south-1"
+  environment = "nonprod"
 
-  environment     = "nonprod"
   solution_prefix = "team-payments-dev-vault"
 
   selection_tags = {
@@ -74,7 +66,7 @@ module "backup" {
 
 module "backup_alerting" {
   #source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup-alerting?ref=v1.0.0"
-  source = "../../backup-alerting"
+  source = "../../../terraform-aws-backup-alerting"
 
   solution_prefix = "team-payments-dev"
 

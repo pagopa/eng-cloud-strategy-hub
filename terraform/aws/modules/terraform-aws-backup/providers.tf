@@ -1,14 +1,14 @@
 ###############################################################################
 # Provider Configuration
 #
-# The module requires two provider configurations:
-#   - aws        (default) — primary region where the workload lives
-#   - aws.dr     — DR region for cross-region copy
+# The consuming team passes only the default aws provider (primary region).
+# This module configures the internal aws.dr alias from inputs so callers do
+# not need to declare a second provider block just to satisfy the DR path.
 #
-# The consuming team must pass both providers when calling the module.
-# If cross-region copy is disabled, the DR provider is unused but must
-# still be declared (Terraform requirement for provider-aliased resources).
-#
-# The provider requirements (including the aws.dr configuration alias) are
-# declared in versions.tf to keep a single required_providers block.
+# When cross-region copy is disabled, aws.dr intentionally falls back to the
+# primary region and stays unused because all DR resources have count = 0.
 ###############################################################################
+provider "aws" {
+  region = local.enable_cross_region_copy ? var.dr_region : var.aws_region
+  alias  = "dr"
+}

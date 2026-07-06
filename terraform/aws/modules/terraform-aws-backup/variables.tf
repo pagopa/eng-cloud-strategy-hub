@@ -1,6 +1,10 @@
 ###############################################################################
 # Required Variables
 ###############################################################################
+variable "aws_region" {
+  description = "Primary region where the workload lives. Used as the module's primary-region input and as the fallback region for the internal aws.dr alias when cross-region copy is disabled."
+  type        = string
+}
 
 variable "environment" {
   description = "Environment type. Drives default behaviour for Vault Lock, cross-region copy, retention, etc."
@@ -107,7 +111,7 @@ variable "cross_region_copy" {
     Cross-region copy behaviour for disaster recovery. One of:
       - "Default"                 : enabled in prod, disabled in nonprod (per §4)
       - "DoNotCopyToOtherRegions" : never copy
-      - "CopyToSecondaryRegion"   : copy to the DR region (aws.dr provider)
+      - "CopyToSecondaryRegion"   : copy to the DR region declared in dr_region
   EOT
   type        = string
   default     = "Default"
@@ -119,7 +123,7 @@ variable "cross_region_copy" {
 }
 
 variable "dr_region" {
-  description = "Target region for cross-region copy, used for validation against the DenyNoEURegions SCP allow-list. The actual DR region is determined by the aws.dr provider passed to the module; this value must match it. Required when cross_region_copy results in copying (i.e. not DoNotCopyToOtherRegions)."
+  description = "Target region for cross-region copy. Used both to configure the module's internal aws.dr alias and to validate against the DenyNoEURegions SCP allow-list. Required when cross_region_copy results in copying (i.e. not DoNotCopyToOtherRegions)."
   type        = string
   default     = null
 

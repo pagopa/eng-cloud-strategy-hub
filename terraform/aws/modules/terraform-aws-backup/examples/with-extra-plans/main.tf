@@ -27,11 +27,6 @@ provider "aws" {
   region = "eu-south-1"
 }
 
-provider "aws" {
-  alias  = "dr"
-  region = "eu-central-1"
-}
-
 ###############################################################################
 # Core module
 ###############################################################################
@@ -39,12 +34,9 @@ provider "aws" {
 module "backup" {
   source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup?ref=v1.0.0"
 
-  providers = {
-    aws    = aws
-    aws.dr = aws.dr
-  }
+  aws_region  = "eu-south-1"
+  environment = "prod"
 
-  environment     = "prod"
   solution_prefix = "team-payments-vault"
 
   selection_tags = {

@@ -28,20 +28,12 @@ provider "aws" {
   region = "eu-south-1"
 }
 
-provider "aws" {
-  alias  = "dr"
-  region = "eu-central-1"
-}
-
 module "backup" {
   source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup?ref=v1.0.0"
 
-  providers = {
-    aws    = aws
-    aws.dr = aws.dr
-  }
+  aws_region  = "eu-south-1"
+  environment = "nonprod"
 
-  environment     = "nonprod"
   solution_prefix = "team-identity-uat-vault"
 
   selection_tags = {
