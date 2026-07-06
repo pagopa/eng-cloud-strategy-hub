@@ -49,6 +49,18 @@ module "backup" {
   # No cross-region copy in dev (default for nonprod)
   cross_region_copy = "DoNotCopyToOtherRegions"
 
+  default_plan_additional_rules = [
+    {
+      rule_name          = "weekly-compliance"
+      schedule           = "cron(0 5 ? * SUN *)"
+      cold_storage_after = 30
+      delete_after       = 120
+      recovery_point_tags = {
+        "backup-frequency" = "weekly"
+      }
+    }
+  ]
+
   tags = {
     "backup-owner" = "team-payments"
     "Environment"  = "dev"

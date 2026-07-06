@@ -57,6 +57,7 @@ module "backup" {
       schedule           = "cron(0 5 ? * SUN *)"
       cold_storage_after = 30
       delete_after       = 120
+      copy_to_dr          = false # Disable cross-region copy for this rule(if cross_region_copy = "CopyToSecondaryRegion" is set, this rule will not copy to DR)
       copy_delete_after  = 180
       recovery_point_tags = {
         "backup-frequency" = "weekly"
