@@ -254,35 +254,6 @@ variable "default_plan_additional_rules" {
     condition     = length(var.default_plan_additional_rules) == length(distinct([for rule in var.default_plan_additional_rules : rule.rule_name]))
     error_message = "default_plan_additional_rules rule_name values must be unique."
   }
-
-  validation {
-    condition = alltrue([
-      for rule in var.default_plan_additional_rules :
-      try(rule.copy_to_dr, null) != true || (
-        var.cross_region_copy == "CopyToSecondaryRegion" ||
-        (var.cross_region_copy == "Default" && var.environment == "prod")
-      )
-    ])
-    error_message = "default_plan_additional_rules[*].copy_to_dr can be true only when cross_region_copy enables DR copies."
-  }
-
-  validation {
-    condition = alltrue([
-      for rule in var.default_plan_additional_rules :
-      (
-        try(rule.copy_cold_storage_after, null) == null &&
-        try(rule.copy_delete_after, null) == null
-      ) || (
-        try(rule.copy_to_dr, null) == true || (
-          try(rule.copy_to_dr, null) == null && (
-            var.cross_region_copy == "CopyToSecondaryRegion" ||
-            (var.cross_region_copy == "Default" && var.environment == "prod")
-          )
-        )
-      )
-    ])
-    error_message = "default_plan_additional_rules copy_cold_storage_after and copy_delete_after require DR copy to be enabled for that rule."
-  }
 }
 
 ###############################################################################

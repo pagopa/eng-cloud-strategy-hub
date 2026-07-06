@@ -35,6 +35,25 @@ resource "aws_backup_vault_lock_configuration" "primary" {
       condition     = !local.enable_cross_region_copy || var.dr_region != null
       error_message = "dr_region must be set when cross-region copy is enabled, and must match the region of the aws.dr provider."
     }
+
+    precondition {
+      condition = alltrue([
+        for rule in var.default_plan_additional_rules :
+        try(rule.copy_to_dr, null) != true || local.enable_cross_region_copy
+      ])
+      error_message = "default_plan_additional_rules[*].copy_to_dr can be true only when cross_region_copy enables DR copies."
+    }
+
+    precondition {
+      condition = alltrue([
+        for rule in var.default_plan_additional_rules :
+        (
+          try(rule.copy_cold_storage_after, null) == null &&
+          try(rule.copy_delete_after, null) == null
+        ) || coalesce(try(rule.copy_to_dr, null), local.enable_cross_region_copy)
+      ])
+      error_message = "default_plan_additional_rules copy_cold_storage_after and copy_delete_after require DR copy to be enabled for that rule."
+    }
   }
 }
 
