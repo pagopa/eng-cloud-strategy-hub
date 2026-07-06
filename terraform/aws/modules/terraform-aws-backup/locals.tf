@@ -75,7 +75,7 @@ locals {
       delete_after       = rule.delete_after
 
       recovery_point_tags = merge(local.common_tags, rule.recovery_point_tags)
-      copy_actions = coalesce(rule.copy_to_dr, local.enable_cross_region_copy) ? [
+      copy_actions = (try(rule.copy_to_dr, null) == null ? local.enable_cross_region_copy : rule.copy_to_dr) ? [
         {
           destination_vault_arn = aws_backup_vault.dr[0].arn
           cold_storage_after    = coalesce(rule.copy_cold_storage_after, rule.cold_storage_after)

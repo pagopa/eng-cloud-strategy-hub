@@ -50,7 +50,7 @@ resource "aws_backup_vault_lock_configuration" "primary" {
         (
           try(rule.copy_cold_storage_after, null) == null &&
           try(rule.copy_delete_after, null) == null
-        ) || coalesce(try(rule.copy_to_dr, null), local.enable_cross_region_copy)
+        ) || (try(rule.copy_to_dr, null) == null ? local.enable_cross_region_copy : rule.copy_to_dr)
       ])
       error_message = "default_plan_additional_rules copy_cold_storage_after and copy_delete_after require DR copy to be enabled for that rule."
     }
