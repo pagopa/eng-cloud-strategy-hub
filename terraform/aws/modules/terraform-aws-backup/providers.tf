@@ -9,6 +9,6 @@
 # primary region and stays unused because all DR resources have count = 0.
 ###############################################################################
 provider "aws" {
-  region = local.enable_cross_region_copy ? var.dr_region : var.aws_region
+  region = local.enable_cross_region_copy && var.dr_region != null ? var.dr_region : var.aws_region
   alias  = "dr"
 }

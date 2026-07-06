@@ -108,10 +108,12 @@ variable "cold_storage_after" {
 
 variable "cross_region_copy" {
   description = <<-EOT
-    Cross-region copy behaviour for disaster recovery. One of:
-      - "Default"                 : enabled in prod, disabled in nonprod (per §4)
-      - "DoNotCopyToOtherRegions" : never copy
-      - "CopyToSecondaryRegion"   : copy to the DR region declared in dr_region
+    Deprecated compatibility input. The module no longer uses this variable to
+    decide whether DR copy is enabled.
+
+    Current behaviour:
+      - prod    : DR copy is enabled by default and requires dr_region
+      - nonprod : DR copy is disabled
   EOT
   type        = string
   default     = "Default"
@@ -123,7 +125,7 @@ variable "cross_region_copy" {
 }
 
 variable "dr_region" {
-  description = "Target region for cross-region copy. Used both to configure the module's internal aws.dr alias and to validate against the DenyNoEURegions SCP allow-list. Required when cross_region_copy results in copying (i.e. not DoNotCopyToOtherRegions)."
+  description = "Target region for DR copy. Used both to configure the module's internal aws.dr alias and to validate against the DenyNoEURegions SCP allow-list. Required when environment is prod."
   type        = string
   default     = null
 

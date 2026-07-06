@@ -18,12 +18,9 @@ locals {
     0
   )
 
-  # Cross-region copy: "Default" follows the per-environment rule (§4),
-  # otherwise the explicit enum value wins.
-  enable_cross_region_copy = (
-    var.cross_region_copy == "Default" ? local.is_prod :
-    var.cross_region_copy == "CopyToSecondaryRegion"
-  )
+  # DR copy is mandatory in prod and disabled in nonprod.
+  # cross_region_copy is kept only as a deprecated compatibility input.
+  enable_cross_region_copy = local.is_prod
 
   enable_continuous_backup = coalesce(
     var.enable_continuous_backup,

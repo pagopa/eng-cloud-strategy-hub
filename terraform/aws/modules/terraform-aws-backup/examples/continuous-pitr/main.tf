@@ -47,8 +47,7 @@ module "backup" {
     "backup-continuous" = "enabled"
   }
 
-  cross_region_copy = "CopyToSecondaryRegion"
-  dr_region         = "eu-central-1"
+  dr_region = "eu-central-1"
 
   tags = {
     "backup-owner" = "team-data"

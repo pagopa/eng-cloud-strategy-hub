@@ -32,8 +32,8 @@ resource "aws_backup_vault_lock_configuration" "primary" {
     }
 
     precondition {
-      condition     = !local.enable_cross_region_copy || var.dr_region != null
-      error_message = "dr_region must be set when cross-region copy is enabled, and must match the region of the aws.dr provider."
+      condition     = !local.is_prod || var.dr_region != null
+      error_message = "dr_region must be set when environment is prod, because production always enables the DR region configuration."
     }
 
     precondition {
@@ -41,7 +41,7 @@ resource "aws_backup_vault_lock_configuration" "primary" {
         for rule in var.default_plan_additional_rules :
         try(rule.copy_to_dr, null) != true || local.enable_cross_region_copy
       ])
-      error_message = "default_plan_additional_rules[*].copy_to_dr can be true only when cross_region_copy enables DR copies."
+      error_message = "default_plan_additional_rules[*].copy_to_dr can be true only in prod, where the module enables the DR region configuration by default."
     }
 
     precondition {

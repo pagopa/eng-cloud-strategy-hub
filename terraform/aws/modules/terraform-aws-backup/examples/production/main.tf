@@ -49,7 +49,7 @@ module "backup" {
       schedule           = "cron(0 5 ? * SUN *)"
       cold_storage_after = 30
       delete_after       = 120
-      copy_to_dr         = false # Disable cross-region copy for this rule(if cross_region_copy = "CopyToSecondaryRegion" is set, this rule will not copy to DR)
+      copy_to_dr         = false # Disable DR copy for this rule even though production enables cross-region copy by default.
       copy_delete_after  = 180
       recovery_point_tags = {
         "backup-frequency" = "weekly"
@@ -57,9 +57,9 @@ module "backup" {
     }
   ]
 
-  # Cross-region copy to Frankfurt
-  cross_region_copy = "CopyToSecondaryRegion"
-  dr_region         = "eu-central-1"
+  # In production DR copy is enabled by default. Setting dr_region selects the
+  # DR target region and activates the internal aws.dr provider accordingly.
+  dr_region = "eu-central-1"
 
   # Enable restore testing
   enable_restore_testing   = true

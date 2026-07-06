@@ -38,9 +38,6 @@ module "backup" {
   # Shorter retention for dev
   retention_days = 7
 
-  # No cross-region copy in dev (default for nonprod)
-  cross_region_copy = "DoNotCopyToOtherRegions"
-
   default_plan_additional_rules = [
     {
       rule_name          = "weekly-compliance"

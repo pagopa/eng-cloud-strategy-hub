@@ -27,7 +27,7 @@ Ogni team usa questo modulo nel **proprio account** per proteggere i workload co
 
 ## Utilizzo rapido
 
-L'integrazione minima richiede: il provider AWS della regione primaria, `aws_region`, l'ambiente, un prefisso e il criterio di selezione delle risorse. `dr_region` serve solo quando abiliti la copia cross-region.
+L'integrazione minima richiede: il provider AWS della regione primaria, `aws_region`, l'ambiente, un prefisso e il criterio di selezione delle risorse. In `prod`, `dr_region` è obbligatoria perché la configurazione DR è attiva di default.
 
 ```hcl
 provider "aws" {
@@ -90,7 +90,7 @@ provider "aws" {
 }
 ```
 
-> Quando abiliti la copia cross-region devi valorizzare `dr_region`: il modulo lo usa sia per configurare l'alias interno `aws.dr` sia per validare la regione contro l'allow-list delle regioni UE.
+> In `prod` devi valorizzare `dr_region`: il modulo lo usa sia per configurare l'alias interno `aws.dr` sia per validare la regione contro l'allow-list delle regioni UE.
 
 ## Architettura
 
@@ -239,7 +239,7 @@ L'elenco completo di variabili, con descrizioni e default, è in [variables.tf](
 | `resource_arns` | list(string) | no¹ | `[]` | ARN espliciti/wildcard da includere. |
 | `retention_days` | number | no | 35 prod / 14 nonprod | Giorni di conservazione dei recovery point. |
 | `default_plan_additional_rules` | list(object) | no | `[]` | Regole schedulate aggiuntive sul piano di default, riusando selezione, vault e ruolo IAM del core. |
-| `cross_region_copy` | string | no | `Default` | `Default` / `DoNotCopyToOtherRegions` / `CopyToSecondaryRegion`. |
+| `cross_region_copy` | string | no | `Default` | Compatibilità deprecata: il modulo non la usa più per decidere la DR, che è attiva in `prod` e disattiva in `nonprod`. |
 | `dr_region` | string | no² | `null` | Regione DR usata per configurare l'alias interno `aws.dr` quando la copia cross-region è attiva. |
 | `vault_lock_mode` | string | no | COMPLIANCE prod / GOVERNANCE nonprod | Modalità del Vault Lock. |
 | `enable_continuous_backup` | bool | no | true prod / false nonprod | Abilita PITR sui servizi supportati. |
