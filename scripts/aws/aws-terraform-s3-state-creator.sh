@@ -275,14 +275,8 @@ collect_identity() {
 
 detect_bucket_mode() {
   local output
-  local exit_code
 
-  set +e
-  output="$(aws_query_text s3api head-bucket --bucket "${BUCKET_NAME}" --expected-bucket-owner "${CALLER_ACCOUNT_ID}" 2>&1)"
-  exit_code=$?
-  set -e
-
-  if [[ ${exit_code} -eq 0 ]]; then
+  if output="$(aws_query_text s3api head-bucket --bucket "${BUCKET_NAME}" --expected-bucket-owner "${CALLER_ACCOUNT_ID}" 2>&1)"; then
     BUCKET_MODE="update"
     return
   fi
@@ -341,14 +335,8 @@ get_existing_tag_set_json() {
   fi
 
   local output
-  local exit_code
 
-  set +e
-  output="$(aws_query_text s3api get-bucket-tagging --bucket "${BUCKET_NAME}" --expected-bucket-owner "${CALLER_ACCOUNT_ID}" --output json 2>&1)"
-  exit_code=$?
-  set -e
-
-  if [[ ${exit_code} -eq 0 ]]; then
+  if output="$(aws_query_text s3api get-bucket-tagging --bucket "${BUCKET_NAME}" --expected-bucket-owner "${CALLER_ACCOUNT_ID}" --output json 2>&1)"; then
     printf '%s' "${output}" | jq -c '.TagSet // []'
     return
   fi
@@ -550,15 +538,9 @@ get_existing_bucket_policy_json() {
   fi
 
   local output
-  local exit_code
   local policy_text
 
-  set +e
-  output="$(aws_query_text s3api get-bucket-policy --bucket "${BUCKET_NAME}" --expected-bucket-owner "${CALLER_ACCOUNT_ID}" --output json 2>&1)"
-  exit_code=$?
-  set -e
-
-  if [[ ${exit_code} -ne 0 ]]; then
+  if ! output="$(aws_query_text s3api get-bucket-policy --bucket "${BUCKET_NAME}" --expected-bucket-owner "${CALLER_ACCOUNT_ID}" --output json 2>&1)"; then
     if echo "${output}" | grep -Eiq 'NoSuchBucketPolicy|policy does not exist'; then
       empty_bucket_policy_json
       return
