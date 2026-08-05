@@ -11,6 +11,8 @@ set -euo pipefail
 SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_NAME
 readonly SCRIPT_PATH="scripts/aws/aws-terraform-s3-state-creator.sh"
+readonly VERSIONING_VERIFY_ATTEMPTS=5
+readonly VERSIONING_VERIFY_DELAY_SECONDS=1
 
 REGION=""
 ACCOUNT_NAME=""
@@ -27,6 +29,7 @@ CALLER_ARN=""
 CALLER_ACCOUNT_ID=""
 CALLER_ACCOUNT_NAME=""
 BUCKET_MODE=""
+BUCKET_ACCESS_VERIFIED=true
 
 operation_label() {
   if [[ "${BUCKET_MODE}" == "create" ]]; then
@@ -47,6 +50,11 @@ operation_emoji() {
 }
 
 operation_plan_summary() {
+  if [[ "${BUCKET_ACCESS_VERIFIED}" == false ]]; then
+    printf '%s' 'access could not be verified; showing a read-only update plan'
+    return
+  fi
+
   if [[ "${BUCKET_MODE}" == "create" ]]; then
     printf '%s' 'new bucket will be created before applying baseline controls'
     return
@@ -56,23 +64,28 @@ operation_plan_summary() {
 }
 
 log_bucket_step() {
-  log_info "[$(operation_emoji) $(operation_label)] $*"
+  local log_icon='ℹ️ '
+  if [[ "${DRY_RUN}" == true ]]; then
+    log_icon='🧪'
+  fi
+
+  printf '%s [%s %s] %s\n' "${log_icon}" "$(operation_emoji)" "$(operation_label)" "$*"
 }
 
 log_info() {
-  echo "ℹ️  $*"
+  printf 'ℹ️  %s\n' "$*"
 }
 
 log_success() {
-  echo "✅ $*"
+  printf '✅ %s\n' "$*"
 }
 
 log_warn() {
-  echo "⚠️  $*"
+  printf '⚠️  %s\n' "$*"
 }
 
 log_error() {
-  echo "❌ $*" >&2
+  printf '❌ %s\n' "$*" >&2
 }
 
 die() {
@@ -275,19 +288,19 @@ collect_identity() {
 
 detect_bucket_mode() {
   local output
-  local exit_code
 
-  set +e
-  output="$(aws_query_text s3api head-bucket --bucket "${BUCKET_NAME}" --expected-bucket-owner "${CALLER_ACCOUNT_ID}" 2>&1)"
-  exit_code=$?
-  set -e
-
-  if [[ ${exit_code} -eq 0 ]]; then
+  if output="$(aws_query_text s3api head-bucket --bucket "${BUCKET_NAME}" --expected-bucket-owner "${CALLER_ACCOUNT_ID}" 2>&1)"; then
     BUCKET_MODE="update"
     return
   fi
 
   if echo "${output}" | grep -Eiq '403|forbidden|accessdenied'; then
+    if [[ "${DRY_RUN}" == true ]]; then
+      BUCKET_MODE="update"
+      BUCKET_ACCESS_VERIFIED=false
+      return
+    fi
+
     die "Bucket exists but is not accessible with current credentials: ${BUCKET_NAME}"
   fi
 
@@ -341,14 +354,8 @@ get_existing_tag_set_json() {
   fi
 
   local output
-  local exit_code
 
-  set +e
-  output="$(aws_query_text s3api get-bucket-tagging --bucket "${BUCKET_NAME}" --expected-bucket-owner "${CALLER_ACCOUNT_ID}" --output json 2>&1)"
-  exit_code=$?
-  set -e
-
-  if [[ ${exit_code} -eq 0 ]]; then
+  if output="$(aws_query_text s3api get-bucket-tagging --bucket "${BUCKET_NAME}" --expected-bucket-owner "${CALLER_ACCOUNT_ID}" --output json 2>&1)"; then
     printf '%s' "${output}" | jq -c '.TagSet // []'
     return
   fi
@@ -389,13 +396,25 @@ build_tagging_payload() {
   printf '%s' "${tagging_payload}"
 }
 
+print_report_control() {
+  local icon="$1"
+  local title="$2"
+  local details="$3"
+  local benefit="$4"
+
+  printf '  - %s %s\n' "${icon}" "${title}"
+  printf '      Details : %s\n' "${details}"
+  printf '      Benefit : %s\n' "${benefit}"
+  echo ""
+}
+
 render_report() {
   local planned_operation
   planned_operation="$(operation_label)"
 
   echo ""
   echo "============================================================"
-  echo "Terraform State Bucket Plan"
+  echo "🧭 Terraform State Bucket Plan"
   echo "============================================================"
   echo "Principal ARN : ${CALLER_ARN}"
   echo "Account ID    : ${CALLER_ACCOUNT_ID}"
@@ -403,25 +422,75 @@ render_report() {
   echo "Region        : ${REGION}"
   echo "Bucket        : ${BUCKET_NAME}"
   echo "Operation     : $(operation_emoji) ${planned_operation} - $(operation_plan_summary)"
-  echo "Dry Run       : ${DRY_RUN}"
+  if [[ "${DRY_RUN}" == true ]]; then
+    echo "Execution mode : 🧪 DRY-RUN (read-only)"
+  else
+    echo "Execution mode : ⚙️  APPLY (mutating)"
+  fi
+  if [[ "${BUCKET_ACCESS_VERIFIED}" == false ]]; then
+    echo "Access check  : ⚠️  Not verified (HTTP 403; dry-run plan only)"
+  else
+    echo "Access check  : ✅ Verified"
+  fi
   if [[ -n "${PROFILE}" ]]; then
     echo "Profile       : ${PROFILE}"
   fi
   echo ""
-  echo "Security controls to apply:"
-  echo "  - 🧾 Versioning enabled"
-  echo "  - 🚫 Public access blocked at bucket level (ACL + bucket policy public exposure prevented)"
-  echo "  - 👤 Object Ownership: BucketOwnerEnforced"
-  echo "  - 🔐 Default encryption: SSE-S3 (AES256)"
-  echo "  - 🌐 TLS-only bucket policy (preserve existing statements and deny non-HTTPS requests)"
+  echo "🛡️ Controls to enforce:"
   if [[ "${BUCKET_MODE}" == "create" ]]; then
-    echo "  - 🧱 Object Lock capability enabled at creation"
-  else
-    echo "  - 🧱 Object Lock capability unchanged (cannot be enabled post-creation)"
+    print_report_control \
+      "🪣" \
+      "Bucket creation" \
+      "Dedicated S3 bucket for Terraform state" \
+      "Isolates state data from other workloads"
   fi
-  echo "  - 🏷️  Tags merged (existing + defaults + optional --tag values)"
+  print_report_control \
+    "🧾" \
+    "Versioning" \
+    "Enabled and verified after apply" \
+    "Recovers earlier state versions after accidental overwrites or deletions"
+  print_report_control \
+    "🚫" \
+    "Public access" \
+    "Blocked at bucket level (ACL + bucket policy public exposure prevented)" \
+    "Prevents accidental public exposure of Terraform state"
+  print_report_control \
+    "👤" \
+    "Object Ownership" \
+    "BucketOwnerEnforced" \
+    "Keeps object ownership with the bucket account and removes ACL-based ambiguity"
+  print_report_control \
+    "🔐" \
+    "Default encryption" \
+    "SSE-S3 (AES256)" \
+    "Protects state data at rest by default"
+  print_report_control \
+    "🌐" \
+    "TLS-only bucket policy" \
+    "Existing statements preserved; non-HTTPS requests denied" \
+    "Blocks state transfers over unencrypted connections"
+  print_report_control \
+    "♻️" \
+    "Recovery baseline" \
+    "S3 versioning will be enabled on apply" \
+    "Provides a recovery path for state changes"
+  print_report_control \
+    "🧱" \
+    "Object Lock" \
+    "Not managed by recovery baseline" \
+    "Keeps retention policy reversible and explicit"
+  print_report_control \
+    "⏳" \
+    "Lifecycle retention" \
+    "Existing rules are not modified by this script" \
+    "Preserves current retention behavior and avoids unintended deletion"
+  print_report_control \
+    "🏷️" \
+    "Tags" \
+    "Merged (existing + defaults + optional --tag values)" \
+    "Improves ownership, searchability, and governance"
   echo ""
-  echo "Tags:"
+  echo "Tags to merge:"
   local tag_pair
   for tag_pair in "${DEFAULT_TAGS[@]}"; do
     echo "  - ${tag_pair}"
@@ -435,8 +504,13 @@ render_report() {
 }
 
 confirm_or_exit() {
+  if [[ "${DRY_RUN}" == true ]]; then
+    log_bucket_step "DRY-RUN — Confirmation is not required"
+    return
+  fi
+
   if [[ "${ASSUME_YES}" == true ]]; then
-    log_bucket_step "Confirmation bypassed with --yes"
+    log_bucket_step "🙋 CONFIRM — Confirmation bypassed with --yes"
     return
   fi
 
@@ -444,10 +518,10 @@ confirm_or_exit() {
   read -r -p "Proceed with $(operation_emoji) $(operation_label) for bucket ${BUCKET_NAME}? [y/N] " answer
   case "${answer}" in
   y | Y | yes | YES)
-    log_bucket_step "Confirmed by operator"
+    log_bucket_step "✅ CONFIRM — Operator confirmation received"
     ;;
   *)
-    log_warn "Operation cancelled"
+    log_warn "CONFIRM — Operation cancelled by operator"
     exit 0
     ;;
   esac
@@ -458,28 +532,26 @@ create_bucket_if_needed() {
     return
   fi
 
-  log_bucket_step "Creating bucket ${BUCKET_NAME} in ${REGION} with Object Lock capability"
+  log_bucket_step "🪣 BUCKET — Creating bucket ${BUCKET_NAME} in ${REGION} (recovery baseline; Object Lock disabled)"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_bucket_step "DRY-RUN: s3api create-bucket with object lock capability"
+    log_bucket_step "🪣 BUCKET — DRY-RUN: s3api create-bucket (Object Lock not requested)"
     return
   fi
 
   if [[ "${REGION}" == "us-east-1" ]]; then
     aws_query_text s3api create-bucket \
-      --bucket "${BUCKET_NAME}" \
-      --object-lock-enabled-for-bucket
+      --bucket "${BUCKET_NAME}"
   else
     aws_query_text s3api create-bucket \
       --bucket "${BUCKET_NAME}" \
-      --create-bucket-configuration "LocationConstraint=${REGION}" \
-      --object-lock-enabled-for-bucket
+      --create-bucket-configuration "LocationConstraint=${REGION}"
   fi
 }
 
 apply_versioning() {
-  log_bucket_step "Ensuring versioning is enabled"
+  log_bucket_step "🧾 VERSIONING — Enabling S3 versioning"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_bucket_step "DRY-RUN: s3api put-bucket-versioning"
+    log_bucket_step "🧾 VERSIONING — DRY-RUN: s3api put-bucket-versioning; verification deferred until apply"
     return
   fi
 
@@ -487,12 +559,45 @@ apply_versioning() {
     --bucket "${BUCKET_NAME}" \
     --expected-bucket-owner "${CALLER_ACCOUNT_ID}" \
     --versioning-configuration Status=Enabled
+
+  verify_versioning_enabled
+}
+
+verify_versioning_enabled() {
+  local attempt
+  local output
+  local versioning_status
+
+  for ((attempt = 1; attempt <= VERSIONING_VERIFY_ATTEMPTS; attempt++)); do
+    if ! output="$(aws_query_text s3api get-bucket-versioning \
+      --bucket "${BUCKET_NAME}" \
+      --expected-bucket-owner "${CALLER_ACCOUNT_ID}" \
+      --output json 2>&1)"; then
+      die "S3 versioning verification failed for ${BUCKET_NAME}: ${output}"
+    fi
+
+    if ! versioning_status="$(printf '%s' "${output}" | jq -er '.Status // empty')"; then
+      die "S3 versioning verification failed for ${BUCKET_NAME}: response did not contain a versioning status"
+    fi
+
+    if [[ "${versioning_status}" == "Enabled" ]]; then
+      log_success "[VERIFY] S3 versioning is enabled"
+      return
+    fi
+
+    if ((attempt < VERSIONING_VERIFY_ATTEMPTS)); then
+      log_info "⏳ [VERIFY] S3 versioning is '${versioning_status}' (attempt ${attempt}/${VERSIONING_VERIFY_ATTEMPTS}); retrying"
+      sleep "${VERSIONING_VERIFY_DELAY_SECONDS}"
+    fi
+  done
+
+  die "S3 versioning verification failed for ${BUCKET_NAME}: expected Status=Enabled"
 }
 
 apply_public_access_block() {
-  log_bucket_step "Ensuring public access is blocked"
+  log_bucket_step "🚫 PUBLIC ACCESS — Blocking public access"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_bucket_step "DRY-RUN: s3api put-public-access-block"
+    log_bucket_step "🚫 PUBLIC ACCESS — DRY-RUN: s3api put-public-access-block"
     return
   fi
 
@@ -503,9 +608,9 @@ apply_public_access_block() {
 }
 
 apply_ownership_controls() {
-  log_bucket_step "Ensuring bucket owner enforced object ownership"
+  log_bucket_step "👤 OWNERSHIP — Enforcing BucketOwnerEnforced"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_bucket_step "DRY-RUN: s3api put-bucket-ownership-controls"
+    log_bucket_step "👤 OWNERSHIP — DRY-RUN: s3api put-bucket-ownership-controls"
     return
   fi
 
@@ -516,9 +621,9 @@ apply_ownership_controls() {
 }
 
 apply_default_encryption() {
-  log_bucket_step "Ensuring default SSE-S3 encryption"
+  log_bucket_step "🔐 ENCRYPTION — Enforcing default SSE-S3 encryption"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_bucket_step "DRY-RUN: s3api put-bucket-encryption"
+    log_bucket_step "🔐 ENCRYPTION — DRY-RUN: s3api put-bucket-encryption"
     return
   fi
 
@@ -550,15 +655,9 @@ get_existing_bucket_policy_json() {
   fi
 
   local output
-  local exit_code
   local policy_text
 
-  set +e
-  output="$(aws_query_text s3api get-bucket-policy --bucket "${BUCKET_NAME}" --expected-bucket-owner "${CALLER_ACCOUNT_ID}" --output json 2>&1)"
-  exit_code=$?
-  set -e
-
-  if [[ ${exit_code} -ne 0 ]]; then
+  if ! output="$(aws_query_text s3api get-bucket-policy --bucket "${BUCKET_NAME}" --expected-bucket-owner "${CALLER_ACCOUNT_ID}" --output json 2>&1)"; then
     if echo "${output}" | grep -Eiq 'NoSuchBucketPolicy|policy does not exist'; then
       empty_bucket_policy_json
       return
@@ -590,9 +689,9 @@ build_tls_only_policy() {
 }
 
 apply_bucket_policy() {
-  log_bucket_step "Ensuring TLS-only bucket policy"
+  log_bucket_step "🌐 TRANSPORT — Enforcing HTTPS-only bucket policy"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_bucket_step "DRY-RUN: s3api put-bucket-policy"
+    log_bucket_step "🌐 TRANSPORT — DRY-RUN: s3api put-bucket-policy"
     return
   fi
 
@@ -606,9 +705,9 @@ apply_bucket_policy() {
 }
 
 apply_tags() {
-  log_bucket_step "Applying bucket tags"
+  log_bucket_step "🏷️ TAGS — Applying merged bucket tags"
   if [[ "${DRY_RUN}" == true ]]; then
-    log_bucket_step "DRY-RUN: s3api put-bucket-tagging"
+    log_bucket_step "🏷️ TAGS — DRY-RUN: s3api put-bucket-tagging"
     return
   fi
 
@@ -621,7 +720,7 @@ apply_tags() {
 }
 
 apply_configuration() {
-  log_bucket_step "Starting bucket configuration flow"
+  log_bucket_step "🧭 FLOW — Starting recovery baseline configuration"
   create_bucket_if_needed
   apply_versioning
   apply_public_access_block
@@ -638,8 +737,19 @@ main() {
   require_command jq
   build_aws_cmd
 
+  log_info "🚀 [START] Preparing Terraform state bucket operation"
+  log_info "🔐 [IDENTITY] Verifying AWS caller and expected account"
   collect_identity
+  log_success "[IDENTITY] AWS account verified: ${CALLER_ACCOUNT_NAME} (${CALLER_ACCOUNT_ID})"
+
+  log_info "🪣 [BUCKET] Inspecting bucket ${BUCKET_NAME} accessibility and current state"
   detect_bucket_mode
+  if [[ "${BUCKET_ACCESS_VERIFIED}" == false ]]; then
+    log_warn "[BUCKET] Access could not be verified; continuing with a read-only dry-run plan"
+  else
+    log_success "[BUCKET] Mode detected: $(operation_emoji) $(operation_label)"
+  fi
+
   build_default_tags
 
   render_report
@@ -649,12 +759,14 @@ main() {
 
   if [[ "${DRY_RUN}" == true ]]; then
     log_success "Dry run completed for $(operation_emoji) $(operation_label). No AWS mutations executed"
+    log_info "♻️ Recovery baseline planned: S3 versioning will be enabled and verified on apply"
   else
     log_success "$(operation_emoji) $(operation_label) completed. Bucket ${BUCKET_NAME} is configured for Terraform state"
+    log_info "♻️ Recovery baseline verified: S3 versioning is enabled"
   fi
 
-  log_info "Object Lock default retention is intentionally not configured"
-  log_info "Use Terraform backend use_lockfile=true with this bucket as needed"
+  log_info "🔒 Backend locking: configure Terraform use_lockfile=true and IAM permissions separately"
+  log_info "⏳ Retention: lifecycle rules are not modified by this script"
 }
 
 main "$@"

@@ -137,6 +137,10 @@ EOF
         ;;
     esac
     ;;
+  "s3api get-bucket-versioning")
+    require_expected_bucket_owner
+    printf '{"Status":"%s"}\n' "${FAKE_VERSIONING_STATUS:-Enabled}"
+    ;;
   "s3api put-bucket-policy")
     require_expected_bucket_owner
     policy_payload="$(arg_value --policy)"

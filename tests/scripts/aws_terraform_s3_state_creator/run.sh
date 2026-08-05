@@ -122,15 +122,84 @@ test_dry_run_create_mode() {
   unset FAKE_HEAD_BUCKET_MODE
   assert_eq "0" "${RUN_STATUS}" "dry-run create mode exits cleanly"
   assert_contains "${RUN_STDOUT}" "Operation     : 🆕 CREATE - new bucket will be created before applying baseline controls" "plan reports create operation"
+  assert_contains "${RUN_STDOUT}" "🧭 Terraform State Bucket Plan" "plan has a clear visual heading"
+  assert_contains "${RUN_STDOUT}" "      Benefit : Provides a recovery path for state changes" "plan explains the recovery baseline"
+  assert_contains "${RUN_STDOUT}" "      Details : Not managed by recovery baseline" "plan makes Object Lock scope explicit"
   assert_not_contains "${RUN_STDOUT}" "Mode          :" "plan omits duplicate mode row"
   assert_not_contains "${RUN_STDOUT}" "Bucket State  :" "plan omits duplicate bucket state row"
-  assert_contains "${RUN_STDOUT}" "[🆕 CREATE] DRY-RUN: s3api create-bucket" "dry-run create action is labeled"
-  assert_contains "${RUN_STDOUT}" "DRY-RUN: s3api create-bucket" "dry-run includes create-bucket action"
+  assert_contains "${RUN_STDOUT}" "[🆕 CREATE] 🪣 BUCKET — DRY-RUN: s3api create-bucket" "dry-run create action is labeled"
+  assert_not_contains "${RUN_STDOUT}" "--object-lock-enabled-for-bucket" "dry-run does not plan irreversible Object Lock"
   assert_contains "${RUN_STDOUT}" "Dry run completed" "dry-run completion is reported"
   assert_aws_log_contains "sts get-caller-identity" "identity check was executed"
   assert_aws_log_contains "organizations describe-account" "account name lookup was executed"
   assert_aws_log_contains "s3api head-bucket" "bucket mode detection was executed"
   assert_aws_log_not_contains "s3api put-bucket-tagging" "dry-run skips mutating calls"
+}
+
+test_dry_run_explains_control_benefits() {
+  reset_logs
+  export FAKE_ACCOUNT_NAME="sandbox"
+  export FAKE_HEAD_BUCKET_MODE="notfound"
+  run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --dry-run --yes
+  unset FAKE_ACCOUNT_NAME
+  unset FAKE_HEAD_BUCKET_MODE
+  assert_eq "0" "${RUN_STATUS}" "dry-run benefit report exits cleanly"
+  assert_contains "${RUN_STDOUT}" $'  - 🪣 Bucket creation\n      Details : Dedicated S3 bucket for Terraform state\n      Benefit : Isolates state data from other workloads' "bucket creation uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - 🧾 Versioning\n      Details : Enabled and verified after apply\n      Benefit : Recovers earlier state versions after accidental overwrites or deletions' "versioning uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - 🚫 Public access\n      Details : Blocked at bucket level (ACL + bucket policy public exposure prevented)\n      Benefit : Prevents accidental public exposure of Terraform state' "public access uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - 👤 Object Ownership\n      Details : BucketOwnerEnforced\n      Benefit : Keeps object ownership with the bucket account and removes ACL-based ambiguity' "ownership uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - 🔐 Default encryption\n      Details : SSE-S3 (AES256)\n      Benefit : Protects state data at rest by default' "encryption uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - 🌐 TLS-only bucket policy\n      Details : Existing statements preserved; non-HTTPS requests denied\n      Benefit : Blocks state transfers over unencrypted connections' "transport uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - ♻️ Recovery baseline\n      Details : S3 versioning will be enabled on apply\n      Benefit : Provides a recovery path for state changes' "recovery baseline uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - 🧱 Object Lock\n      Details : Not managed by recovery baseline\n      Benefit : Keeps retention policy reversible and explicit' "object lock uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - ⏳ Lifecycle retention\n      Details : Existing rules are not modified by this script\n      Benefit : Preserves current retention behavior and avoids unintended deletion' "lifecycle uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - 🏷️ Tags\n      Details : Merged (existing + defaults + optional --tag values)\n      Benefit : Improves ownership, searchability, and governance' "tagging uses the readable layout"
+  assert_not_contains "${RUN_STDOUT}" " — Benefit:" "benefits are not concatenated with feature details"
+}
+
+test_dry_run_reports_preflight_progress() {
+  reset_logs
+  export FAKE_ACCOUNT_NAME="sandbox"
+  export FAKE_HEAD_BUCKET_MODE="notfound"
+  run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --dry-run --yes
+  unset FAKE_ACCOUNT_NAME
+  unset FAKE_HEAD_BUCKET_MODE
+  assert_eq "0" "${RUN_STATUS}" "preflight progress dry-run exits cleanly"
+  assert_contains "${RUN_STDOUT}" "🚀 [START] Preparing Terraform state bucket operation" "startup progress is reported"
+  assert_contains "${RUN_STDOUT}" "🔐 [IDENTITY] Verifying AWS caller and expected account" "identity progress is reported"
+  assert_contains "${RUN_STDOUT}" "✅ [IDENTITY] AWS account verified: sandbox" "identity completion is reported"
+  assert_contains "${RUN_STDOUT}" "🪣 [BUCKET] Inspecting bucket my-tf-state accessibility and current state" "bucket inspection progress is reported"
+  assert_contains "${RUN_STDOUT}" "✅ [BUCKET] Mode detected: 🆕 CREATE" "bucket mode completion is reported"
+}
+
+test_create_mode_uses_recovery_baseline_without_object_lock() {
+  reset_logs
+  export FAKE_ACCOUNT_NAME="sandbox"
+  export FAKE_HEAD_BUCKET_MODE="notfound"
+  run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --yes
+  unset FAKE_ACCOUNT_NAME
+  unset FAKE_HEAD_BUCKET_MODE
+  assert_eq "0" "${RUN_STATUS}" "create mode recovery baseline exits cleanly"
+  assert_aws_log_contains "s3api create-bucket" "create mode creates the bucket"
+  assert_aws_log_not_contains "--object-lock-enabled-for-bucket" "create mode does not enable irreversible Object Lock"
+  assert_contains "${RUN_STDOUT}" "🪣 BUCKET — Creating bucket my-tf-state" "create log identifies the bucket phase"
+  assert_contains "${RUN_STDOUT}" "✅ [VERIFY] S3 versioning is enabled" "create mode reports verified versioning"
+}
+
+test_dry_run_forbidden_bucket_is_read_only_and_non_interactive() {
+  reset_logs
+  export FAKE_ACCOUNT_NAME="sandbox"
+  export FAKE_HEAD_BUCKET_MODE="forbidden"
+  run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --dry-run
+  unset FAKE_ACCOUNT_NAME
+  unset FAKE_HEAD_BUCKET_MODE
+  assert_eq "0" "${RUN_STATUS}" "dry-run with an inaccessible bucket exits cleanly"
+  assert_contains "${RUN_STDOUT}" "Execution mode : 🧪 DRY-RUN (read-only)" "dry-run mode is explicit in the plan"
+  assert_contains "${RUN_STDOUT}" "access could not be verified" "dry-run explains the inaccessible bucket"
+  assert_contains "${RUN_STDOUT}" "Dry run completed" "dry-run completion is reported"
+  assert_not_contains "${RUN_STDOUT}" "Proceed with" "dry-run does not ask for confirmation"
+  assert_aws_log_not_contains "s3api create-bucket" "dry-run does not create an inaccessible bucket"
+  assert_aws_log_not_contains "s3api put-bucket" "dry-run skips bucket mutations"
 }
 
 test_update_mode_applies_controls() {
@@ -144,13 +213,30 @@ test_update_mode_applies_controls() {
   assert_contains "${RUN_STDOUT}" "Operation     : ♻️ UPDATE - existing bucket will be updated in place with baseline controls" "plan reports update operation"
   assert_not_contains "${RUN_STDOUT}" "Mode          :" "plan omits duplicate mode row"
   assert_not_contains "${RUN_STDOUT}" "Bucket State  :" "plan omits duplicate bucket state row"
-  assert_contains "${RUN_STDOUT}" "[♻️ UPDATE] Applying bucket tags" "update tagging step is labeled"
+  assert_contains "${RUN_STDOUT}" "[♻️ UPDATE] 🏷️ TAGS — Applying merged bucket tags" "update tagging step is labeled"
   assert_aws_log_contains "s3api put-bucket-versioning" "versioning call is executed"
   assert_aws_log_contains "s3api put-public-access-block" "public access block call is executed"
   assert_aws_log_contains "s3api put-bucket-ownership-controls" "ownership controls call is executed"
   assert_aws_log_contains "s3api put-bucket-encryption" "encryption call is executed"
   assert_aws_log_contains "s3api put-bucket-policy" "tls-only policy call is executed"
   assert_aws_log_contains "s3api put-bucket-tagging" "tagging call is executed"
+  assert_aws_log_contains "s3api get-bucket-versioning" "versioning state is verified after the write"
+  assert_contains "${RUN_STDOUT}" "🧾 VERSIONING" "versioning log identifies its phase"
+  assert_contains "${RUN_STDOUT}" "🔐 ENCRYPTION" "encryption log identifies its phase"
+  assert_contains "${RUN_STDOUT}" "✅ [VERIFY] S3 versioning is enabled" "verified versioning is reported clearly"
+}
+
+test_versioning_verification_fails_when_not_enabled() {
+  reset_logs
+  export FAKE_ACCOUNT_NAME="sandbox"
+  export FAKE_HEAD_BUCKET_MODE="exists"
+  export FAKE_VERSIONING_STATUS="Suspended"
+  run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --yes
+  unset FAKE_ACCOUNT_NAME
+  unset FAKE_HEAD_BUCKET_MODE
+  unset FAKE_VERSIONING_STATUS
+  assert_eq "1" "${RUN_STATUS}" "non-enabled versioning fails the configuration"
+  assert_contains "${RUN_STDERR}" "S3 versioning verification failed" "versioning verification failure is actionable"
 }
 
 test_update_mode_uses_expected_bucket_owner() {
@@ -239,7 +325,12 @@ main() {
     test_invalid_tag_format_is_rejected
     test_account_name_mismatch_fails
     test_dry_run_create_mode
+    test_dry_run_explains_control_benefits
+    test_dry_run_reports_preflight_progress
+    test_create_mode_uses_recovery_baseline_without_object_lock
+    test_dry_run_forbidden_bucket_is_read_only_and_non_interactive
     test_update_mode_applies_controls
+    test_versioning_verification_fails_when_not_enabled
     test_update_mode_uses_expected_bucket_owner
     test_update_mode_merges_existing_bucket_policy
     test_update_mode_merges_existing_tags_with_user_precedence
