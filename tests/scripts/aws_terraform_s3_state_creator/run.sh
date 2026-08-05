@@ -136,6 +136,21 @@ test_dry_run_create_mode() {
   assert_aws_log_not_contains "s3api put-bucket-tagging" "dry-run skips mutating calls"
 }
 
+test_dry_run_reports_preflight_progress() {
+  reset_logs
+  export FAKE_ACCOUNT_NAME="sandbox"
+  export FAKE_HEAD_BUCKET_MODE="notfound"
+  run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --dry-run --yes
+  unset FAKE_ACCOUNT_NAME
+  unset FAKE_HEAD_BUCKET_MODE
+  assert_eq "0" "${RUN_STATUS}" "preflight progress dry-run exits cleanly"
+  assert_contains "${RUN_STDOUT}" "🚀 [START] Preparing Terraform state bucket operation" "startup progress is reported"
+  assert_contains "${RUN_STDOUT}" "🔐 [IDENTITY] Verifying AWS caller and expected account" "identity progress is reported"
+  assert_contains "${RUN_STDOUT}" "✅ [IDENTITY] AWS account verified: sandbox" "identity completion is reported"
+  assert_contains "${RUN_STDOUT}" "🪣 [BUCKET] Inspecting bucket my-tf-state accessibility and current state" "bucket inspection progress is reported"
+  assert_contains "${RUN_STDOUT}" "✅ [BUCKET] Mode detected: 🆕 CREATE" "bucket mode completion is reported"
+}
+
 test_create_mode_uses_recovery_baseline_without_object_lock() {
   reset_logs
   export FAKE_ACCOUNT_NAME="sandbox"
@@ -289,6 +304,7 @@ main() {
     test_invalid_tag_format_is_rejected
     test_account_name_mismatch_fails
     test_dry_run_create_mode
+    test_dry_run_reports_preflight_progress
     test_create_mode_uses_recovery_baseline_without_object_lock
     test_dry_run_forbidden_bucket_is_read_only_and_non_interactive
     test_update_mode_applies_controls

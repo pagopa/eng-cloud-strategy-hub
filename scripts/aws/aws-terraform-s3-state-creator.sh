@@ -682,8 +682,19 @@ main() {
   require_command jq
   build_aws_cmd
 
+  log_info "🚀 [START] Preparing Terraform state bucket operation"
+  log_info "🔐 [IDENTITY] Verifying AWS caller and expected account"
   collect_identity
+  log_success "[IDENTITY] AWS account verified: ${CALLER_ACCOUNT_NAME} (${CALLER_ACCOUNT_ID})"
+
+  log_info "🪣 [BUCKET] Inspecting bucket ${BUCKET_NAME} accessibility and current state"
   detect_bucket_mode
+  if [[ "${BUCKET_ACCESS_VERIFIED}" == false ]]; then
+    log_warn "[BUCKET] Access could not be verified; continuing with a read-only dry-run plan"
+  else
+    log_success "[BUCKET] Mode detected: $(operation_emoji) $(operation_label)"
+  fi
+
   build_default_tags
 
   render_report
