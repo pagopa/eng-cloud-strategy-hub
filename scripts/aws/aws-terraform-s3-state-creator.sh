@@ -396,6 +396,18 @@ build_tagging_payload() {
   printf '%s' "${tagging_payload}"
 }
 
+print_report_control() {
+  local icon="$1"
+  local title="$2"
+  local details="$3"
+  local benefit="$4"
+
+  printf '  - %s %s\n' "${icon}" "${title}"
+  printf '      Details : %s\n' "${details}"
+  printf '      Benefit : %s\n' "${benefit}"
+  echo ""
+}
+
 render_report() {
   local planned_operation
   planned_operation="$(operation_label)"
@@ -425,15 +437,58 @@ render_report() {
   fi
   echo ""
   echo "🛡️ Controls to enforce:"
-  echo "  - 🧾 Versioning enabled and verified after apply"
-  echo "  - 🚫 Public access blocked at bucket level (ACL + bucket policy public exposure prevented)"
-  echo "  - 👤 Object Ownership: BucketOwnerEnforced"
-  echo "  - 🔐 Default encryption: SSE-S3 (AES256)"
-  echo "  - 🌐 TLS-only bucket policy (preserve existing statements and deny non-HTTPS requests)"
-  echo "  - ♻️ Recovery baseline: S3 versioning will be enabled on apply"
-  echo "  - 🧱 Object Lock: not managed by recovery baseline"
-  echo "  - ⏳ Lifecycle retention: existing rules are not modified by this script"
-  echo "  - 🏷️  Tags merged (existing + defaults + optional --tag values)"
+  if [[ "${BUCKET_MODE}" == "create" ]]; then
+    print_report_control \
+      "🪣" \
+      "Bucket creation" \
+      "Dedicated S3 bucket for Terraform state" \
+      "Isolates state data from other workloads"
+  fi
+  print_report_control \
+    "🧾" \
+    "Versioning" \
+    "Enabled and verified after apply" \
+    "Recovers earlier state versions after accidental overwrites or deletions"
+  print_report_control \
+    "🚫" \
+    "Public access" \
+    "Blocked at bucket level (ACL + bucket policy public exposure prevented)" \
+    "Prevents accidental public exposure of Terraform state"
+  print_report_control \
+    "👤" \
+    "Object Ownership" \
+    "BucketOwnerEnforced" \
+    "Keeps object ownership with the bucket account and removes ACL-based ambiguity"
+  print_report_control \
+    "🔐" \
+    "Default encryption" \
+    "SSE-S3 (AES256)" \
+    "Protects state data at rest by default"
+  print_report_control \
+    "🌐" \
+    "TLS-only bucket policy" \
+    "Existing statements preserved; non-HTTPS requests denied" \
+    "Blocks state transfers over unencrypted connections"
+  print_report_control \
+    "♻️" \
+    "Recovery baseline" \
+    "S3 versioning will be enabled on apply" \
+    "Provides a recovery path for state changes"
+  print_report_control \
+    "🧱" \
+    "Object Lock" \
+    "Not managed by recovery baseline" \
+    "Keeps retention policy reversible and explicit"
+  print_report_control \
+    "⏳" \
+    "Lifecycle retention" \
+    "Existing rules are not modified by this script" \
+    "Preserves current retention behavior and avoids unintended deletion"
+  print_report_control \
+    "🏷️" \
+    "Tags" \
+    "Merged (existing + defaults + optional --tag values)" \
+    "Improves ownership, searchability, and governance"
   echo ""
   echo "Tags to merge:"
   local tag_pair

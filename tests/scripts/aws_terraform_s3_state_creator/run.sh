@@ -123,8 +123,8 @@ test_dry_run_create_mode() {
   assert_eq "0" "${RUN_STATUS}" "dry-run create mode exits cleanly"
   assert_contains "${RUN_STDOUT}" "Operation     : 🆕 CREATE - new bucket will be created before applying baseline controls" "plan reports create operation"
   assert_contains "${RUN_STDOUT}" "🧭 Terraform State Bucket Plan" "plan has a clear visual heading"
-  assert_contains "${RUN_STDOUT}" "♻️ Recovery baseline: S3 versioning will be enabled on apply" "plan explains the recovery baseline"
-  assert_contains "${RUN_STDOUT}" "🧱 Object Lock: not managed by recovery baseline" "plan makes Object Lock scope explicit"
+  assert_contains "${RUN_STDOUT}" "      Benefit : Provides a recovery path for state changes" "plan explains the recovery baseline"
+  assert_contains "${RUN_STDOUT}" "      Details : Not managed by recovery baseline" "plan makes Object Lock scope explicit"
   assert_not_contains "${RUN_STDOUT}" "Mode          :" "plan omits duplicate mode row"
   assert_not_contains "${RUN_STDOUT}" "Bucket State  :" "plan omits duplicate bucket state row"
   assert_contains "${RUN_STDOUT}" "[🆕 CREATE] 🪣 BUCKET — DRY-RUN: s3api create-bucket" "dry-run create action is labeled"
@@ -134,6 +134,27 @@ test_dry_run_create_mode() {
   assert_aws_log_contains "organizations describe-account" "account name lookup was executed"
   assert_aws_log_contains "s3api head-bucket" "bucket mode detection was executed"
   assert_aws_log_not_contains "s3api put-bucket-tagging" "dry-run skips mutating calls"
+}
+
+test_dry_run_explains_control_benefits() {
+  reset_logs
+  export FAKE_ACCOUNT_NAME="sandbox"
+  export FAKE_HEAD_BUCKET_MODE="notfound"
+  run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --dry-run --yes
+  unset FAKE_ACCOUNT_NAME
+  unset FAKE_HEAD_BUCKET_MODE
+  assert_eq "0" "${RUN_STATUS}" "dry-run benefit report exits cleanly"
+  assert_contains "${RUN_STDOUT}" $'  - 🪣 Bucket creation\n      Details : Dedicated S3 bucket for Terraform state\n      Benefit : Isolates state data from other workloads' "bucket creation uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - 🧾 Versioning\n      Details : Enabled and verified after apply\n      Benefit : Recovers earlier state versions after accidental overwrites or deletions' "versioning uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - 🚫 Public access\n      Details : Blocked at bucket level (ACL + bucket policy public exposure prevented)\n      Benefit : Prevents accidental public exposure of Terraform state' "public access uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - 👤 Object Ownership\n      Details : BucketOwnerEnforced\n      Benefit : Keeps object ownership with the bucket account and removes ACL-based ambiguity' "ownership uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - 🔐 Default encryption\n      Details : SSE-S3 (AES256)\n      Benefit : Protects state data at rest by default' "encryption uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - 🌐 TLS-only bucket policy\n      Details : Existing statements preserved; non-HTTPS requests denied\n      Benefit : Blocks state transfers over unencrypted connections' "transport uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - ♻️ Recovery baseline\n      Details : S3 versioning will be enabled on apply\n      Benefit : Provides a recovery path for state changes' "recovery baseline uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - 🧱 Object Lock\n      Details : Not managed by recovery baseline\n      Benefit : Keeps retention policy reversible and explicit' "object lock uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - ⏳ Lifecycle retention\n      Details : Existing rules are not modified by this script\n      Benefit : Preserves current retention behavior and avoids unintended deletion' "lifecycle uses the readable layout"
+  assert_contains "${RUN_STDOUT}" $'  - 🏷️ Tags\n      Details : Merged (existing + defaults + optional --tag values)\n      Benefit : Improves ownership, searchability, and governance' "tagging uses the readable layout"
+  assert_not_contains "${RUN_STDOUT}" " — Benefit:" "benefits are not concatenated with feature details"
 }
 
 test_dry_run_reports_preflight_progress() {
@@ -304,6 +325,7 @@ main() {
     test_invalid_tag_format_is_rejected
     test_account_name_mismatch_fails
     test_dry_run_create_mode
+    test_dry_run_explains_control_benefits
     test_dry_run_reports_preflight_progress
     test_create_mode_uses_recovery_baseline_without_object_lock
     test_dry_run_forbidden_bucket_is_read_only_and_non_interactive
