@@ -27,6 +27,7 @@ CALLER_ARN=""
 CALLER_ACCOUNT_ID=""
 CALLER_ACCOUNT_NAME=""
 BUCKET_MODE=""
+BUCKET_ACCESS_VERIFIED=true
 
 operation_label() {
   if [[ "${BUCKET_MODE}" == "create" ]]; then
@@ -47,6 +48,11 @@ operation_emoji() {
 }
 
 operation_plan_summary() {
+  if [[ "${BUCKET_ACCESS_VERIFIED}" == false ]]; then
+    printf '%s' 'access could not be verified; showing a read-only update plan'
+    return
+  fi
+
   if [[ "${BUCKET_MODE}" == "create" ]]; then
     printf '%s' 'new bucket will be created before applying baseline controls'
     return
@@ -56,23 +62,28 @@ operation_plan_summary() {
 }
 
 log_bucket_step() {
-  log_info "[$(operation_emoji) $(operation_label)] $*"
+  local log_icon='ℹ️ '
+  if [[ "${DRY_RUN}" == true ]]; then
+    log_icon='🧪'
+  fi
+
+  printf '%s [%s %s] %s\n' "${log_icon}" "$(operation_emoji)" "$(operation_label)" "$*"
 }
 
 log_info() {
-  echo "ℹ️  $*"
+  printf 'ℹ️  %s\n' "$*"
 }
 
 log_success() {
-  echo "✅ $*"
+  printf '✅ %s\n' "$*"
 }
 
 log_warn() {
-  echo "⚠️  $*"
+  printf '⚠️  %s\n' "$*"
 }
 
 log_error() {
-  echo "❌ $*" >&2
+  printf '❌ %s\n' "$*" >&2
 }
 
 die() {
@@ -282,6 +293,12 @@ detect_bucket_mode() {
   fi
 
   if echo "${output}" | grep -Eiq '403|forbidden|accessdenied'; then
+    if [[ "${DRY_RUN}" == true ]]; then
+      BUCKET_MODE="update"
+      BUCKET_ACCESS_VERIFIED=false
+      return
+    fi
+
     die "Bucket exists but is not accessible with current credentials: ${BUCKET_NAME}"
   fi
 
@@ -391,12 +408,21 @@ render_report() {
   echo "Region        : ${REGION}"
   echo "Bucket        : ${BUCKET_NAME}"
   echo "Operation     : $(operation_emoji) ${planned_operation} - $(operation_plan_summary)"
-  echo "Dry Run       : ${DRY_RUN}"
+  if [[ "${DRY_RUN}" == true ]]; then
+    echo "Execution mode : 🧪 DRY-RUN (read-only)"
+  else
+    echo "Execution mode : ⚙️  APPLY (mutating)"
+  fi
+  if [[ "${BUCKET_ACCESS_VERIFIED}" == false ]]; then
+    echo "Access check  : ⚠️  Not verified (HTTP 403; dry-run plan only)"
+  else
+    echo "Access check  : ✅ Verified"
+  fi
   if [[ -n "${PROFILE}" ]]; then
     echo "Profile       : ${PROFILE}"
   fi
   echo ""
-  echo "Security controls to apply:"
+  echo "Controls to enforce:"
   echo "  - 🧾 Versioning enabled"
   echo "  - 🚫 Public access blocked at bucket level (ACL + bucket policy public exposure prevented)"
   echo "  - 👤 Object Ownership: BucketOwnerEnforced"
@@ -409,7 +435,7 @@ render_report() {
   fi
   echo "  - 🏷️  Tags merged (existing + defaults + optional --tag values)"
   echo ""
-  echo "Tags:"
+  echo "Tags to merge:"
   local tag_pair
   for tag_pair in "${DEFAULT_TAGS[@]}"; do
     echo "  - ${tag_pair}"
@@ -423,6 +449,11 @@ render_report() {
 }
 
 confirm_or_exit() {
+  if [[ "${DRY_RUN}" == true ]]; then
+    log_bucket_step "Dry-run selected; confirmation is not required"
+    return
+  fi
+
   if [[ "${ASSUME_YES}" == true ]]; then
     log_bucket_step "Confirmation bypassed with --yes"
     return

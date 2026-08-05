@@ -133,6 +133,22 @@ test_dry_run_create_mode() {
   assert_aws_log_not_contains "s3api put-bucket-tagging" "dry-run skips mutating calls"
 }
 
+test_dry_run_forbidden_bucket_is_read_only_and_non_interactive() {
+  reset_logs
+  export FAKE_ACCOUNT_NAME="sandbox"
+  export FAKE_HEAD_BUCKET_MODE="forbidden"
+  run_script "" --region eu-south-1 --account-name sandbox --bucket my-tf-state --dry-run
+  unset FAKE_ACCOUNT_NAME
+  unset FAKE_HEAD_BUCKET_MODE
+  assert_eq "0" "${RUN_STATUS}" "dry-run with an inaccessible bucket exits cleanly"
+  assert_contains "${RUN_STDOUT}" "Execution mode : 🧪 DRY-RUN (read-only)" "dry-run mode is explicit in the plan"
+  assert_contains "${RUN_STDOUT}" "access could not be verified" "dry-run explains the inaccessible bucket"
+  assert_contains "${RUN_STDOUT}" "Dry run completed" "dry-run completion is reported"
+  assert_not_contains "${RUN_STDOUT}" "Proceed with" "dry-run does not ask for confirmation"
+  assert_aws_log_not_contains "s3api create-bucket" "dry-run does not create an inaccessible bucket"
+  assert_aws_log_not_contains "s3api put-bucket" "dry-run skips bucket mutations"
+}
+
 test_update_mode_applies_controls() {
   reset_logs
   export FAKE_ACCOUNT_NAME="sandbox"
@@ -239,6 +255,7 @@ main() {
     test_invalid_tag_format_is_rejected
     test_account_name_mismatch_fails
     test_dry_run_create_mode
+    test_dry_run_forbidden_bucket_is_read_only_and_non_interactive
     test_update_mode_applies_controls
     test_update_mode_uses_expected_bucket_owner
     test_update_mode_merges_existing_bucket_policy
