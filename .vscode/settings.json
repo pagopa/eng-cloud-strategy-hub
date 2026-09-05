@@ -1,4 +1,16 @@
 {
-  "chat.useInstructionFiles": false,
-  "chat.useAgentsMdFile": true
+  "python.testing.pytestArgs": [
+    "tests"
+  ],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "chat.permissions.default": "default",
+  "chat.tools.global.autoApprove": false,
+  "chat.tools.terminal.autoReplyToPrompts": false,
+  "chat.tools.terminal.enableAutoApprove": false,
+  "github.copilot.chat.codeGeneration.useInstructionFiles": false,
+  "chat.instructionsFilesLocations": {
+    ".github/instructions": false
+  },
+  "python-envs.defaultEnvManager": "ms-python.python:system"
 }

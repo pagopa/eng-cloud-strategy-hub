@@ -2,6 +2,17 @@
 
 Marks inactive pull requests as stale and optionally closes them after an additional inactivity window.
 
+## Contents
+
+- [Self-Contained Contract](#self-contained-contract)
+- [Behavior](#behavior)
+- [Inputs](#inputs)
+- [Minimum Permissions](#minimum-permissions)
+- [Usage](#usage)
+- [How It Works](#how-it-works)
+- [Troubleshooting](#troubleshooting)
+- [Validation](#validation)
+
 ## Self-Contained Contract
 
 - This action manages only pull request stale and close behavior.
@@ -139,3 +150,13 @@ steps:
 
 - Lower `operations-per-run`.
 - Run the workflow more frequently if the repository has many open PRs.
+
+## Validation
+
+Keep the input table aligned with [`action.yml`](action.yml) and run the
+repository's `actionlint` and pre-commit checks against caller workflows. The
+checked-in usage examples cover the default, mark-only, and custom-message
+contracts.
+
+No diagram is provided because this action owns one linear pull-request stale
+and close boundary, fully described by its behavior and input sections.
