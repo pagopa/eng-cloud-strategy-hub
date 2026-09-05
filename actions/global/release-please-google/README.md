@@ -2,6 +2,20 @@
 
 Runs `googleapis/release-please-action` in manifest mode through a repository-owned composite action.
 
+## Contents
+
+- [Self-Contained Contract](#self-contained-contract)
+- [When To Use It](#when-to-use-it)
+- [Behavior](#behavior)
+- [Inputs](#inputs)
+- [Outputs](#outputs)
+- [Minimum Permissions](#minimum-permissions)
+- [Force-release trigger](#force-release-trigger)
+- [Usage](#usage)
+- [Consumer Configuration Files](#consumer-configuration-files)
+- [Auto-Merge Details](#auto-merge-details)
+- [Validation](#validation)
+
 ## Self-Contained Contract
 
 - This action owns one release-please workflow contract end to end.
@@ -238,6 +252,17 @@ Example `.release-please-manifest.json`:
   - author looks like a bot or GitHub App identity
 - Auto-merge uses `gh pr merge --auto` with the requested merge method.
 - Auto-merge passes `--delete-branch`, so GitHub deletes the remote release branch after the PR is merged.
+
+## Validation
+
+Keep the input and output tables aligned with [`action.yml`](action.yml) and
+run the repository's `actionlint` and pre-commit checks against caller
+workflows. The checked-in usage examples are the smallest reviewable contract
+for this action.
+
+No diagram is provided because this action owns one release-please boundary and
+its contract is described more precisely by the input, output, and behavior
+sections above.
 - The wrapper does not perform a direct blind merge.
 - If a release PR has merge conflicts, the wrapper keeps the PR open, logs a warning, and continues with the other release PRs.
 - If GitHub reports that auto-merge is unavailable for a release PR, the wrapper keeps the PR open, logs a warning, and continues with the other release PRs.

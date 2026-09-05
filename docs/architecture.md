@@ -1,89 +1,152 @@
-# AI Architecture Contract v1.2.0
+# Architecture
 
-## Repository
+## 1. Purpose
 
-`eng-cloud-strategy-hub` is a governance and enablement repository for GitHub Copilot customization, repository automation, and cross-cloud Terraform wrapper tooling.
+`eng-cloud-strategy-hub` is a governance and enablement repository for Copilot customization, reusable GitHub Actions, cross-cloud Terraform wrappers, local workflow simulation, and offline validation. It has no single deployable application and does not own live cloud state.
 
-## Purpose
+## 2. System overview
 
-The repository does not host a single deployable application. It centralizes:
+The repository has three documented knowledge domains: Copilot customization, reusable automation, and Terraform operator tooling. The executable flow is driven by repository instructions and workflows, with local simulation and shell fixtures providing offline feedback.
 
-- Copilot governance assets under `.github/`.
-- Reusable automation under `actions/`.
-- Local workflow simulation tooling under `tools/`.
-- Cross-cloud Terraform operator wrappers under `scripts/`.
-- Offline validation assets under `tests/`.
-- Documentation and retained planning artifacts under `docs/` and `tmp/superpowers/`.
-- Reserved placeholder roots under `code/` and `terraform/`.
-
-## System Boundaries
-
-In scope:
-
-- Instruction architecture, skills, agents, prompts, and workflow governance under `.github/`.
-- Composite automation assets such as `actions/global/stale-close-pr/`, `actions/global/release/`, `actions/global/pr-title/`, and `actions/global/pre-commit/`.
-- Local workflow simulation tools under `tools/validate_repo_locally/` and the root `validate-repo-locally.sh` launcher.
-- AWS, Azure, and GCP Terraform wrappers under `scripts/aws/`, `scripts/azure/`, and `scripts/gcp/`.
-- Offline simulation fixtures and shell-based tests under `tests/scripts/terraform_wrappers/`.
-- Repository documentation and retained execution plans under `docs/` and `tmp/superpowers/`.
-
-Out of scope:
-
-- Live cloud resource state, remote Terraform backends, or production environment ownership.
-- Consumer application runtime code.
-- Long-lived credentials, secrets, or provider-specific governance data owned elsewhere.
-
-## Main Components
-
-| Component | Path | Responsibility |
-| --- | --- | --- |
-| Instruction bridge | `AGENTS.md` | Defines repository-wide Copilot governance, precedence, and operating model. |
-| Copilot governance layer | `.github/` | Hosts instructions, skills, agents, templates, workflows, and inventory metadata. |
-| Reusable actions | `actions/global/` | Provides composite release, PR title validation, pre-commit, and PR stale/auto-close automation consumed by repository workflows. |
-| Local action simulator | `tools/validate_repo_locally/`, `validate-repo-locally.sh` | Runs local equivalents of selected workflow checks before GitHub-hosted CI. |
-| Terraform wrappers | `scripts/aws/`, `scripts/azure/`, `scripts/gcp/` | Expose a shared operator-facing CLI contract for Terraform across the three cloud providers. |
-| Wrapper simulation suite | `tests/scripts/terraform_wrappers/` | Verifies wrapper parity offline with fake CLIs, fixtures, and shell assertions. |
-| Documentation surface | `docs/` | Stores architecture and other repository-owned technical documentation. |
-| Retained planning workspace | `tmp/superpowers/` | Keeps non-runtime execution plans and work-in-progress artifacts. |
-| Reserved placeholders | `code/`, `terraform/` | Hold space for future assets but are not active architecture surfaces today. |
-
-## Architecture Flow
-
-```text
-Governance rules, instructions, and reusable automation
-  -> repository workflows and local validation enforce the baseline
-  -> cross-cloud Terraform wrappers expose a common operator contract
-  -> offline simulation tests guard wrapper behavior across AWS, Azure, and GCP
+```mermaid
+flowchart LR
+  accTitle: Hub architecture flow
+  accDescr: Repository workflows call composite actions, Copilot entrypoints, and Terraform tooling, while local validation runs offline checks.
+  Workflows[".github workflows"] --> Actions["actions/global composite actions"]
+  Workflows --> Copilot["Copilot entrypoints"]
+  Workflows --> Scripts["Terraform wrappers"]
+  Tools["local simulator"] --> Copilot
+  Tools --> Tests["offline simulation suites"]
+  Tests --> Scripts
 ```
 
-The repository is architecture-by-governance rather than architecture-by-runtime. The most active executable surface is the Terraform wrapper layer plus its simulation suite.
+The diagram describes current repository relationships, not a deployment topology. Live cloud resources, remote backends, and consumer application runtimes are outside this repository.
 
-## Validation Surface
+## 3. Current vs intended architecture
 
-Observed validation surfaces include:
+| Area | Current architecture | Intended architecture | Status | Evidence |
+| --- | --- | --- | --- | --- |
+| Repository role | Governance, reusable automation, operator wrappers, and validation are kept in one repository. | No separate intended shape is evidenced. | Documented | `README.md`, `AGENTS.local.md` |
+| Provider wrappers | AWS, Azure, and GCP wrappers remain separate files with an aligned command contract. | Preserve separate provider adapters while keeping behavior aligned through simulations. | Documented | `scripts/*/terraform.sh`, `tests/scripts/terraform_wrappers/run.sh` |
+| Knowledge layout | The context map and domain glossaries document three domains, while `AGENTS.local.md` still declares a single-context layout. | Use `CONTEXT-MAP.md` and one glossary per evidenced domain. | Documented | `AGENTS.local.md`, `docs/agents/domain.md`, `CONTEXT-MAP.md`, `docs/adr/0001-context-map.md` |
 
-- `.pre-commit-config.yaml` for YAML, JSON, shell, Python, Terraform, and workflow linting baselines.
-- Workflows `_pre-commit.yml`, `pr-stale-close.yml`, `pr-title.yml`, `release.yml`, and `terraform-sh-tests.yml`, with shared workflow logic delegated to `actions/global/` where practical.
-- Local workflow simulation through `./validate-repo-locally.sh` for `_code-analysis.yml`, `_pre-commit.yml`, and `terraform-sh-tests.yml`, with a non-interactive default path and an optional interactive selector.
-- The shell-based simulation suite at `tests/scripts/terraform_wrappers/run.sh`.
-- Local shell validation via `bash -n` and `shellcheck` for the wrapper and test scripts.
+## 4. Technology stack
 
-## Operational Notes
+| Area | Technology | Status | Evidence |
+| --- | --- | --- | --- |
+| Workflow automation | GitHub Actions YAML and composite actions | Evidenced | `.github/workflows/`, `actions/global/*/action.yml` |
+| Operator wrappers | Bash | Evidenced | `scripts/**/*.sh`, `validate-repo-locally.sh` |
+| Local simulation | Python standard library with optional interactive dependencies | Evidenced | `tools/validate_repo_locally/validate_repo_locally.py`, `tools/validate_repo_locally/requirements.txt` |
+| Infrastructure command surface | Terraform plus AWS CLI, Azure CLI, and gcloud | Evidenced | `scripts/aws/terraform.sh`, `scripts/azure/terraform.sh`, `scripts/gcp/terraform.sh` |
+| Validation | pre-commit, actionlint, ShellCheck, pytest, and shell assertions | Evidenced | `.pre-commit-config.yaml`, `.github/workflows/`, `tests/` |
 
-- The three Terraform wrappers intentionally remain separate files with a shared CLI contract instead of a common Bash library.
-- `validate-repo-locally.sh` stays CI-safe by default and bootstraps the toolkit-local virtual environment at `tools/validate_repo_locally/.venv` from the hash-locked `tools/validate_repo_locally/requirements.txt` only when `--interactive` is requested.
-- `tests/scripts/terraform_wrappers/fixtures/` is synthetic and exists only to validate wrapper behavior without cloud credentials or remote state.
-- `code/` and `terraform/` are placeholders today and should not be documented as active delivery surfaces until real assets exist there.
-- `tmp/superpowers/` is a retained working area, not a shipped runtime or reusable API surface.
+## 5. Repository map
 
-## Risks And Open Questions
-
-| Risk | Current evidence | Recommended handling |
+| Path | Responsibility | Notes |
 | --- | --- | --- |
-| Wrapper parity can drift | The shared CLI contract is duplicated across three provider-specific scripts. | Keep behavior changes synchronized with the simulation suite and the dedicated workflow. |
-| Placeholder roots can be over-interpreted | `code/` and `terraform/` currently contain only `.gitkeep`. | Treat them as reserved space until first-class assets are added and documented. |
-| Retained plans can become stale | `tmp/superpowers/` stores execution plans beside active repository code. | Keep plan files updated while work is active and remove or archive them when the work closes. |
+| `AGENTS.md`, `AGENTS.local.md` | Repository operating policy | Read before structural changes. |
+| `.github/` | Copilot instructions, workflows, templates, and validation scripts | Source-managed governance surface. |
+| `actions/global/` | Reusable composite actions | Each action has its own `action.yml` and README. |
+| `scripts/` | Provider wrappers and AWS state bootstrap script | Provider-specific files share a CLI shape. |
+| `tools/validate_repo_locally/` | Local workflow simulator | Default execution is non-interactive and dependency-light. |
+| `tests/` | Python tests and shell simulation suites | Fixtures use fake CLIs and synthetic state. |
+| `docs/` | Architecture and agent-facing documentation | Domain map and ADRs are repository-wide. |
+| `code/` | Reserved release package path | Contains release metadata and no implementation entrypoint. |
+| `terraform/` | Reserved placeholder | Contains only `.gitkeep`; not an active delivery surface. |
+| `tmp/` | Retained plans and disposable diagnostics | Not a shipped runtime or reusable API. |
 
-## Contract Status
+## 6. Architectural boundaries
 
-This repository is ready for AI Architecture Contract v1.2.0 as a governance and operator-tooling hub. Any future addition of deployable application code, Terraform modules, or other first-class runtime assets should update this contract in the same change.
+- `.github/` is the source for repository governance and workflow entrypoints; `actions/` is the source for reusable composite action implementations. Status: Evidenced. Evidence: `.github/`, `actions/global/`.
+- `scripts/` owns provider wrapper behavior; `tests/scripts/` owns offline simulation and fixtures. Status: Evidenced. Evidence: `scripts/`, `tests/scripts/terraform_wrappers/`, `.github/workflows/terraform-sh-tests.yml`.
+- `tools/validate_repo_locally/` coordinates selected local checks but does not replace GitHub-hosted workflows. Status: Evidenced. Evidence: `tools/validate_repo_locally/validate_repo_locally.py`, `validate-repo-locally.sh`.
+- Live cloud state, remote Terraform backends, consumer applications, long-lived credentials, and provider governance data are outside the repository boundary. Status: Documented. Evidence: `README.md`, `scripts/README.md`.
+
+## 7. Dependency rules
+
+### Allowed direction
+
+- Repository instructions and `.github/` workflow definitions may govern local validation and reusable action usage.
+- Workflows and the local simulator may invoke scripts and test suites through their documented entrypoints.
+- Tests may invoke wrappers through fake CLIs and synthetic fixtures.
+- Provider wrappers may invoke Terraform and their provider CLI when the operator supplies the required execution context.
+
+### Avoid / forbidden
+
+- Do not make local simulation the source of truth for GitHub-hosted workflow behavior.
+- Do not make wrapper tests depend on live cloud accounts or remote Terraform backends.
+- Do not place live state, credentials, or consumer application runtime code in this repository.
+- Do not introduce a shared Bash library merely to unify the three wrappers; their separate-file boundary is documented and tested.
+
+## 8. Key flows
+
+### Runtime flow
+
+An operator invokes a Terraform wrapper with an action and an environment
+argument or `noenv`. The wrapper resolves backend and variable-file inputs,
+optionally performs provider CLI context checks, then invokes Terraform or
+prints the commands when `--dry-run` is used. Evidence:
+`scripts/aws/terraform.sh`, `scripts/azure/terraform.sh`,
+`scripts/gcp/terraform.sh`.
+
+### Build/test flow
+
+`./validate-repo-locally.sh` delegates to the Python runner. The runner exposes workflow-mapped steps for actionlint, shell analysis, Copilot entrypoint smoke tests, pre-commit, Terraform wrapper simulations, and the AWS state creator suite. Evidence: `validate-repo-locally.sh`, `tools/validate_repo_locally/validate_repo_locally.py`.
+
+### Deployment/operations flow
+
+No repository-owned application deployment flow is evidenced. The AWS state creator is an operator bootstrap script, not a general deployment pipeline. Evidence: `scripts/aws/aws-terraform-s3-state-creator.sh`, `.github/workflows/terraform-sh-tests.yml`.
+
+## 9. Configuration and environment
+
+- Release configuration is split between `release-please-config.json` and `.release-please-manifest.json`, with package paths for the repository root, `scripts`, and `actions`.
+- Workflow behavior is configured in `.github/workflows/` and `.pre-commit-config.yaml`.
+- The local simulator accepts `--root`, `--only`, `--skip`, `--interactive`, `--fail-fast`, `--dry-run`, and `--tmp-dir`; the root launcher forwards these options.
+- Wrapper configuration is discovered from provider-specific environment or project directories, optional `--tfvars` overrides, and provider environment variables such as `TF_STATE_PROJECT_ID` in the GCP wrapper.
+- Defaults and input validation are owned by the relevant `action.yml` or script. No secret values are documented here.
+
+## 10. Testing and validation
+
+| Change type | Suggested validation | Evidence |
+| --- | --- | --- |
+| Workflow or composite action | `./validate-repo-locally.sh --only actionlint`, plus the relevant action smoke or consumer check | `.github/workflows/_code-analysis.yml`, `tools/validate_repo_locally/validate_repo_locally.py` |
+| Bash wrapper or shell fixture | `bash -n`, `shellcheck`, and `make terraform-wrapper-tests` or `make aws-s3-state-creator-tests` | `.github/workflows/terraform-sh-tests.yml`, `Makefile` |
+| Python runner or action helper | `python3 -m pytest -q tests/` and the relevant local simulator step | `tests/`, `tools/validate_repo_locally/` |
+| YAML, JSON, Terraform, or broad repository change | `pre-commit run --all-files --config .pre-commit-config.yaml` when the pinned container or local toolchain is available | `.pre-commit-config.yaml`, `.github/workflows/_pre-commit.yml` |
+
+The workflow and local checks may require tools such as actionlint, ShellCheck, Docker, Terraform, or provider CLIs. When a dependency is unavailable, report that check as not run rather than treating another check as equivalent coverage.
+
+## 11. Architectural decisions visible in the repo
+
+| Decision | Status | Evidence | Trade-off | Related ADR |
+| --- | --- | --- | --- | --- |
+| Keep provider wrappers as separate files with an aligned CLI contract. | Documented | `scripts/aws/terraform.sh`, `scripts/azure/terraform.sh`, `scripts/gcp/terraform.sh`, `tests/scripts/terraform_wrappers/run.sh` | Duplicates some shell logic but keeps provider-specific behavior explicit. | None |
+| Use a context map for the three evidenced knowledge domains. | Accepted | `CONTEXT-MAP.md`, `docs/agents/domain.md` | Adds navigation files, but avoids forcing unrelated vocabulary into one glossary. | `docs/adr/0001-context-map.md` |
+
+## 12. AI-agent working rules
+
+- Read this document and the applicable `AGENTS.md` files before structural changes.
+- Prefer existing repository patterns over new abstractions.
+- Do not introduce new frameworks or cross-cutting refactors without explicit approval.
+- Preserve existing patterns, boundaries, generated blocks, and user changes.
+- Keep changes scoped to the owning component and update this document when an intentional architectural boundary changes.
+- Report conflicts between declarations and on-disk evidence before editing.
+
+## 13. Last verified
+
+- Verification date: 2026-09-01.
+- Agent or tool: GitHub Copilot using the `internal-knowledge` bootstrap workflow.
+- Files inspected: repository instructions, root README, existing architecture, `.github/`, `actions/global/`, `scripts/`, `tools/validate_repo_locally/`, `tests/`, release configuration, and validation workflows.
+- Commands considered: `bash -n`, ShellCheck, actionlint, pre-commit, pytest, the Makefile suites, and `./validate-repo-locally.sh`.
+- Confidence: high for repository structure and local validation ownership; unknown for live cloud behavior because no live execution was attempted.
+
+## 14. Unknown / To verify
+
+- `AGENTS.local.md` still declares a single-context layout while the accepted
+  ADR, context map, and agent-facing domain guide declare a multi-context
+  layout. Repository policy is outside this documentation workflow's write
+  boundary and requires a separately authorized alignment.
+- Whether every consumer repository uses the same reusable action version and permission model is not evidenced locally.
+- Whether the AWS state creator has an operational owner outside this repository is not evidenced.
+- The intended future contents of the reserved `code/` and `terraform/` roots are unknown.
+- No repository-owned application deployment architecture is evidenced.
