@@ -108,7 +108,9 @@ def is_release_please_title(title: str) -> bool:
 
 def is_release_please_author(author_login: str) -> bool:
     login = author_login.lower()
-    return "[bot]" in login or login.startswith("app/") or login == "github-actions"
+    return (
+        login.endswith("[bot]") or login.startswith("app/") or login == "github-actions"
+    )
 
 
 def pr_url(server_url: str, repository: str, number: int) -> str:

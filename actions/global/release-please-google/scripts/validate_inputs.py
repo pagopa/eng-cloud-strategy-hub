@@ -72,11 +72,14 @@ def validate_json_file(path: Path, label: str) -> None:
         raise ValueError(f"{label} file not found: {path}")
 
     try:
-        json.loads(path.read_text(encoding="utf-8"))
+        document = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
         raise ValueError(
             f"{label} file must be valid JSON: {path}: {error.msg}"
         ) from error
+
+    if not isinstance(document, dict):
+        raise ValueError(f"{label} file must contain a JSON object: {path}")
 
 
 def resolve_workspace_file(

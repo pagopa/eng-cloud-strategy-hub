@@ -8,13 +8,9 @@ from pathlib import Path
 from types import ModuleType
 from unittest.mock import patch
 
-ROOT = Path(__file__).resolve().parents[3]
-AUTO_MERGE_PATH = (
-    ROOT / "actions/global/release-please-google/scripts/auto_merge_release_pr.py"
-)
-VALIDATOR_PATH = (
-    ROOT / "actions/global/release-please-google/scripts/validate_inputs.py"
-)
+ACTION_ROOT = Path(__file__).resolve().parents[1]
+AUTO_MERGE_PATH = ACTION_ROOT / "scripts/auto_merge_release_pr.py"
+VALIDATOR_PATH = ACTION_ROOT / "scripts/validate_inputs.py"
 
 
 def load_module(path: Path, module_name: str) -> ModuleType:
@@ -55,6 +51,12 @@ class AutoMergeReleasePrTests(unittest.TestCase):
         for title in rejected_titles:
             with self.subTest(title=title):
                 self.assertFalse(auto_merge.is_release_please_title(title))
+
+    def test_is_release_please_author_rejects_bot_marker_inside_login(self) -> None:
+        self.assertTrue(auto_merge.is_release_please_author("release-please[bot]"))
+        self.assertFalse(
+            auto_merge.is_release_please_author("release[bot]-impersonator")
+        )
 
     def test_normalize_release_please_outputs_filters_release_prs(self) -> None:
         release_prs = auto_merge.normalize_release_please_outputs(
@@ -108,9 +110,7 @@ class AutoMergeReleasePrTests(unittest.TestCase):
     def test_resolve_release_prs_skips_missing_gh_when_auto_merge_is_disabled(
         self,
     ) -> None:
-        original_gh_available = auto_merge.gh_available
-        try:
-            auto_merge.gh_available = lambda: False
+        with patch.object(auto_merge, "gh_available", return_value=False):
             release_prs = auto_merge.resolve_release_prs(
                 {
                     "RP_TARGET_BRANCH": "main",
@@ -121,8 +121,6 @@ class AutoMergeReleasePrTests(unittest.TestCase):
                 },
                 allow_fallback=True,
             )
-        finally:
-            auto_merge.gh_available = original_gh_available
 
         self.assertEqual([], release_prs)
 
@@ -316,6 +314,24 @@ class ReleasePleaseValidateInputsTests(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 ValueError, "release-please config file must be valid JSON"
+            ):
+                validate_inputs.validate_consumer_files(
+                    {
+                        "GITHUB_WORKSPACE": str(root),
+                        "CONFIG_FILE_INPUT": "release-please-config.json",
+                        "MANIFEST_FILE_INPUT": ".release-please-manifest.json",
+                        "DEBUG_INPUT": "false",
+                    }
+                )
+
+    def test_validate_consumer_files_rejects_non_object_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            (root / "release-please-config.json").write_text("[]", encoding="utf-8")
+            (root / ".release-please-manifest.json").write_text("{}", encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ValueError, "release-please config file must contain a JSON object"
             ):
                 validate_inputs.validate_consumer_files(
                     {
