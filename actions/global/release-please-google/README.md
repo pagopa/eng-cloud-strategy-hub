@@ -81,7 +81,7 @@ The wrapper relies on release-please labels (`autorelease: pending`, `autoreleas
 The caller should grant write access only to the minted GitHub App installation token:
 
 ```yaml
-- uses: actions/create-github-app-token@<sha>
+- uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # actions/create-github-app-token@v3.2.0 release: https://github.com/actions/create-github-app-token/releases/tag/v3.2.0
   with:
     permission-contents: write
     permission-pull-requests: write
@@ -126,18 +126,15 @@ jobs:
     steps:
       - name: Mint GitHub App token
         id: app-token
-        uses: actions/create-github-app-token@<sha>
-        env:
-          RELEASE_APP_CLIENT_ID: ${{ vars.RELEASE_APP_CLIENT_ID }}
-          RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # actions/create-github-app-token@v3.2.0 release: https://github.com/actions/create-github-app-token/releases/tag/v3.2.0
         with:
-          client-id: ${{ env.RELEASE_APP_CLIENT_ID }}
-          private-key: ${{ env.RELEASE_APP_PRIVATE_KEY }}
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
           permission-pull-requests: write
           permission-issues: write
 
-      - uses: pagopa/<repo-actions>/actions/global/release-please-google@<sha>
+      - uses: pagopa/eng-cloud-strategy-hub/actions/global/release-please-google@c85a7244fc9478f02175d2a6bde0e8d83f6cb028 # release-please-google@v2.4.0 release: https://github.com/pagopa/eng-cloud-strategy-hub/releases/tag/v2.4.0
         env:
           RELEASE_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         with:
@@ -173,18 +170,15 @@ jobs:
     steps:
       - name: Mint GitHub App token
         id: app-token
-        uses: actions/create-github-app-token@<sha>
-        env:
-          RELEASE_APP_CLIENT_ID: ${{ vars.RELEASE_APP_CLIENT_ID }}
-          RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # actions/create-github-app-token@v3.2.0 release: https://github.com/actions/create-github-app-token/releases/tag/v3.2.0
         with:
-          client-id: ${{ env.RELEASE_APP_CLIENT_ID }}
-          private-key: ${{ env.RELEASE_APP_PRIVATE_KEY }}
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
           permission-pull-requests: write
           permission-issues: write
 
-      - uses: pagopa/<repo-actions>/actions/global/release-please-google@<sha>
+      - uses: pagopa/eng-cloud-strategy-hub/actions/global/release-please-google@c85a7244fc9478f02175d2a6bde0e8d83f6cb028 # release-please-google@v2.4.0 release: https://github.com/pagopa/eng-cloud-strategy-hub/releases/tag/v2.4.0
         env:
           RELEASE_APP_TOKEN: ${{ steps.app-token.outputs.token }}
         with:
