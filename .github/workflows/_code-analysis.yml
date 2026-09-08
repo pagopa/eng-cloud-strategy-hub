@@ -12,6 +12,7 @@ on:
     paths:
       - ".github/workflows/**"
       - ".github/scripts/**"
+      - "actions/global/release-please-google/**"
       - "validate-repo-locally.sh"
       - "scripts/**"
       - "tests/scripts/**"
@@ -22,6 +23,7 @@ on:
     paths:
       - ".github/workflows/**"
       - ".github/scripts/**"
+      - "actions/global/release-please-google/**"
       - "validate-repo-locally.sh"
       - "scripts/**"
       - "tests/scripts/**"
@@ -36,6 +38,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  release-please-google-tests:
+    name: Release Please Google Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: 🧪 Run component tests
+        run: >-
+          python3 -m unittest discover
+          -s actions/global/release-please-google/tests
+          -p 'test_*.py'
+          -v
+
   workflow-static-analysis:
     name: Workflow Static Analysis
     runs-on: ubuntu-24.04

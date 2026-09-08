@@ -33,8 +33,8 @@ Runs `googleapis/release-please-action` in manifest mode through a repository-ow
 ## Behavior
 
 1. Validates scalar wrapper inputs.
-2. Optionally checks out the repository with full history, but skips that internal checkout when the caller workspace already contains a non-shallow Git clone.
-3. Validates that `config_file` and `manifest_file` exist and contain valid JSON.
+2. Optionally checks out the repository with full history and the supplied `github_token`, but skips that internal checkout when the caller workspace already contains a non-shallow Git clone.
+3. Validates that `config_file` and `manifest_file` stay inside the workspace and contain JSON objects.
 4. Runs `googleapis/release-please-action`. Labeling is left enabled so the action can recognize its own merged release PR (`autorelease: pending` / `autorelease: tagged`) and create the GitHub Release and tags on the next run.
 5. Resolves release PRs from upstream outputs, then falls back to `gh pr list` when needed.
 6. Enables auto-merge on resolved release PRs when `auto_merge` is `"true"`.
@@ -66,7 +66,7 @@ When `release-please` creates a release, no open release PR is expected; the wra
 | `tag_name` | Created root tag, when the upstream action emits one. |
 | `config_file` | Config file path used by the wrapper. |
 | `manifest_file` | Manifest file path used by the wrapper. |
-| `auto_merge_enabled` | Mirrors the requested `auto_merge` input. |
+| `auto_merge_enabled` | Mirrors the requested `auto_merge` input; individual PRs may still require manual action. |
 | `releases_created` | Raw upstream any-release output. |
 | `paths_released` | Raw upstream released-paths JSON. |
 | `prs_created` | Raw upstream PR-created flag. |
@@ -249,17 +249,29 @@ Example `.release-please-manifest.json`:
 
 ## Validation
 
-Keep the input and output tables aligned with [`action.yml`](action.yml) and
-run the repository's `actionlint` and pre-commit checks against caller
-workflows. The checked-in usage examples are the smallest reviewable contract
-for this action.
+The component owns its tests under [`tests/`](tests/). Run them from the
+repository root:
+
+```bash
+python3 -m unittest discover \
+  -s actions/global/release-please-google/tests \
+  -p 'test_*.py' \
+  -v
+```
+
+The repository's code-analysis workflow runs this command whenever the action
+or its tests change. It also runs `actionlint` against caller workflows. Keep
+the input and output tables aligned with [`action.yml`](action.yml); the
+checked-in usage examples remain the smallest reviewable consumer contract.
+
+The wrapper does not perform a direct blind merge:
+
+- If a release PR has merge conflicts, the wrapper keeps it open, logs a warning, and continues with the other release PRs.
+- If GitHub reports that auto-merge is unavailable, the wrapper keeps the PR open, logs a warning, and continues.
 
 No diagram is provided because this action owns one release-please boundary and
 its contract is described more precisely by the input, output, and behavior
 sections above.
-- The wrapper does not perform a direct blind merge.
-- If a release PR has merge conflicts, the wrapper keeps the PR open, logs a warning, and continues with the other release PRs.
-- If GitHub reports that auto-merge is unavailable for a release PR, the wrapper keeps the PR open, logs a warning, and continues with the other release PRs.
 
 ## Troubleshooting
 

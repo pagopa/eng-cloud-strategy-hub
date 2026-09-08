@@ -59,7 +59,7 @@ outputs:
     description: Manifest file used.
     value: ${{ inputs.manifest_file }}
   auto_merge_enabled:
-    description: Whether auto-merge was requested or enabled.
+    description: Whether auto-merge was requested. Individual PRs may still require manual action.
     value: ${{ steps.release_pr.outputs.auto_merge_enabled }}
   releases_created:
     description: Whether release-please created at least one release.
@@ -89,7 +89,7 @@ runs:
         set -euo pipefail
         "${ACTION_SCRIPT}" --phase wrapper
 
-    - name: Resolve checkout strategy
+    - name: Decide whether to checkout
       id: checkout_strategy
       shell: bash
       env:
@@ -97,25 +97,17 @@ runs:
       run: |
         set -euo pipefail
 
-        workspace_has_repo="false"
-        workspace_is_shallow="false"
         should_checkout="${CHECKOUT_INPUT}"
 
         if git -C "${GITHUB_WORKSPACE}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-          workspace_has_repo="true"
           workspace_is_shallow="$(git -C "${GITHUB_WORKSPACE}" rev-parse --is-shallow-repository)"
+          if [[ "${CHECKOUT_INPUT}" == "true" && "${workspace_is_shallow}" == "false" ]]; then
+            should_checkout="false"
+            echo "Workspace already contains a full Git checkout. Skipping internal checkout."
+          fi
         fi
 
-        if [[ "${CHECKOUT_INPUT}" == "true" && "${workspace_has_repo}" == "true" && "${workspace_is_shallow}" == "false" ]]; then
-          should_checkout="false"
-          echo "Workspace already contains a full Git checkout. Skipping internal checkout."
-        fi
-
-        {
-          printf 'workspace-has-repo=%s\n' "${workspace_has_repo}"
-          printf 'workspace-is-shallow=%s\n' "${workspace_is_shallow}"
-          printf 'should-checkout=%s\n' "${should_checkout}"
-        } >> "${GITHUB_OUTPUT}"
+        printf 'should-checkout=%s\n' "${should_checkout}" >> "${GITHUB_OUTPUT}"
 
     - name: Checkout repository
       if: ${{ steps.checkout_strategy.outputs.should-checkout == 'true' }}
@@ -123,6 +115,7 @@ runs:
       with:
         fetch-depth: 0
         persist-credentials: false
+        token: ${{ inputs.github_token }}
 
     - name: Validate consumer release files
       shell: bash
@@ -153,7 +146,6 @@ runs:
       env:
         ACTION_SCRIPT: ${{ github.action_path }}/scripts/auto_merge_release_pr.py
         GITHUB_TOKEN: ${{ inputs.github_token }}
-        GH_TOKEN: ${{ inputs.github_token }}
         RP_TARGET_BRANCH: ${{ inputs.target_branch }}
         RP_AUTO_MERGE: ${{ inputs.auto_merge }}
         RP_MERGE_METHOD: ${{ inputs.merge_method }}

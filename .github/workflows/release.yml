@@ -15,18 +15,21 @@ on:
         required: false
         default: main
       auto_merge:
-        description: "Enable auto-merge on the release PR opened by this run."
+        description: "Enable auto-merge for release PRs resolved by this run."
         type: boolean
         required: false
         default: false
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.target_branch || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   release:
     name: Release
+    # Manual releases must execute the trusted workflow and local action from
+    # the default branch. target_branch remains the release destination.
+    if: ${{ github.event_name != 'workflow_dispatch' || github.ref_name == github.event.repository.default_branch }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions: {}
@@ -39,6 +42,9 @@ jobs:
         with:
           client-id: ${{ secrets.GH_APP_SIMPLE_CLIENT_ID }}
           private-key: ${{ secrets.GH_APP_SIMPLE_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
 
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout@v7.0.1 release: https://github.com/actions/checkout/releases/tag/v7.0.1
