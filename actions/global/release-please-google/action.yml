@@ -88,7 +88,9 @@ runs:
         DEBUG_INPUT: ${{ inputs.debug }}
       run: |
         set -euo pipefail
-        "${ACTION_SCRIPT}" --phase wrapper
+        log_dir="${RUNNER_TEMP}/release-please"
+        mkdir -p "${log_dir}"
+        "${ACTION_SCRIPT}" --phase wrapper 2>&1 | tee "${log_dir}/validate-wrapper.log"
 
     - name: 🧭 Decide whether to checkout
       id: checkout_strategy
@@ -131,7 +133,9 @@ runs:
         MERGE_METHOD_INPUT: ${{ inputs.merge_method }}
       run: |
         set -euo pipefail
-        "${ACTION_SCRIPT}" --phase files
+        log_dir="${RUNNER_TEMP}/release-please"
+        mkdir -p "${log_dir}"
+        "${ACTION_SCRIPT}" --phase files 2>&1 | tee "${log_dir}/validate-files.log"
 
     - name: 🚀 Run release-please
       id: release
@@ -159,7 +163,9 @@ runs:
         RP_DEBUG: ${{ inputs.debug }}
       run: |
         set -euo pipefail
-        "${ACTION_SCRIPT}"
+        log_dir="${RUNNER_TEMP}/release-please"
+        mkdir -p "${log_dir}"
+        "${ACTION_SCRIPT}" 2>&1 | tee "${log_dir}/auto-merge.log"
 
     - name: 📣 Publish step summary
       if: always()
@@ -172,10 +178,14 @@ runs:
         RP_SKIP_GITHUB_RELEASE: ${{ inputs.skip_github_release }}
         RP_RELEASE_CREATED: ${{ steps.release.outputs.release_created }}
         RP_RELEASES_CREATED: ${{ steps.release.outputs.releases_created }}
+        RP_RELEASE_OUTPUTS_JSON: ${{ toJSON(steps.release.outputs) }}
         RP_TAG_NAME: ${{ steps.release.outputs.tag_name }}
+        RP_VERSION: ${{ steps.release.outputs.version }}
+        RP_HTML_URL: ${{ steps.release.outputs.html_url }}
         RP_PR: ${{ steps.release_pr.outputs.pr || steps.release.outputs.pr }}
         RP_PRS_CREATED: ${{ steps.release.outputs.prs_created }}
         RP_PATHS_RELEASED: ${{ steps.release.outputs.paths_released }}
+        RP_LOG_DIR: ${{ runner.temp }}/release-please
         RP_STEP_OUTCOME: ${{ steps.release_pr.outcome }}
         RP_VALIDATE_WRAPPER_OUTCOME: ${{ steps.validate_wrapper.outcome }}
         RP_CHECKOUT_STRATEGY_OUTCOME: ${{ steps.checkout_strategy.outcome }}
@@ -184,6 +194,37 @@ runs:
         RP_RELEASE_OUTCOME: ${{ steps.release.outcome }}
         RP_RELEASE_PR_OUTCOME: ${{ steps.release_pr.outcome }}
         RP_FAILURE_REASON: ${{ steps.release_pr.outputs.failure_reason || steps.validate_files.outputs.failure_reason || steps.validate_wrapper.outputs.failure_reason }}
+        GH_TOKEN: ${{ inputs.github_token }}
       run: |
         set -euo pipefail
+        mkdir -p "${RP_LOG_DIR}"
+
+        has_failure="false"
+        for outcome in \
+          "${RP_VALIDATE_WRAPPER_OUTCOME}" \
+          "${RP_CHECKOUT_STRATEGY_OUTCOME}" \
+          "${RP_CHECKOUT_OUTCOME}" \
+          "${RP_VALIDATE_FILES_OUTCOME}" \
+          "${RP_RELEASE_OUTCOME}" \
+          "${RP_RELEASE_PR_OUTCOME}"; do
+          if [[ "${outcome}" == "failure" || "${outcome}" == "timed_out" ]]; then
+            has_failure="true"
+            break
+          fi
+        done
+
+        if [[ "${has_failure}" == "true" ]] \
+          && [[ -n "${GITHUB_RUN_ID:-}" ]] \
+          && [[ -n "${GITHUB_JOB:-}" ]] \
+          && command -v gh >/dev/null 2>&1; then
+          github_log_tmp="${RP_LOG_DIR}/github-job.log.tmp"
+          if gh run view "${GITHUB_RUN_ID}" \
+            --job "${GITHUB_JOB}" \
+            --log-failed > "${github_log_tmp}" 2>&1; then
+            mv "${github_log_tmp}" "${RP_LOG_DIR}/github-job.log"
+          else
+            rm -f "${github_log_tmp}"
+          fi
+        fi
+
         "${ACTION_SCRIPT}"

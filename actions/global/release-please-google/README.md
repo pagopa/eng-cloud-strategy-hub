@@ -39,6 +39,8 @@ Runs `googleapis/release-please-action` in manifest mode through a repository-ow
 5. Resolves release PRs from upstream outputs, then falls back to `gh pr list` when needed.
 6. Enables auto-merge on resolved release PRs when `auto_merge` is `"true"`.
 7. Requests deletion of the release PR branch when GitHub completes the merge.
+8. Publishes a step summary that lists each generated release with its package path, version, tag, and GitHub Release URL when those upstream outputs are available.
+9. Captures wrapper diagnostics and, after a failure, attempts to include the failed job log in the step summary. Captured logs are bounded and redact common GitHub credential formats.
 
 When `release-please` creates a release, no open release PR is expected; the wrapper emits empty PR outputs and exits successfully.
 
@@ -304,6 +306,13 @@ sections above.
 - The wrapper leaves the release PR open and continues, but auto-merge is not enabled for that PR.
 - Enable auto-merge in repository settings.
 - Confirm the target branch has the required protected branch rules for the selected method.
+
+### Step summary diagnostics
+
+- A successful release shows one row per path returned by `release-please`, including the version, tag, and GitHub Release URL when the upstream action exposes them.
+- A failed wrapper step shows its captured log directly in the expanded summary. The summary also attempts `gh run view --log-failed` for failures from upstream actions that cannot be piped through the composite wrapper.
+- GitHub may not expose the current job log until the job has finished, or the supplied token may not have `actions: read`. In that case the summary keeps the failure reason and locally captured logs; the job log remains the authoritative fallback.
+- Failure logs are truncated to keep the summary readable and redact common `Authorization: Bearer`, `x-access-token`, and GitHub token formats.
 
 ### `Pull Request has merge conflicts`
 

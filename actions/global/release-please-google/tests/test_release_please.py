@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import sys
 import tempfile
@@ -509,6 +510,41 @@ class ReleasePleaseGenerateSummaryTests(unittest.TestCase):
         self.assertIn("`v2.6.0`", summary)
         self.assertIn("`actions`, `scripts`", summary)
 
+    def test_format_summary_lists_each_generated_release(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_RELEASES_CREATED": "true",
+            "RP_PATHS_RELEASED": json.dumps(["actions", "scripts"]),
+            "RP_RELEASE_OUTPUTS_JSON": json.dumps({
+                "actions--release_created": "true",
+                "actions--version": "1.4.0",
+                "actions--tag_name": "actions-v1.4.0",
+                "actions--html_url": (
+                    "https://github.com/pagopa/eng-cloud-strategy-hub/releases/"
+                    "tag/actions-v1.4.0"
+                ),
+                "scripts--release_created": "true",
+                "scripts--version": "2.1.0",
+                "scripts--tag_name": "scripts-v2.1.0",
+                "scripts--html_url": (
+                    "https://github.com/pagopa/eng-cloud-strategy-hub/releases/"
+                    "tag/scripts-v2.1.0"
+                ),
+            }),
+            "RP_TARGET_BRANCH": "main",
+        })
+
+        self.assertIn("### 📦 Releases generated (2)", summary)
+        self.assertIn(
+            "| `actions` | `1.4.0` | `actions-v1.4.0` | "
+            "[View release](https://github.com/pagopa/eng-cloud-strategy-hub/releases/tag/actions-v1.4.0) |",
+            summary,
+        )
+        self.assertIn(
+            "| `scripts` | `2.1.0` | `scripts-v2.1.0` | "
+            "[View release](https://github.com/pagopa/eng-cloud-strategy-hub/releases/tag/scripts-v2.1.0) |",
+            summary,
+        )
+
     def test_format_summary_pr_ready(self) -> None:
         summary = generate_summary.format_summary({
             "RP_PR": "https://github.com/pagopa/eng-cloud-strategy-hub/pull/70",
@@ -528,6 +564,26 @@ class ReleasePleaseGenerateSummaryTests(unittest.TestCase):
         })
         self.assertIn("🔴 **Failed / Action Required**", summary)
         self.assertIn("Permission denied when enabling auto-merge.", summary)
+
+    def test_format_summary_includes_redacted_failure_log(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            log_dir = Path(temporary_dir)
+            (log_dir / "auto-merge.log").write_text(
+                "❌ Permission denied\nAuthorization: Bearer ghp_secret-value\n",
+                encoding="utf-8",
+            )
+
+            summary = generate_summary.format_summary({
+                "RP_STEP_OUTCOME": "failure",
+                "RP_FAILURE_REASON": "Permission denied when enabling auto-merge.",
+                "RP_LOG_DIR": str(log_dir),
+                "RP_TARGET_BRANCH": "main",
+            })
+
+        self.assertIn("### auto-merge", summary)
+        self.assertIn("Permission denied", summary)
+        self.assertIn("[REDACTED]", summary)
+        self.assertNotIn("ghp_secret-value", summary)
 
 
 if __name__ == "__main__":
