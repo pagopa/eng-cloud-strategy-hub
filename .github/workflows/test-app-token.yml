@@ -29,7 +29,6 @@ jobs:
           private-key: ${{ secrets.GH_APP_SIMPLE_PRIVATE_KEY }}
           permission-contents: write
           permission-pull-requests: write
-          permission-issues: write
 
       - name: Probe token identity and permissions
         env:
