@@ -18,7 +18,7 @@ on:
         description: "Enable auto-merge for release PRs resolved by this run."
         type: boolean
         required: false
-        default: false
+        default: true
 
 concurrency:
   group: release-${{ github.event_name == 'workflow_dispatch' && inputs.target_branch || github.ref_name }}
@@ -61,7 +61,6 @@ jobs:
           # Manual branch tests may open/update release PRs, but must not publish
           # real tags or GitHub Releases unless the target is main.
           skip_github_release: ${{ (github.event_name == 'workflow_dispatch' && inputs.target_branch != 'main') && 'true' || 'false' }}
-          # Auto-merge is OFF by default to keep the release loop under control.
-          # Re-enable it manually via workflow_dispatch input once the flow is verified.
-          auto_merge: ${{ (github.event_name == 'workflow_dispatch' && inputs.auto_merge) && 'true' || 'false' }}
+          # Auto-merge is ON by default. It can be overridden via workflow_dispatch input.
+          auto_merge: ${{ (github.event_name == 'workflow_dispatch' && inputs.auto_merge == false) && 'false' || 'true' }}
           merge_method: squash
