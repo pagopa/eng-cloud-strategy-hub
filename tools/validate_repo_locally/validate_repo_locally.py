@@ -4,7 +4,6 @@
 Usage examples:
   python3 tools/validate_repo_locally/validate_repo_locally.py
   python3 tools/validate_repo_locally/validate_repo_locally.py --interactive
-  python3 tools/validate_repo_locally/validate_repo_locally.py --skip pre-commit
   python3 tools/validate_repo_locally/validate_repo_locally.py --only terraform-sh-tests
 
 Dependency decision note:
@@ -31,11 +30,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ACTIONLINT_PACKAGE = "github.com/rhysd/actionlint/cmd/actionlint@v1.7.12"
-PRE_COMMIT_CONFIG = ".pre-commit-config.yaml"
-PRE_COMMIT_IMAGE = (
-    "ghcr.io/antonbabenko/pre-commit-terraform:v1.105.0"
-    "@sha256:4ef4b8323b27fc263535ad88c9d2f20488fcb3b520258e5e7f0553ed5f6692b5"
-)
 DEFAULT_TMP_DIR = "tmp/validate-repo-locally"
 SHELL_TARGET_ROOTS = (
     ".github/scripts",
@@ -69,7 +63,6 @@ STEP_ALIASES = {
         "shell-static-analysis",
         "copilot-entrypoints",
     ),
-    "precommit": ("pre-commit",),
     "terraform": (
         "terraform-sh-tests",
         "aws-s3-state-creator-tests",
@@ -186,12 +179,6 @@ def build_steps() -> list[Step]:
             ".github/workflows/_code-analysis.yml",
             "Copilot customization entrypoint smoke tests",
             run_copilot_entrypoints,
-        ),
-        Step(
-            "pre-commit",
-            ".github/workflows/_pre-commit.yml",
-            "Containerized pre-commit suite",
-            run_pre_commit,
         ),
         Step(
             "terraform-sh-tests",
@@ -586,69 +573,6 @@ def run_copilot_entrypoints(context: RunnerContext) -> int:
         if status != 0:
             return status
     return 0
-
-
-def run_pre_commit(context: RunnerContext) -> int:
-    if not shutil.which("docker"):
-        context.console.error("Missing required binary: docker.")
-        return 1
-
-    cache_dir = context.tmp_dir / "pre-commit-cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    commands = (
-        ["docker", "pull", PRE_COMMIT_IMAGE],
-        [
-            "docker",
-            "run",
-            "--rm",
-            "--entrypoint",
-            "cat",
-            PRE_COMMIT_IMAGE,
-            "/usr/bin/tools_versions_info",
-        ],
-        build_pre_commit_run_command(context.root, cache_dir),
-    )
-    env = {"TF_INPUT": "0", "TF_IN_AUTOMATION": "1"}
-    for command in commands:
-        status = run_command(context, command, env=env)
-        if status != 0:
-            return status
-    return 0
-
-
-def build_pre_commit_run_command(root: Path, cache_dir: Path) -> list[str]:
-    user_id = "1000:1000"
-    if hasattr(os, "getuid") and hasattr(os, "getgid"):
-        user_id = f"{os.getuid()}:{os.getgid()}"
-
-    return [
-        "docker",
-        "run",
-        "--rm",
-        "-e",
-        f"USERID={user_id}",
-        "-e",
-        "PRE_COMMIT_HOME=/pre-commit-cache",
-        "-e",
-        "TF_INPUT",
-        "-e",
-        "TF_IN_AUTOMATION",
-        "-v",
-        f"{cache_dir}:/pre-commit-cache",
-        "-v",
-        f"{root}:/lint",
-        "-w",
-        "/lint",
-        PRE_COMMIT_IMAGE,
-        "run",
-        "--all-files",
-        "--config",
-        PRE_COMMIT_CONFIG,
-        "--verbose",
-        "--show-diff-on-failure",
-        "--color",
-        "always",
-    ]
 
 
 def run_terraform_wrapper_tests(context: RunnerContext) -> int:
