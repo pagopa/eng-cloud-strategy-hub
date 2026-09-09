@@ -2,8 +2,8 @@ name: 🚀 Release
 
 on:
   push:
-    branches-ignore:
-      - "release-please--**"
+    branches:
+      - "main"
     paths-ignore:
       - "CODEOWNERS"
       - "**.md"
