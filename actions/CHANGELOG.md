@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/actions-v1.9.2...actions-v1.10.0) (2026-09-09)
+
+
+### Features
+
+* Enhance release process with detailed failure reporting and summary generation ([a02553f](https://github.com/pagopa/eng-cloud-strategy-hub/commit/a02553f1f5048382f2ed280eb8d1b597075f2f66))
+* Enhance release process with summary generation and improved logging ([cf9602c](https://github.com/pagopa/eng-cloud-strategy-hub/commit/cf9602c2eca5e60f94616a5ecb7c8539eec69dc0))
+
 ## [1.9.2](https://github.com/pagopa/eng-cloud-strategy-hub/compare/actions-v1.9.1...actions-v1.9.2) (2026-09-09)
 
 
