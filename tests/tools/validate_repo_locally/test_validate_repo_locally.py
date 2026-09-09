@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import io
-import os
 import sys
 import tempfile
 import unittest
@@ -76,6 +75,24 @@ class ValidateRepoLocallyTests(unittest.TestCase):
 
         self.assertEqual(
             ["actionlint", "copilot-entrypoints"],
+            [step.step_id for step in selected],
+        )
+
+    def test_default_step_selection_excludes_pre_commit(self) -> None:
+        selected = runner.select_steps(
+            runner.build_steps(),
+            only_values=[],
+            skip_values=[],
+        )
+
+        self.assertEqual(
+            [
+                "actionlint",
+                "shell-static-analysis",
+                "copilot-entrypoints",
+                "terraform-sh-tests",
+                "aws-s3-state-creator-tests",
+            ],
             [step.step_id for step in selected],
         )
 
@@ -165,22 +182,6 @@ class ValidateRepoLocallyTests(unittest.TestCase):
         self.assertTrue(
             all(choice.checked for choice in captured["choices"])  # type: ignore[arg-type]
         )
-
-    def test_pre_commit_command_matches_workflow_contract(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_dir:
-            root = Path(temporary_dir)
-            cache_dir = root / "tmp/validate-repo-locally/pre-commit-cache"
-
-            command = runner.build_pre_commit_run_command(root, cache_dir)
-
-            self.assertEqual("docker", command[0])
-            self.assertIn(runner.PRE_COMMIT_IMAGE, command)
-            self.assertIn("PRE_COMMIT_HOME=/pre-commit-cache", command)
-            self.assertIn(f"{cache_dir}:/pre-commit-cache", command)
-            self.assertIn(f"{root}:/lint", command)
-            self.assertIn("--all-files", command)
-            self.assertIn("--show-diff-on-failure", command)
-            self.assertIn(f"USERID={os.getuid()}:{os.getgid()}", command)
 
     def test_directory_snapshot_restores_original_contents(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:

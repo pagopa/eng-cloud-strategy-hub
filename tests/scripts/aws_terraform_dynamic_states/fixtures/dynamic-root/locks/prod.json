@@ -1,0 +1,8 @@
+{
+  "ID": "lock-prod-456",
+  "Operation": "OperationTypePlan",
+  "Who": "prod@example.com",
+  "Version": "1.9.0",
+  "Created": "2026-09-09T11:00:00Z",
+  "Path": "dynamic-state-bucket/terraform/prod/tfstate"
+}
