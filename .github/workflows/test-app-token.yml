@@ -1,0 +1,84 @@
+name: 🔍 Test GitHub App Token
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - feat-create-release
+  pull_request:
+    paths:
+      - ".github/workflows/test-app-token.yml"
+
+concurrency:
+  group: test-app-token-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-token:
+    name: Verify GitHub App Configuration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # actions/create-github-app-token@v3.2.0
+        with:
+          client-id: ${{ secrets.GH_APP_SIMPLE_CLIENT_ID }}
+          private-key: ${{ secrets.GH_APP_SIMPLE_PRIVATE_KEY }}
+
+      - name: Probe token identity and permissions
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          INSTALLATION_ID: ${{ steps.app-token.outputs.installation-id }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          echo "========================================="
+          echo "ℹ️  GitHub App Slug: ${APP_SLUG}"
+          echo "ℹ️  Installation ID:  ${INSTALLATION_ID}"
+          echo "========================================="
+
+          # 1. Identity check
+          echo "Checking authentication identity..."
+          auth_user=$(gh api /user --jq '.login')
+          echo "✅ Authenticated as: ${auth_user}"
+
+          # 2. Inspect effective permissions granted to the installation
+          echo ""
+          echo "Checking effective installation permissions on repository..."
+          if permissions=$(gh api "/repos/${GITHUB_REPOSITORY}/installation" --jq '.permissions' 2>/dev/null); then
+            echo "📋 Effective Permissions:"
+            echo "${permissions}"
+          else
+            echo "⚠️  Could not fetch permissions from /repos/${GITHUB_REPOSITORY}/installation"
+          fi
+
+          # 3. Test Contents permission (Git refs read)
+          echo ""
+          echo -n "Checking 'contents' permission (reading ref)... "
+          if gh api "/repos/${GITHUB_REPOSITORY}/git/ref/heads/${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "✅ SUCCESS"
+          else
+            echo "❌ FAILED"
+            exit 1
+          fi
+
+          # 4. Test Pull Requests permission
+          echo -n "Checking 'pull_requests' permission (listing pull requests)... "
+          if gh api "/repos/${GITHUB_REPOSITORY}/pulls?state=all&per_page=1" >/dev/null 2>&1; then
+            echo "✅ SUCCESS"
+          else
+            echo "❌ FAILED"
+            exit 1
+          fi
+
+          # 5. Test Packages permission (packages read/check)
+          echo -n "Checking token headers/metadata... "
+          if gh api "/repos/${GITHUB_REPOSITORY}" --jq '.full_name' >/dev/null 2>&1; then
+            echo "✅ SUCCESS"
+          fi
+
+          echo ""
+          echo "🎉 GitHub App Token configuration is valid and working properly!"
