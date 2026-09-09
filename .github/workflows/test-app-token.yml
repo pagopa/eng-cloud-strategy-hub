@@ -28,7 +28,6 @@ jobs:
           client-id: ${{ secrets.GH_APP_SIMPLE_CLIENT_ID }}
           private-key: ${{ secrets.GH_APP_SIMPLE_PRIVATE_KEY }}
           permission-contents: write
-          permission-pull-requests: write
 
       - name: Probe token identity and permissions
         env:
@@ -63,9 +62,9 @@ jobs:
             exit 1
           fi
 
-          # 3. Test Pull Requests permission
-          echo -n "Checking 'pull_requests' permission (listing pull requests)... "
-          if gh api "/repos/${GITHUB_REPOSITORY}/pulls?state=all&per_page=1" >/dev/null 2>&1; then
+          # 3. Test Releases permission (contents)
+          echo -n "Checking 'contents' permission (listing releases)... "
+          if gh api "/repos/${GITHUB_REPOSITORY}/releases?per_page=1" >/dev/null 2>&1; then
             echo "✅ SUCCESS"
           else
             echo "❌ FAILED"
