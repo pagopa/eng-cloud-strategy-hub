@@ -3,7 +3,7 @@ name: 🚀 Release
 on:
   push:
     branches:
-      - main
+      - "main"
     paths-ignore:
       - "CODEOWNERS"
       - "**.md"
@@ -18,7 +18,7 @@ on:
         description: "Enable auto-merge for release PRs resolved by this run."
         type: boolean
         required: false
-        default: false
+        default: true
 
 concurrency:
   group: release-${{ github.event_name == 'workflow_dispatch' && inputs.target_branch || github.ref_name }}
@@ -27,8 +27,8 @@ concurrency:
 jobs:
   release:
     name: Release
-    # Manual releases must execute the trusted workflow and local action from
-    # the default branch. target_branch remains the release destination.
+    # Manual releases execute the trusted workflow and local action from the
+    # default branch. target_branch remains the release destination.
     if: ${{ github.event_name != 'workflow_dispatch' || github.ref_name == github.event.repository.default_branch }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -56,12 +56,5 @@ jobs:
           github_token: ${{ steps.release-token.outputs.token }}
           checkout: "false"
           target_branch: ${{ github.event_name == 'workflow_dispatch' && inputs.target_branch || github.ref_name }}
-          config_file: release-please-config.json
-          manifest_file: .release-please-manifest.json
-          # Manual branch tests may open/update release PRs, but must not publish
-          # real tags or GitHub Releases unless the target is main.
-          skip_github_release: ${{ (github.event_name == 'workflow_dispatch' && inputs.target_branch != 'main') && 'true' || 'false' }}
-          # Auto-merge is OFF by default to keep the release loop under control.
-          # Re-enable it manually via workflow_dispatch input once the flow is verified.
-          auto_merge: ${{ (github.event_name == 'workflow_dispatch' && inputs.auto_merge) && 'true' || 'false' }}
-          merge_method: squash
+          # Auto-merge is ON by default. It can be overridden via workflow_dispatch input.
+          auto_merge: ${{ (github.event_name == 'workflow_dispatch' && inputs.auto_merge == false) && 'false' || 'true' }}

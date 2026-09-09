@@ -74,7 +74,8 @@ outputs:
 runs:
   using: composite
   steps:
-    - name: Validate wrapper inputs
+    - name: 🔍 Validate wrapper inputs
+      id: validate_wrapper
       shell: bash
       env:
         ACTION_SCRIPT: ${{ github.action_path }}/scripts/validate_inputs.py
@@ -89,7 +90,7 @@ runs:
         set -euo pipefail
         "${ACTION_SCRIPT}" --phase wrapper
 
-    - name: Decide whether to checkout
+    - name: 🧭 Decide whether to checkout
       id: checkout_strategy
       shell: bash
       env:
@@ -109,7 +110,8 @@ runs:
 
         printf 'should-checkout=%s\n' "${should_checkout}" >> "${GITHUB_OUTPUT}"
 
-    - name: Checkout repository
+    - name: 📥 Checkout repository
+      id: checkout
       if: ${{ steps.checkout_strategy.outputs.should-checkout == 'true' }}
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout@v7.0.1 release: https://github.com/actions/checkout/releases/tag/v7.0.1
       with:
@@ -117,7 +119,8 @@ runs:
         persist-credentials: false
         token: ${{ inputs.github_token }}
 
-    - name: Validate consumer release files
+    - name: 📋 Validate consumer release files
+      id: validate_files
       shell: bash
       env:
         ACTION_SCRIPT: ${{ github.action_path }}/scripts/validate_inputs.py
@@ -130,7 +133,7 @@ runs:
         set -euo pipefail
         "${ACTION_SCRIPT}" --phase files
 
-    - name: Run release-please
+    - name: 🚀 Run release-please
       id: release
       uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # googleapis/release-please-action@v5.0.0 release: https://github.com/googleapis/release-please-action/releases/tag/v5.0.0
       with:
@@ -140,7 +143,7 @@ runs:
         manifest-file: ${{ inputs.manifest_file }}
         skip-github-release: ${{ inputs.skip_github_release }}
 
-    - name: Resolve release PR and optionally enable auto-merge
+    - name: 🔀 Resolve release PR and optionally enable auto-merge
       id: release_pr
       shell: bash
       env:
@@ -154,6 +157,33 @@ runs:
         RP_PR: ${{ steps.release.outputs.pr }}
         RP_PRS: ${{ steps.release.outputs.prs }}
         RP_DEBUG: ${{ inputs.debug }}
+      run: |
+        set -euo pipefail
+        "${ACTION_SCRIPT}"
+
+    - name: 📣 Publish step summary
+      if: always()
+      shell: bash
+      env:
+        ACTION_SCRIPT: ${{ github.action_path }}/scripts/generate_summary.py
+        RP_TARGET_BRANCH: ${{ inputs.target_branch }}
+        RP_AUTO_MERGE: ${{ inputs.auto_merge }}
+        RP_MERGE_METHOD: ${{ inputs.merge_method }}
+        RP_SKIP_GITHUB_RELEASE: ${{ inputs.skip_github_release }}
+        RP_RELEASE_CREATED: ${{ steps.release.outputs.release_created }}
+        RP_RELEASES_CREATED: ${{ steps.release.outputs.releases_created }}
+        RP_TAG_NAME: ${{ steps.release.outputs.tag_name }}
+        RP_PR: ${{ steps.release_pr.outputs.pr || steps.release.outputs.pr }}
+        RP_PRS_CREATED: ${{ steps.release.outputs.prs_created }}
+        RP_PATHS_RELEASED: ${{ steps.release.outputs.paths_released }}
+        RP_STEP_OUTCOME: ${{ steps.release_pr.outcome }}
+        RP_VALIDATE_WRAPPER_OUTCOME: ${{ steps.validate_wrapper.outcome }}
+        RP_CHECKOUT_STRATEGY_OUTCOME: ${{ steps.checkout_strategy.outcome }}
+        RP_CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
+        RP_VALIDATE_FILES_OUTCOME: ${{ steps.validate_files.outcome }}
+        RP_RELEASE_OUTCOME: ${{ steps.release.outcome }}
+        RP_RELEASE_PR_OUTCOME: ${{ steps.release_pr.outcome }}
+        RP_FAILURE_REASON: ${{ steps.release_pr.outputs.failure_reason || steps.validate_files.outputs.failure_reason || steps.validate_wrapper.outputs.failure_reason }}
       run: |
         set -euo pipefail
         "${ACTION_SCRIPT}"

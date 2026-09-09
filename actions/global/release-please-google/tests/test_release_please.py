@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 import tempfile
 import unittest
@@ -11,6 +12,7 @@ from unittest.mock import patch
 ACTION_ROOT = Path(__file__).resolve().parents[1]
 AUTO_MERGE_PATH = ACTION_ROOT / "scripts/auto_merge_release_pr.py"
 VALIDATOR_PATH = ACTION_ROOT / "scripts/validate_inputs.py"
+SUMMARY_PATH = ACTION_ROOT / "scripts/generate_summary.py"
 
 
 def load_module(path: Path, module_name: str) -> ModuleType:
@@ -25,9 +27,23 @@ def load_module(path: Path, module_name: str) -> ModuleType:
 
 auto_merge = load_module(AUTO_MERGE_PATH, "release_please_auto_merge")
 validate_inputs = load_module(VALIDATOR_PATH, "release_please_validate_inputs")
+generate_summary = load_module(SUMMARY_PATH, "release_please_generate_summary")
 
 
 class AutoMergeReleasePrTests(unittest.TestCase):
+    def test_fail_writes_failure_reason_to_github_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            output_path = Path(temporary_dir) / "github-output.txt"
+            with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_path)}):
+                result = auto_merge.fail("Permission denied when enabling auto-merge.")
+
+            self.assertEqual(1, result)
+            self.assertTrue(output_path.exists())
+            self.assertIn(
+                "Permission denied when enabling auto-merge.",
+                output_path.read_text(encoding="utf-8"),
+            )
+
     def test_is_release_please_title_accepts_scoped_and_unscoped_titles(
         self,
     ) -> None:
@@ -356,6 +372,19 @@ class AutoMergeReleasePrTests(unittest.TestCase):
 
 
 class ReleasePleaseValidateInputsTests(unittest.TestCase):
+    def test_fail_writes_failure_reason_to_github_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            output_path = Path(temporary_dir) / "github-output.txt"
+            with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_path)}):
+                result = validate_inputs.fail("release-please config file not found")
+
+            self.assertEqual(1, result)
+            self.assertTrue(output_path.exists())
+            self.assertIn(
+                "release-please config file not found",
+                output_path.read_text(encoding="utf-8"),
+            )
+
     def test_validate_wrapper_inputs_accepts_defaults(self) -> None:
         validate_inputs.validate_wrapper_inputs(
             {
@@ -424,6 +453,81 @@ class ReleasePleaseValidateInputsTests(unittest.TestCase):
                         "DEBUG_INPUT": "false",
                     }
                 )
+
+
+class ReleasePleaseGenerateSummaryTests(unittest.TestCase):
+    def test_format_summary_reports_early_validation_failure(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_STEP_OUTCOME": "success",
+            "RP_VALIDATE_FILES_OUTCOME": "failure",
+            "RP_TARGET_BRANCH": "feature/release-test",
+            "RP_AUTO_MERGE": "true",
+        })
+        self.assertIn("🔴 **Failed / Action Required**", summary)
+
+    def test_format_summary_reports_cancelled_execution(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_STEP_OUTCOME": "success",
+            "RP_RELEASE_OUTCOME": "cancelled",
+            "RP_TARGET_BRANCH": "main",
+        })
+        self.assertIn("🟠 **Cancelled / Action Required**", summary)
+        self.assertIn(
+            "<summary>⚠️ <b>Failure Details</b></summary>",
+            summary,
+        )
+
+    def test_format_summary_reports_release_and_tag_publication_enabled(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_SKIP_GITHUB_RELEASE": "false",
+            "RP_TARGET_BRANCH": "feature/release-test",
+        })
+        self.assertIn(
+            "| **Release and Tag Publication** | `enabled` |",
+            summary,
+        )
+
+    def test_format_summary_no_changes(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_TARGET_BRANCH": "main",
+            "RP_AUTO_MERGE": "true",
+            "RP_MERGE_METHOD": "squash",
+        })
+        self.assertIn("💤 **No Changes**", summary)
+        self.assertIn("| **Target Branch** | `main` |", summary)
+        self.assertIn("💡 **Tip**", summary)
+
+    def test_format_summary_release_published(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_RELEASE_CREATED": "true",
+            "RP_TAG_NAME": "v2.6.0",
+            "RP_PATHS_RELEASED": '["actions", "scripts"]',
+            "RP_TARGET_BRANCH": "main",
+            "RP_AUTO_MERGE": "true",
+        })
+        self.assertIn("🚀 **Release Published**", summary)
+        self.assertIn("`v2.6.0`", summary)
+        self.assertIn("`actions`, `scripts`", summary)
+
+    def test_format_summary_pr_ready(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_PR": "https://github.com/pagopa/eng-cloud-strategy-hub/pull/70",
+            "RP_TARGET_BRANCH": "main",
+            "RP_AUTO_MERGE": "true",
+            "RP_MERGE_METHOD": "squash",
+        })
+        self.assertIn("📝 **Release PR Ready**", summary)
+        self.assertIn("[70](https://github.com/pagopa/eng-cloud-strategy-hub/pull/70)", summary)
+        self.assertIn("(Auto-merge: `squash`)", summary)
+
+    def test_format_summary_failure(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_STEP_OUTCOME": "failure",
+            "RP_FAILURE_REASON": "Permission denied when enabling auto-merge.",
+            "RP_TARGET_BRANCH": "main",
+        })
+        self.assertIn("🔴 **Failed / Action Required**", summary)
+        self.assertIn("Permission denied when enabling auto-merge.", summary)
 
 
 if __name__ == "__main__":
