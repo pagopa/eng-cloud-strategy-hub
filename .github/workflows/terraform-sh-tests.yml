@@ -4,19 +4,23 @@ on:
   pull_request:
     paths:
       - scripts/aws/terraform.sh
+      - scripts/aws/terraform-dynamic-states.sh
       - scripts/aws/aws-terraform-s3-state-creator.sh
       - scripts/azure/terraform.sh
       - scripts/gcp/terraform.sh
       - tests/scripts/aws_terraform_s3_state_creator/**
+      - tests/scripts/aws_terraform_dynamic_states/**
       - tests/scripts/terraform_wrappers/**
       - .github/workflows/terraform-sh-tests.yml
   push:
     paths:
       - scripts/aws/terraform.sh
+      - scripts/aws/terraform-dynamic-states.sh
       - scripts/aws/aws-terraform-s3-state-creator.sh
       - scripts/azure/terraform.sh
       - scripts/gcp/terraform.sh
       - tests/scripts/aws_terraform_s3_state_creator/**
+      - tests/scripts/aws_terraform_dynamic_states/**
       - tests/scripts/terraform_wrappers/**
       - .github/workflows/terraform-sh-tests.yml
   workflow_dispatch:
@@ -46,6 +50,7 @@ jobs:
         run: |
           bash -n \
             scripts/aws/terraform.sh \
+            scripts/aws/terraform-dynamic-states.sh \
             scripts/aws/aws-terraform-s3-state-creator.sh \
             scripts/azure/terraform.sh \
             scripts/gcp/terraform.sh \
@@ -58,7 +63,10 @@ jobs:
             tests/scripts/terraform_wrappers/fakes/az \
             tests/scripts/terraform_wrappers/fakes/aws \
             tests/scripts/terraform_wrappers/fakes/gcloud \
-            tests/scripts/terraform_wrappers/fakes/tflist
+            tests/scripts/terraform_wrappers/fakes/tflist \
+            tests/scripts/aws_terraform_dynamic_states/run.sh \
+            tests/scripts/aws_terraform_dynamic_states/fakes/aws \
+            tests/scripts/aws_terraform_dynamic_states/fakes/terraform
 
       - name: 🔎 Run ShellCheck
         run: |
@@ -69,6 +77,7 @@ jobs:
 
           shellcheck -s bash -x \
             scripts/aws/terraform.sh \
+            scripts/aws/terraform-dynamic-states.sh \
             scripts/aws/aws-terraform-s3-state-creator.sh \
             scripts/azure/terraform.sh \
             scripts/gcp/terraform.sh \
@@ -81,12 +90,16 @@ jobs:
             tests/scripts/terraform_wrappers/fakes/az \
             tests/scripts/terraform_wrappers/fakes/aws \
             tests/scripts/terraform_wrappers/fakes/gcloud \
-            tests/scripts/terraform_wrappers/fakes/tflist
+            tests/scripts/terraform_wrappers/fakes/tflist \
+            tests/scripts/aws_terraform_dynamic_states/run.sh \
+            tests/scripts/aws_terraform_dynamic_states/fakes/aws \
+            tests/scripts/aws_terraform_dynamic_states/fakes/terraform
 
       - name: 🧰 Run Terraform wrapper simulation suite
         run: |
           chmod +x \
             scripts/aws/terraform.sh \
+            scripts/aws/terraform-dynamic-states.sh \
             scripts/azure/terraform.sh \
             scripts/gcp/terraform.sh \
             tests/scripts/terraform_wrappers/run.sh \
@@ -98,6 +111,16 @@ jobs:
             tests/scripts/terraform_wrappers/fakes/tflist
 
           bash tests/scripts/terraform_wrappers/run.sh
+
+      - name: 🧰 Run AWS dynamic state simulation suite
+        run: |
+          chmod +x \
+            scripts/aws/terraform-dynamic-states.sh \
+            tests/scripts/aws_terraform_dynamic_states/run.sh \
+            tests/scripts/aws_terraform_dynamic_states/fakes/aws \
+            tests/scripts/aws_terraform_dynamic_states/fakes/terraform
+
+          bash tests/scripts/aws_terraform_dynamic_states/run.sh
 
       - name: 🧰 Run S3 state creator simulation suite
         run: |
@@ -116,6 +139,7 @@ jobs:
           path: |
             tests/scripts/terraform_wrappers/logs
             tests/scripts/aws_terraform_s3_state_creator/logs
+            tests/scripts/aws_terraform_dynamic_states/logs
             tests/scripts/terraform_wrappers/fixtures/**/tmp/terraform-debug
           if-no-files-found: ignore
           retention-days: 7
