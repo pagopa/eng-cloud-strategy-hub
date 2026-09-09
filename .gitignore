@@ -65,9 +65,12 @@ __pycache__/
 .coverage.*
 htmlcov/
 tests/scripts/terraform_wrappers/logs/
+tests/scripts/aws_terraform_dynamic_states/logs/
 .venv/
 venv/
 env/
 !tests/scripts/terraform_wrappers/fixtures/**/env/
 !tests/scripts/terraform_wrappers/fixtures/**/env/**
+!tests/scripts/aws_terraform_dynamic_states/fixtures/**/env/
+!tests/scripts/aws_terraform_dynamic_states/fixtures/**/env/**
 tmp/
