@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import sys
+import uuid
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Sequence
@@ -26,7 +27,25 @@ BOOLEAN_FIELDS = (
 MERGE_METHODS = {"merge", "squash", "rebase"}
 
 
+def write_failure_reason(message: str) -> None:
+    output_path = os.environ.get("GITHUB_OUTPUT", "")
+    if not output_path:
+        return
+
+    delimiter = f"RELEASE_FAILURE_REASON_{uuid.uuid4().hex}"
+    try:
+        with Path(output_path).open("a", encoding="utf-8") as output_file:
+            output_file.write(f"failure_reason<<{delimiter}\n")
+            output_file.write(f"{message}\n")
+            output_file.write(f"{delimiter}\n")
+    except OSError:
+        # Preserve the original validation failure if the diagnostic output
+        # cannot be written.
+        return
+
+
 def fail(message: str) -> int:
+    write_failure_reason(message)
     print(f"❌ {message}", file=sys.stderr)
     return 1
 

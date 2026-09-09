@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 import sys
+import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -80,7 +81,25 @@ def log_warn(message: str) -> None:
     print(f"⚠️  {message}")
 
 
+def write_failure_reason(message: str) -> None:
+    output_path = os.environ.get("GITHUB_OUTPUT", "")
+    if not output_path:
+        return
+
+    delimiter = f"RELEASE_FAILURE_REASON_{uuid.uuid4().hex}"
+    try:
+        with Path(output_path).open("a", encoding="utf-8") as output_file:
+            output_file.write(f"failure_reason<<{delimiter}\n")
+            output_file.write(f"{message}\n")
+            output_file.write(f"{delimiter}\n")
+    except OSError:
+        # Preserve the original action failure if diagnostic output cannot be
+        # written.
+        return
+
+
 def fail(message: str) -> int:
+    write_failure_reason(message)
     print(f"❌ {message}", file=sys.stderr)
     return 1
 

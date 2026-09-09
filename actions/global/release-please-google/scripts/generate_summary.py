@@ -15,6 +15,16 @@ import sys
 from pathlib import Path
 from typing import Any, Mapping
 
+OUTCOME_KEYS = (
+    "RP_STEP_OUTCOME",
+    "RP_VALIDATE_WRAPPER_OUTCOME",
+    "RP_CHECKOUT_STRATEGY_OUTCOME",
+    "RP_CHECKOUT_OUTCOME",
+    "RP_VALIDATE_FILES_OUTCOME",
+    "RP_RELEASE_OUTCOME",
+    "RP_RELEASE_PR_OUTCOME",
+)
+
 
 def parse_json_safely(raw_value: str, default: Any) -> Any:
     if not raw_value:
@@ -23,6 +33,22 @@ def parse_json_safely(raw_value: str, default: Any) -> Any:
         return json.loads(raw_value)
     except Exception:
         return default
+
+
+def aggregate_step_outcome(environment: Mapping[str, str]) -> str:
+    outcomes = {
+        environment.get(key, "").strip()
+        for key in OUTCOME_KEYS
+        if environment.get(key, "").strip()
+    }
+
+    if "failure" in outcomes:
+        return "failure"
+    if "timed_out" in outcomes:
+        return "timed_out"
+    if "cancelled" in outcomes:
+        return "cancelled"
+    return "success"
 
 
 def format_summary(environment: Mapping[str, str]) -> str:
@@ -36,15 +62,23 @@ def format_summary(environment: Mapping[str, str]) -> str:
     target_branch = environment.get("RP_TARGET_BRANCH", "main")
     auto_merge = environment.get("RP_AUTO_MERGE", "false")
     merge_method = environment.get("RP_MERGE_METHOD", "squash")
+    skip_github_release = environment.get("RP_SKIP_GITHUB_RELEASE", "false") == "true"
+    publication_status = "disabled" if skip_github_release else "enabled"
     paths_released_raw = environment.get("RP_PATHS_RELEASED", "[]")
     paths_released = parse_json_safely(paths_released_raw, [])
-    step_outcome = environment.get("RP_STEP_OUTCOME", "success")
+    step_outcome = aggregate_step_outcome(environment)
     failure_reason = environment.get("RP_FAILURE_REASON", "").strip()
 
     # Determine status & banner
     if step_outcome == "failure" or failure_reason:
         status_badge = "🔴 **Failed / Action Required**"
         status_desc = "Release execution encountered an error."
+    elif step_outcome == "cancelled":
+        status_badge = "🟠 **Cancelled / Action Required**"
+        status_desc = "Release execution was cancelled before completion."
+    elif step_outcome == "timed_out":
+        status_badge = "🟠 **Timed Out / Action Required**"
+        status_desc = "Release execution exceeded its time limit."
     elif is_release_published:
         status_badge = "🚀 **Release Published**"
         status_desc = f"New release created with tag `{tag_name}`" if tag_name else "New release published successfully."
@@ -88,12 +122,13 @@ def format_summary(environment: Mapping[str, str]) -> str:
         f"| **Pull Request** | {pr_display} |",
         f"| **Release Tag** | {tag_display} |",
         f"| **Packages Released** | {paths_display} |",
+        f"| **Release and Tag Publication** | `{publication_status}` |",
         f"| **Auto-Merge Requested** | `{auto_merge}` |",
         "",
     ]
 
     # Diagnostics / error details
-    if step_outcome == "failure" or failure_reason:
+    if step_outcome in {"failure", "cancelled", "timed_out"} or failure_reason:
         lines.extend([
             "<details open>",
             "<summary>⚠️ <b>Failure Details</b></summary>",
