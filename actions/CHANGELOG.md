@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.9.2](https://github.com/pagopa/eng-cloud-strategy-hub/compare/actions-v1.9.1...actions-v1.9.2) (2026-09-09)
+
+
+### Bug Fixes
+
+* Release Action ([#65](https://github.com/pagopa/eng-cloud-strategy-hub/issues/65)) ([86e255d](https://github.com/pagopa/eng-cloud-strategy-hub/commit/86e255d6c93cb8e2e2b6014725404f734202d790))
+* Release action with new github app token ([#63](https://github.com/pagopa/eng-cloud-strategy-hub/issues/63)) ([4f97a2a](https://github.com/pagopa/eng-cloud-strategy-hub/commit/4f97a2a6ab450349f8d33f261eebd901349d6a11))
+* Remove unnecessary permissions from GitHub App token creation ([#64](https://github.com/pagopa/eng-cloud-strategy-hub/issues/64)) ([86e255d](https://github.com/pagopa/eng-cloud-strategy-hub/commit/86e255d6c93cb8e2e2b6014725404f734202d790))
+
 ## [1.9.1](https://github.com/pagopa/eng-cloud-strategy-hub/compare/actions-v1.9.0...actions-v1.9.1) (2026-05-05)
 
 

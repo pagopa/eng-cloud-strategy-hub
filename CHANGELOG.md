@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.6.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/v2.5.0...v2.6.0) (2026-09-09)
+
+
+### Features
+
+* Improve AWS S3 Terraform State creator ([#61](https://github.com/pagopa/eng-cloud-strategy-hub/issues/61)) ([5d9ec6a](https://github.com/pagopa/eng-cloud-strategy-hub/commit/5d9ec6a453d6d3e288c9f4e8e460d2f3e0e3cbcc))
+* **lessons:** add new lessons on release-please configuration and workflow guidance ([b89107d](https://github.com/pagopa/eng-cloud-strategy-hub/commit/b89107d0c4e60ab4b8208d79c03ae8671b867c1f))
+* Remove copilot skills and instructions ([#59](https://github.com/pagopa/eng-cloud-strategy-hub/issues/59)) ([e26487c](https://github.com/pagopa/eng-cloud-strategy-hub/commit/e26487c7b7ba629725dd3c1a178f058395b9f884))
+* **scripts:** add AWS S3 state creator and tests ([#58](https://github.com/pagopa/eng-cloud-strategy-hub/issues/58)) ([22a2e73](https://github.com/pagopa/eng-cloud-strategy-hub/commit/22a2e73c660ac62986a338696eb8a353f4eecba2))
+
+
+### Bug Fixes
+
+* Add release creation feature and GitHub App token test workflow ([#66](https://github.com/pagopa/eng-cloud-strategy-hub/issues/66)) ([da10819](https://github.com/pagopa/eng-cloud-strategy-hub/commit/da10819c1580afc65c3e0fa4bd354828183d776f))
+* Pin actions/cache action to 27d5ce7 ([#24](https://github.com/pagopa/eng-cloud-strategy-hub/issues/24)) ([e7417e5](https://github.com/pagopa/eng-cloud-strategy-hub/commit/e7417e5155f336f95036346c9f924db11116a47f))
+* Release Action ([#65](https://github.com/pagopa/eng-cloud-strategy-hub/issues/65)) ([86e255d](https://github.com/pagopa/eng-cloud-strategy-hub/commit/86e255d6c93cb8e2e2b6014725404f734202d790))
+* Release action with new github app token ([#63](https://github.com/pagopa/eng-cloud-strategy-hub/issues/63)) ([4f97a2a](https://github.com/pagopa/eng-cloud-strategy-hub/commit/4f97a2a6ab450349f8d33f261eebd901349d6a11))
+* Remove unnecessary permissions from GitHub App token creation ([#64](https://github.com/pagopa/eng-cloud-strategy-hub/issues/64)) ([86e255d](https://github.com/pagopa/eng-cloud-strategy-hub/commit/86e255d6c93cb8e2e2b6014725404f734202d790))
+* Remove unnecessary permissions from GitHub App token creation ([#64](https://github.com/pagopa/eng-cloud-strategy-hub/issues/64)) ([1c90dec](https://github.com/pagopa/eng-cloud-strategy-hub/commit/1c90decca89050e0561746d1125264e5333eb42b))
+
 ## [2.5.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/v2.4.0...v2.5.0) (2026-05-05)
 
 
