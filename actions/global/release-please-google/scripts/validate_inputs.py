@@ -132,6 +132,7 @@ def validate_consumer_files(environment: Mapping[str, str]) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
+    print(f"🏁 Starting release-please {args.phase} validation...")
 
     try:
         if args.phase == "wrapper":
@@ -141,7 +142,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as error:
         return fail(str(error))
 
-    print(f"✅ release-please {args.phase} inputs are valid.")
+    print(f"✅ release-please {args.phase} inputs are valid and verified.")
     return 0
 
 

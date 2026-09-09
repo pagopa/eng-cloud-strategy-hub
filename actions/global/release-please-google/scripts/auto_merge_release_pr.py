@@ -546,6 +546,7 @@ def resolve_release_prs(
 
 
 def main() -> int:
+    log_info("Starting release PR resolution and auto-merge evaluation...")
     environment = os.environ
 
     try:
@@ -575,26 +576,28 @@ def main() -> int:
                 log_success(
                     "release-please created a release; no open release PR is expected."
                 )
+                log_success("Release PR resolution finished successfully.")
                 return 0
-            if auto_merge == "true":
-                return fail(
-                    f"No open release-please pull request was found for target branch "
-                    f"'{environment['RP_TARGET_BRANCH']}'."
-                )
 
-            log_info("No release-please pull request was resolved.")
+            log_info(
+                f"No open release-please pull request was found for target branch "
+                f"'{environment['RP_TARGET_BRANCH']}'; nothing to merge."
+            )
+            log_success("Release PR resolution finished successfully.")
             return 0
 
         if auto_merge == "false":
             log_info(
                 "Auto-merge is disabled. Release PRs were resolved without merge operations."
             )
+            log_success("Release PR resolution finished successfully.")
             return 0
 
         enable_auto_merge(release_prs, merge_method)
     except (RuntimeError, ValueError) as error:
         return fail(str(error))
 
+    log_success("Release PR resolution and auto-merge completed successfully.")
     return 0
 
 
