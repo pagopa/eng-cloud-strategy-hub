@@ -86,6 +86,71 @@ class AutoMergeReleasePrTests(unittest.TestCase):
             release_prs[0].url,
         )
 
+    def test_find_pending_merged_release_prs_filters_release_please_candidates(
+        self,
+    ) -> None:
+        with (
+            patch.object(auto_merge, "gh_available", return_value=True),
+            patch.object(
+                auto_merge,
+                "run_gh_json",
+                return_value=[
+                    {
+                        "number": 56,
+                        "url": "https://github.com/pagopa/eng-cloud-strategy-hub/pull/56",
+                        "title": "chore(release): release eng-cloud-strategy-hub 2.5.0 (main)",
+                        "headRefName": "release-please--branches--main",
+                        "baseRefName": "main",
+                        "mergedAt": "2026-05-05T17:46:32Z",
+                        "labels": [{"name": "autorelease: pending"}],
+                        "isCrossRepository": False,
+                    },
+                    {
+                        "number": 57,
+                        "url": "https://github.com/pagopa/eng-cloud-strategy-hub/pull/57",
+                        "title": "chore(release): release eng-cloud-strategy-hub 2.6.0 (main)",
+                        "headRefName": "release-please--branches--main",
+                        "baseRefName": "main",
+                        "mergedAt": "2026-05-06T17:46:32Z",
+                        "labels": [{"name": "autorelease: tagged"}],
+                        "isCrossRepository": False,
+                    },
+                ],
+            ) as run_gh_json,
+        ):
+            pending_release_prs = auto_merge.find_pending_merged_release_prs("main")
+
+        self.assertEqual([56], [release_pr.number for release_pr in pending_release_prs])
+        gh_args = run_gh_json.call_args.args[0]
+        self.assertIn("--state", gh_args)
+        self.assertIn("merged", gh_args)
+        self.assertIn("--label", gh_args)
+        self.assertIn("autorelease: pending", gh_args)
+
+    def test_ensure_release_was_published_fails_for_pending_merged_release(self) -> None:
+        pending_release = auto_merge.ReleasePullRequest(
+            number=56,
+            url="https://github.com/pagopa/eng-cloud-strategy-hub/pull/56",
+            title="chore(release): release eng-cloud-strategy-hub 2.5.0 (main)",
+            head_branch_name="release-please--branches--main",
+            base_branch_name="main",
+            source="pending-merged-release-please",
+        )
+
+        with patch.object(
+            auto_merge,
+            "find_pending_merged_release_prs",
+            return_value=[pending_release],
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError, "merged release PRs are still pending"
+            ):
+                auto_merge.ensure_release_was_published(
+                    target_branch="main",
+                    release_created="false",
+                    skip_github_release="false",
+                )
+
     def test_emit_pr_outputs_writes_caller_contract(self) -> None:
         release_pr = auto_merge.ReleasePullRequest(
             number=42,

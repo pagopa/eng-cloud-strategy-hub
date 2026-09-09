@@ -150,6 +150,7 @@ runs:
         RP_AUTO_MERGE: ${{ inputs.auto_merge }}
         RP_MERGE_METHOD: ${{ inputs.merge_method }}
         RP_RELEASE_CREATED: ${{ steps.release.outputs.releases_created }}
+        RP_SKIP_GITHUB_RELEASE: ${{ inputs.skip_github_release }}
         RP_PR: ${{ steps.release.outputs.pr }}
         RP_PRS: ${{ steps.release.outputs.prs }}
         RP_DEBUG: ${{ inputs.debug }}

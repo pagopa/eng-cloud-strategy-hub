@@ -41,6 +41,7 @@ RELEASE_PLEASE_TITLE_PATTERN = re.compile(
     r"^\s*chore(?:\([^)\r\n]+\))?: release\b",
     re.IGNORECASE,
 )
+AUTORELEASE_PENDING_LABEL = "autorelease: pending"
 
 
 @dataclass(frozen=True)
@@ -277,6 +278,85 @@ def discover_release_please_prs(target_branch: str) -> list[ReleasePullRequest]:
     return normalized
 
 
+def pending_merged_release_pr_from_gh_item(
+    item: Mapping[str, Any], target_branch: str
+) -> ReleasePullRequest | None:
+    labels = item.get("labels")
+    has_pending_label = isinstance(labels, list) and any(
+        isinstance(label, dict) and label.get("name") == AUTORELEASE_PENDING_LABEL
+        for label in labels
+    )
+    if not has_pending_label:
+        return None
+
+    head_branch = read_string(item, "headRefName")
+    base_branch = read_string(item, "baseRefName")
+    title = read_string(item, "title")
+    merged_at = read_string(item, "mergedAt")
+
+    if not head_branch.startswith("release-please--"):
+        return None
+    if base_branch != target_branch:
+        return None
+    if not is_release_please_title(title):
+        return None
+    if not merged_at:
+        return None
+    if item.get("isCrossRepository") is True:
+        return None
+
+    number = item.get("number")
+    if not isinstance(number, int):
+        return None
+
+    return ReleasePullRequest(
+        number=number,
+        url=read_string(item, "url") or str(number),
+        title=title,
+        head_branch_name=head_branch,
+        base_branch_name=base_branch,
+        source="pending-merged-release-please",
+    )
+
+
+def find_pending_merged_release_prs(
+    target_branch: str,
+) -> list[ReleasePullRequest]:
+    if not gh_available():
+        raise RuntimeError(
+            "gh CLI is required to verify merged release-please pull requests."
+        )
+
+    items = run_gh_json(
+        [
+            "pr",
+            "list",
+            "--state",
+            "merged",
+            "--base",
+            target_branch,
+            "--label",
+            AUTORELEASE_PENDING_LABEL,
+            "--limit",
+            "100",
+            "--json",
+            "number,title,url,headRefName,baseRefName,mergedAt,labels,isCrossRepository",
+        ]
+    )
+    if not isinstance(items, list):
+        raise RuntimeError("gh pr list returned an unexpected JSON payload.")
+
+    pending_release_prs: list[ReleasePullRequest] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        release_pr = pending_merged_release_pr_from_gh_item(item, target_branch)
+        if release_pr is not None:
+            pending_release_prs.append(release_pr)
+
+    return pending_release_prs
+
+
 def verify_release_please_prs(
     release_prs: list[ReleasePullRequest], target_branch: str
 ) -> list[ReleasePullRequest]:
@@ -324,6 +404,26 @@ def emit_pr_outputs(
     write_output(output_path, "pr", first_pr_url)
     write_output(output_path, "prs", output_json(release_prs))
     write_output(output_path, "auto_merge_enabled", auto_merge)
+
+
+def ensure_release_was_published(
+    target_branch: str, release_created: str, skip_github_release: str
+) -> None:
+    if release_created == "true" or skip_github_release == "true":
+        return
+
+    pending_release_prs = find_pending_merged_release_prs(target_branch)
+    if not pending_release_prs:
+        return
+
+    pending_numbers = ", ".join(
+        f"#{release_pr.number}" for release_pr in pending_release_prs
+    )
+    raise RuntimeError(
+        "release-please did not create a GitHub release or tag; "
+        f"merged release PRs are still pending: {pending_numbers}. "
+        "Recover the pending release before retrying."
+    )
 
 
 def classify_gh_merge_error(pr_number: int, error_output: str) -> str:
@@ -455,8 +555,17 @@ def main() -> int:
         validate_bool_like(environment, "RP_DEBUG")
         merge_method = validate_merge_method(environment)
         release_created = environment.get("RP_RELEASE_CREATED", "false")
+        skip_github_release = validate_bool_like(
+            environment, "RP_SKIP_GITHUB_RELEASE"
+        )
         release_prs = resolve_release_prs(
             environment, allow_fallback=release_created != "true"
+        )
+
+        ensure_release_was_published(
+            target_branch=environment["RP_TARGET_BRANCH"],
+            release_created=release_created,
+            skip_github_release=skip_github_release,
         )
 
         emit_pr_outputs(output_path, release_prs, auto_merge)
