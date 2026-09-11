@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/scripts-v1.12.0...scripts-v1.13.0) (2026-09-11)
+
+
+### Features
+
+* Refactor Terraform wrapper for improved usability and context handling ([#72](https://github.com/pagopa/eng-cloud-strategy-hub/issues/72)) ([71ce334](https://github.com/pagopa/eng-cloud-strategy-hub/commit/71ce334049bd55faaa4b64ff6fcbb06c36578068))
+
 ## [1.12.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/scripts-v1.11.1...scripts-v1.12.0) (2026-09-09)
 
 
