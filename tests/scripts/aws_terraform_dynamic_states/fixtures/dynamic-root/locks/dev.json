@@ -1,0 +1,8 @@
+{
+  "ID": "lock-dev-123",
+  "Operation": "OperationTypeApply",
+  "Who": "dev@example.com",
+  "Version": "1.9.0",
+  "Created": "2026-09-09T10:00:00Z",
+  "Path": "dynamic-state-bucket/terraform/dev/tfstate"
+}

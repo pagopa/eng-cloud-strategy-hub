@@ -4,7 +4,6 @@
 # Usage examples:
 #   ./validate-repo-locally.sh
 #   ./validate-repo-locally.sh --interactive
-#   ./validate-repo-locally.sh --skip pre-commit
 
 set -euo pipefail
 

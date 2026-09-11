@@ -91,7 +91,7 @@ prints the commands when `--dry-run` is used. Evidence:
 
 ### Build/test flow
 
-`./validate-repo-locally.sh` delegates to the Python runner. The runner exposes workflow-mapped steps for actionlint, shell analysis, Copilot entrypoint smoke tests, pre-commit, Terraform wrapper simulations, and the AWS state creator suite. Evidence: `validate-repo-locally.sh`, `tools/validate_repo_locally/validate_repo_locally.py`.
+`./validate-repo-locally.sh` delegates to the Python runner. The runner exposes workflow-mapped steps for actionlint, shell analysis, Copilot entrypoint smoke tests, Terraform wrapper simulations, and the AWS state creator suite. Evidence: `validate-repo-locally.sh`, `tools/validate_repo_locally/validate_repo_locally.py`.
 
 ### Deployment/operations flow
 

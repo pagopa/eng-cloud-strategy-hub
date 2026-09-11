@@ -86,7 +86,14 @@ run_wrapper_internal() {
 
   (
     cd "${FIXTURES_DIR}/${fixture}" || exit 1
-    CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}:$PATH" bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+    if [[ "$provider" == 'aws' ]]; then
+      TERRAFORM_ROOT="${FIXTURES_DIR}/${fixture}" \
+        CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}:$PATH" \
+        bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+    else
+      CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}:$PATH" \
+        bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+    fi
   ) >"$stdout_file" 2>"$stderr_file" || RUN_STATUS=$?
 
   RUN_STDOUT="$(cat "$stdout_file")"
@@ -115,7 +122,14 @@ run_wrapper_without_summary() {
 
   (
     cd "${FIXTURES_DIR}/${fixture}" || exit 1
-    CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}" bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+    if [[ "$provider" == 'aws' ]]; then
+      TERRAFORM_ROOT="${FIXTURES_DIR}/${fixture}" \
+        CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}" \
+        bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+    else
+      CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}" \
+        bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+    fi
   ) >"$stdout_file" 2>"$stderr_file" || RUN_STATUS=$?
 
   RUN_STDOUT="$(cat "$stdout_file")"
@@ -124,9 +138,18 @@ run_wrapper_without_summary() {
 
 test_script_metadata() {
   local provider=""
+  local expected_version=""
 
   for provider in aws azure gcp; do
-    assert_file_contains "${REPO_ROOT}/scripts/${provider}/terraform.sh" 'vers="1.13"' "${provider} exposes the aligned version"
+    case "$provider" in
+      aws)
+        expected_version='2.0'
+        ;;
+      *)
+        expected_version='1.13'
+        ;;
+    esac
+    assert_file_contains "${REPO_ROOT}/scripts/${provider}/terraform.sh" "vers=\"${expected_version}\"" "${provider} exposes its current version"
     assert_file_contains "${REPO_ROOT}/scripts/${provider}/terraform.sh" '# - 1.13 2026-05-03' "${provider} includes the changelog entry"
   done
 }
@@ -134,13 +157,22 @@ test_script_metadata() {
 test_help_outputs() {
   local provider=""
   local fixture=""
+  local expected_version=""
 
   for provider in aws azure gcp; do
+    case "$provider" in
+      aws)
+        expected_version='2.0'
+        ;;
+      *)
+        expected_version='1.13'
+        ;;
+    esac
     reset_logs
     fixture="${provider}-root"
     run_wrapper "$provider" "$fixture" help
     assert_eq "0" "$RUN_STATUS" "${provider} help exits cleanly"
-    assert_contains "$RUN_STDOUT" 'version 1.13' "${provider} help prints the version"
+    assert_contains "$RUN_STDOUT" "version ${expected_version}" "${provider} help prints its current version"
     assert_no_log terraform "${provider} help must not call terraform"
     case "$provider" in
       aws)
@@ -201,8 +233,8 @@ test_plan_with_env() {
   run_wrapper aws aws-root plan dev
   assert_eq "0" "$RUN_STATUS" "aws env plan exits cleanly"
   assert_file_contains "${LOG_DIR}/terraform.log" '-backend-config=bucket=aws-dev-state' 'aws init uses backend config from backend.ini'
-  assert_file_contains "${LOG_DIR}/terraform.log" '-var-file=./env/dev/terraform.tfvars' 'aws env plan uses terraform.tfvars'
-  assert_file_contains "${LOG_DIR}/aws.log" 'configure list-profiles' 'aws env plan checks configured profiles'
+  assert_file_contains "${LOG_DIR}/terraform.log" 'env/dev/terraform.tfvars' 'aws env plan uses terraform.tfvars'
+  assert_file_contains "${LOG_DIR}/terraform.log" 'env=AWS_PROFILE=fake-profile AWS_REGION=eu-south-1' 'aws env plan exports the configured profile and region'
 
   reset_logs
   run_wrapper azure azure-root plan dev
@@ -243,7 +275,7 @@ test_override_order() {
     last_line="$(last_log_line terraform)"
     case "$provider" in
       aws)
-        [[ "$last_line" == *'-var-file=./env/dev/terraform.tfvars'*"${expected_override}"* ]] || fail 'aws keeps default tfvars before override'
+        [[ "$last_line" == *"${expected_override}"*'env/dev/terraform.tfvars'* ]] || fail 'aws keeps the explicit override before the default tfvars'
         ;;
       azure)
         [[ "$last_line" == *'-var-file=./env/dev/terraform.tfvars'*"${expected_override}"* ]] || fail 'azure keeps default tfvars before override'
@@ -335,11 +367,12 @@ test_unlock_dry_run() {
   done
 }
 
-test_aws_legacy_yaml_account() {
+test_aws_project_agnostic_context() {
   reset_logs
   run_wrapper aws aws-root plan legacy --cicd
-  assert_eq "0" "$RUN_STATUS" "aws legacy yaml_account plan exits cleanly"
-  assert_file_contains "${LOG_DIR}/terraform.log" '-var=account_key=legacy' 'aws legacy yaml_account passes account_key'
+  assert_eq "0" "$RUN_STATUS" "aws project-agnostic context plan exits cleanly"
+  assert_file_contains "${LOG_DIR}/terraform.log" '-backend-config=bucket=aws-legacy-state' 'aws project-agnostic context loads backend configuration'
+  assert_not_contains "$(last_log_line terraform)" 'account_key=legacy' 'aws project-agnostic context ignores legacy authorization metadata'
 }
 
 test_summary_requires_tool() {
@@ -363,7 +396,11 @@ test_doctor_and_debug_bundle() {
     rm -rf "${fixture_root}/tmp/terraform-debug"
     run_wrapper "$provider" "${provider}-root" debug-bundle noenv
     assert_eq "0" "$RUN_STATUS" "${provider} debug-bundle exits cleanly"
-    assert_path_exists "${fixture_root}/tmp/terraform-debug" "${provider} debug-bundle creates the debug directory"
+    if [[ "$provider" == 'aws' ]]; then
+      assert_contains "$RUN_STDOUT" 'Debug bundle created at /' "${provider} debug-bundle reports the temporary bundle path"
+    else
+      assert_path_exists "${fixture_root}/tmp/terraform-debug" "${provider} debug-bundle creates the debug directory"
+    fi
   done
 }
 
@@ -389,7 +426,7 @@ main() {
     test_target_shortcut
     test_tlock_dry_run
     test_unlock_dry_run
-    test_aws_legacy_yaml_account
+    test_aws_project_agnostic_context
     test_summary_requires_tool
     test_doctor_and_debug_bundle
   )

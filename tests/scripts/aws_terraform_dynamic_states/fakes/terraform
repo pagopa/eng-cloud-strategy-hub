@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+log_file="${FAKE_LOG_DIR:?}/terraform.log"
+
+{
+  printf 'cwd=%s argv=' "$PWD"
+  printf '%q ' "$@"
+  printf 'env=AWS_PROFILE=%s AWS_REGION=%s AWS_DEFAULT_REGION=%s\n' \
+    "${AWS_PROFILE:-}" \
+    "${AWS_REGION:-}" \
+    "${AWS_DEFAULT_REGION:-}"
+} >> "${log_file}"
+
+case "${1:-}" in
+  plan)
+    for arg in "$@"; do
+      case "$arg" in
+        -out=*)
+          : > "${arg#-out=}"
+          ;;
+      esac
+    done
+    ;;
+  version)
+    printf 'Terraform v1.9.0\n'
+    ;;
+  providers)
+    if [[ "${2:-}" != 'lock' ]]; then
+      printf 'provider["registry.terraform.io/hashicorp/null"]\n'
+    fi
+    ;;
+  workspace)
+    if [[ "${2:-}" == 'show' ]]; then
+      printf 'default\n'
+    fi
+    ;;
+esac
