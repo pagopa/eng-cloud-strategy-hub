@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/v2.8.0...v2.9.0) (2026-09-11)
+
+
+### Features
+
+* Refactor Terraform wrapper for improved usability and context handling ([#72](https://github.com/pagopa/eng-cloud-strategy-hub/issues/72)) ([71ce334](https://github.com/pagopa/eng-cloud-strategy-hub/commit/71ce334049bd55faaa4b64ff6fcbb06c36578068))
+
 ## [2.8.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/v2.7.0...v2.8.0) (2026-09-09)
 
 
