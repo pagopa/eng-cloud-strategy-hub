@@ -89,10 +89,10 @@ run_wrapper_internal() {
     if [[ "$provider" == 'aws' ]]; then
       TERRAFORM_ROOT="${FIXTURES_DIR}/${fixture}" \
         CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}:$PATH" \
-        bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+        bash "${REPO_ROOT}/scripts/${provider}/terraform-sh/terraform.sh" "$@"
     else
       CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}:$PATH" \
-        bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+        bash "${REPO_ROOT}/scripts/${provider}/terraform-sh/terraform.sh" "$@"
     fi
   ) >"$stdout_file" 2>"$stderr_file" || RUN_STATUS=$?
 
@@ -125,10 +125,10 @@ run_wrapper_without_summary() {
     if [[ "$provider" == 'aws' ]]; then
       TERRAFORM_ROOT="${FIXTURES_DIR}/${fixture}" \
         CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}" \
-        bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+        bash "${REPO_ROOT}/scripts/${provider}/terraform-sh/terraform.sh" "$@"
     else
       CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}" \
-        bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+        bash "${REPO_ROOT}/scripts/${provider}/terraform-sh/terraform.sh" "$@"
     fi
   ) >"$stdout_file" 2>"$stderr_file" || RUN_STATUS=$?
 
@@ -149,8 +149,8 @@ test_script_metadata() {
         expected_version='1.13'
         ;;
     esac
-    assert_file_contains "${REPO_ROOT}/scripts/${provider}/terraform.sh" "vers=\"${expected_version}\"" "${provider} exposes its current version"
-    assert_file_contains "${REPO_ROOT}/scripts/${provider}/terraform.sh" '# - 1.13 2026-05-03' "${provider} includes the changelog entry"
+    assert_file_contains "${REPO_ROOT}/scripts/${provider}/terraform-sh/terraform.sh" "vers=\"${expected_version}\"" "${provider} exposes its current version"
+    assert_file_contains "${REPO_ROOT}/scripts/${provider}/terraform-sh/terraform.sh" '# - 1.13 2026-05-03' "${provider} includes the changelog entry"
   done
 }
 

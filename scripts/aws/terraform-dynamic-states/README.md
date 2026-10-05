@@ -21,19 +21,30 @@ It reads the dynamic backend from the current working directory. It does not sto
 
 ## Usage
 
-Run these commands from a Terraform root containing `env/backend.dynamic.ini`:
+Run these examples from this directory. The wrapper uses the current working
+directory as the Terraform root, so the example captures the local script path
+before entering a checked-in synthetic root:
 
 ```bash
-bash scripts/aws/terraform-dynamic-states.sh plan dev --dry-run
-bash scripts/aws/terraform-dynamic-states.sh summ dev --summary-format pr
-bash scripts/aws/terraform-dynamic-states.sh find-locks all --cicd
-bash scripts/aws/terraform-dynamic-states.sh unlock-all all --cicd --dry-run
+script_path="$(pwd)/terraform-dynamic-states.sh"
+(
+	cd ../../../tests/scripts/aws_terraform_dynamic_states/fixtures/dynamic-root
+	bash "${script_path}" plan dev --dry-run
+	bash "${script_path}" summ dev --summary-format pr
+	bash "${script_path}" find-locks all --cicd
+	bash "${script_path}" unlock-all all --cicd --dry-run
+)
 ```
 
 General form:
 
-```text
-bash scripts/aws/terraform-dynamic-states.sh <action> <scope|noenv> [target.tf] [wrapper options] [terraform arguments]
+```bash
+terraform_root="/path/to/terraform-root"
+script_path="$(pwd)/terraform-dynamic-states.sh"
+(
+	cd "${terraform_root}"
+	bash "${script_path}" <action> <scope|noenv> [target.tf] [wrapper options] [terraform arguments]
+)
 ```
 
 Non-base actions require a scope argument. Use the literal `noenv` to skip dynamic backend and AWS cloud-auth resolution. Use a named scope for Terraform actions and `all` for lock inventory or bulk-unlock actions. `list` is unavailable because dynamic backend mode does not maintain a scope catalog.
@@ -112,17 +123,17 @@ Named dynamic scopes also require an AWS profile or other credentials that can a
 ## Validation
 
 ```bash
-bash -n scripts/aws/terraform-dynamic-states.sh
-shellcheck -s bash -x scripts/aws/terraform-dynamic-states.sh
-bash tests/scripts/aws_terraform_dynamic_states/run.sh
+bash -n ./terraform-dynamic-states.sh
+shellcheck -s bash -x ./terraform-dynamic-states.sh
+bash ../../../tests/scripts/aws_terraform_dynamic_states/run.sh
 ```
 
 The dynamic-state simulation suite uses fake AWS and Terraform CLIs and covers dynamic backend keys, scope variables, dry-run behavior, lock inventory, bulk-unlock planning, and dynamic-context diagnostics without using live cloud accounts or remote Terraform backends.
 
 ## Related documentation
 
-- [AWS scripts index](README.md).
-- [Scripts overview](../README.md).
-- [Terraform Operator Tooling rules](../../docs/domain/terraform-operator-tooling/RULES.md).
-- [Dynamic-state simulation suite](../../tests/scripts/aws_terraform_dynamic_states/run.sh).
-- [Terraform shell-test workflow](../../.github/workflows/terraform-sh-tests.yml).
+- [AWS scripts index](../README.md).
+- [Scripts overview](../../README.md).
+- [Terraform Operator Tooling rules](../../../docs/domain/terraform-operator-tooling/RULES.md).
+- [Dynamic-state simulation suite](../../../tests/scripts/aws_terraform_dynamic_states/run.sh).
+- [Terraform shell-test workflow](../../../.github/workflows/terraform-sh-tests.yml).

@@ -21,16 +21,18 @@ The wrapper does not store live state or credentials. It reads backend and varia
 
 ## Usage
 
+Run these examples from this directory (`scripts/aws/terraform-sh`):
+
 ```bash
-bash scripts/aws/terraform.sh help
-bash scripts/aws/terraform.sh plan dev \
-  --root tests/scripts/terraform_wrappers/fixtures/aws-root \
+bash ./terraform.sh help
+bash ./terraform.sh plan dev \
+  --root ../../../tests/scripts/terraform_wrappers/fixtures/aws-root \
   --dry-run
-bash scripts/aws/terraform.sh summ dev \
-  --root tests/scripts/terraform_wrappers/fixtures/aws-root \
+bash ./terraform.sh summ dev \
+  --root ../../../tests/scripts/terraform_wrappers/fixtures/aws-root \
   --summary-format pr \
   --dry-run
-bash scripts/aws/terraform.sh unlock noenv \
+bash ./terraform.sh unlock noenv \
   --lock-id 00000000-0000-0000-0000-000000000000 \
   --dry-run
 ```
@@ -38,10 +40,10 @@ bash scripts/aws/terraform.sh unlock noenv \
 General form:
 
 ```text
-bash scripts/aws/terraform.sh <action> [context] [target.tf] [wrapper options] [terraform arguments]
+bash ./terraform.sh <action> [context] [target.tf] [wrapper options] [terraform arguments]
 ```
 
-Select the Terraform root with `--root <dir>` or `TERRAFORM_ROOT`. If neither is supplied, the script-directory default is used. The selected root can resolve an optional context in this order:
+Select the Terraform root with `--root <dir>` or `TERRAFORM_ROOT`. If neither is supplied, the AWS scripts directory is used. The selected root can resolve an optional context in this order:
 
 1. `<root>/<context>/backend.ini`
 2. `<root>/env/<context>/backend.ini`
@@ -111,17 +113,17 @@ The wrapper itself exports profile and region context; it does not store credent
 ## Validation
 
 ```bash
-bash -n scripts/aws/terraform.sh
-shellcheck -s bash -x scripts/aws/terraform.sh
-make terraform-wrapper-tests
+bash -n ./terraform.sh
+shellcheck -s bash -x ./terraform.sh
+make -C ../../../ terraform-wrapper-tests
 ```
 
 The wrapper simulation suite uses fake cloud CLIs and synthetic fixtures. It exercises this AWS wrapper together with the aligned Azure and GCP wrappers without using live cloud accounts or remote Terraform backends.
 
 ## Related documentation
 
-- [AWS scripts index](README.md).
-- [Scripts overview](../README.md).
-- [Terraform Operator Tooling rules](../../docs/domain/terraform-operator-tooling/RULES.md).
-- [Standard wrapper simulation suite](../../tests/scripts/terraform_wrappers/run.sh).
-- [Terraform shell-test workflow](../../.github/workflows/terraform-sh-tests.yml).
+- [AWS scripts index](../README.md).
+- [Scripts overview](../../README.md).
+- [Terraform Operator Tooling rules](../../../docs/domain/terraform-operator-tooling/RULES.md).
+- [Standard wrapper simulation suite](../../../tests/scripts/terraform_wrappers/run.sh).
+- [Terraform shell-test workflow](../../../.github/workflows/terraform-sh-tests.yml).

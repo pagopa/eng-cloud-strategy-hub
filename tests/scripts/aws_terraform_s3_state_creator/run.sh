@@ -11,7 +11,7 @@ TEST_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly TEST_DIR
 REPO_ROOT="$(cd -- "${TEST_DIR}/../../.." && pwd)"
 readonly REPO_ROOT
-SCRIPT_UNDER_TEST="${REPO_ROOT}/scripts/aws/aws-terraform-s3-state-creator.sh"
+SCRIPT_UNDER_TEST="${REPO_ROOT}/scripts/aws/aws-terraform-s3-state-creator/aws-terraform-s3-state-creator.sh"
 readonly SCRIPT_UNDER_TEST
 FAKES_DIR="${TEST_DIR}/fakes"
 readonly FAKES_DIR

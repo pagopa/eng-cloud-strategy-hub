@@ -2,15 +2,15 @@
 #
 # Purpose: Create or align an S3 bucket for Terraform remote state on AWS.
 # Usage examples:
-#   ./scripts/aws/aws-terraform-s3-state-creator.sh --region eu-south-1 --account-name sandbox --bucket my-tf-state
-#   ./scripts/aws/aws-terraform-s3-state-creator.sh --region eu-south-1 --account-name sandbox --bucket my-tf-state --tag Environment=dev --yes
-#   ./scripts/aws/aws-terraform-s3-state-creator.sh --region eu-south-1 --account-name sandbox --bucket my-tf-state --dry-run
+#   ./scripts/aws/aws-terraform-s3-state-creator/aws-terraform-s3-state-creator.sh --region eu-south-1 --account-name sandbox --bucket my-tf-state
+#   ./scripts/aws/aws-terraform-s3-state-creator/aws-terraform-s3-state-creator.sh --region eu-south-1 --account-name sandbox --bucket my-tf-state --tag Environment=dev --yes
+#   ./scripts/aws/aws-terraform-s3-state-creator/aws-terraform-s3-state-creator.sh --region eu-south-1 --account-name sandbox --bucket my-tf-state --dry-run
 
 set -euo pipefail
 
 SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_NAME
-readonly SCRIPT_PATH="scripts/aws/aws-terraform-s3-state-creator.sh"
+readonly SCRIPT_PATH="scripts/aws/aws-terraform-s3-state-creator/aws-terraform-s3-state-creator.sh"
 readonly VERSIONING_VERIFY_ATTEMPTS=5
 readonly VERSIONING_VERIFY_DELAY_SECONDS=1
 

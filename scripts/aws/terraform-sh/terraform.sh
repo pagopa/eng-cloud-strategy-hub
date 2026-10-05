@@ -17,10 +17,7 @@ set -euo pipefail
 SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-DEFAULT_TERRAFORM_ROOT="$SCRIPT_DIR"
-if [[ "$(basename -- "$SCRIPT_DIR")" == "scripts" ]]; then
-  DEFAULT_TERRAFORM_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
-fi
+DEFAULT_TERRAFORM_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 readonly SCRIPT_DIR
 readonly DEFAULT_TERRAFORM_ROOT
 readonly LOCK_PLATFORMS=(

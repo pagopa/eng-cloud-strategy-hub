@@ -27,7 +27,7 @@ The diagram describes current repository relationships, not a deployment topolog
 | Area | Current architecture | Intended architecture | Status | Evidence |
 | --- | --- | --- | --- | --- |
 | Repository role | Governance, reusable automation, operator wrappers, and validation are kept in one repository. | No separate intended shape is evidenced. | Documented | `README.md`, `AGENTS.local.md` |
-| Provider wrappers | AWS, Azure, and GCP wrappers remain separate files with an aligned command contract. | Preserve separate provider adapters while keeping behavior aligned through simulations. | Documented | `scripts/*/terraform.sh`, `tests/scripts/terraform_wrappers/run.sh` |
+| Provider wrappers | AWS, Azure, and GCP wrappers remain separate files with an aligned command contract. | Preserve separate provider adapters while keeping behavior aligned through simulations. | Documented | `scripts/*/terraform/terraform.sh`, `tests/scripts/terraform_wrappers/run.sh` |
 | Knowledge layout | The context map and domain glossaries document three domains, while `AGENTS.local.md` still declares a single-context layout. | Use `CONTEXT-MAP.md` and one glossary per evidenced domain. | Documented | `AGENTS.local.md`, `docs/agents/domain.md`, `CONTEXT-MAP.md`, `docs/adr/0001-context-map.md` |
 
 ## 4. Technology stack
@@ -37,7 +37,7 @@ The diagram describes current repository relationships, not a deployment topolog
 | Workflow automation | GitHub Actions YAML and composite actions | Evidenced | `.github/workflows/`, `actions/global/*/action.yml` |
 | Operator wrappers | Bash | Evidenced | `scripts/**/*.sh`, `validate-repo-locally.sh` |
 | Local simulation | Python standard library with optional interactive dependencies | Evidenced | `tools/validate_repo_locally/validate_repo_locally.py`, `tools/validate_repo_locally/requirements.txt` |
-| Infrastructure command surface | Terraform plus AWS CLI, Azure CLI, and gcloud | Evidenced | `scripts/aws/terraform.sh`, `scripts/azure/terraform.sh`, `scripts/gcp/terraform.sh` |
+| Infrastructure command surface | Terraform plus AWS CLI, Azure CLI, and gcloud | Evidenced | `scripts/aws/terraform-sh/terraform.sh`, `scripts/azure/terraform-sh/terraform.sh`, `scripts/gcp/terraform-sh/terraform.sh` |
 | Validation | pre-commit, actionlint, ShellCheck, pytest, and shell assertions | Evidenced | `.pre-commit-config.yaml`, `.github/workflows/`, `tests/` |
 
 ## 5. Repository map
@@ -86,8 +86,8 @@ An operator invokes a Terraform wrapper with an action and an environment
 argument or `noenv`. The wrapper resolves backend and variable-file inputs,
 optionally performs provider CLI context checks, then invokes Terraform or
 prints the commands when `--dry-run` is used. Evidence:
-`scripts/aws/terraform.sh`, `scripts/azure/terraform.sh`,
-`scripts/gcp/terraform.sh`.
+`scripts/aws/terraform-sh/terraform.sh`, `scripts/azure/terraform-sh/terraform.sh`,
+`scripts/gcp/terraform-sh/terraform.sh`.
 
 ### Build/test flow
 
@@ -95,7 +95,7 @@ prints the commands when `--dry-run` is used. Evidence:
 
 ### Deployment/operations flow
 
-No repository-owned application deployment flow is evidenced. The AWS state creator is an operator bootstrap script, not a general deployment pipeline. Evidence: `scripts/aws/aws-terraform-s3-state-creator.sh`, `.github/workflows/terraform-sh-tests.yml`.
+No repository-owned application deployment flow is evidenced. The AWS state creator is an operator bootstrap script, not a general deployment pipeline. Evidence: `scripts/aws/aws-terraform-s3-state-creator/aws-terraform-s3-state-creator.sh`, `.github/workflows/terraform-sh-tests.yml`.
 
 ## 9. Configuration and environment
 
@@ -120,7 +120,7 @@ The workflow and local checks may require tools such as actionlint, ShellCheck, 
 
 | Decision | Status | Evidence | Trade-off | Related ADR |
 | --- | --- | --- | --- | --- |
-| Keep provider wrappers as separate files with an aligned CLI contract. | Documented | `scripts/aws/terraform.sh`, `scripts/azure/terraform.sh`, `scripts/gcp/terraform.sh`, `tests/scripts/terraform_wrappers/run.sh` | Duplicates some shell logic but keeps provider-specific behavior explicit. | None |
+| Keep provider wrappers as separate files with an aligned CLI contract. | Documented | `scripts/aws/terraform-sh/terraform.sh`, `scripts/azure/terraform-sh/terraform.sh`, `scripts/gcp/terraform-sh/terraform.sh`, `tests/scripts/terraform_wrappers/run.sh` | Duplicates some shell logic but keeps provider-specific behavior explicit. | None |
 | Use a context map for the three evidenced knowledge domains. | Accepted | `CONTEXT-MAP.md`, `docs/agents/domain.md` | Adds navigation files, but avoids forcing unrelated vocabulary into one glossary. | `docs/adr/0001-context-map.md` |
 
 ## 12. AI-agent working rules

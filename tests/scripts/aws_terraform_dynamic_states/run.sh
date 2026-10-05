@@ -11,7 +11,7 @@ TEST_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly TEST_DIR
 REPO_ROOT="$(cd -- "${TEST_DIR}/../../.." && pwd)"
 readonly REPO_ROOT
-SCRIPT_UNDER_TEST="${REPO_ROOT}/scripts/aws/terraform-dynamic-states.sh"
+SCRIPT_UNDER_TEST="${REPO_ROOT}/scripts/aws/terraform-dynamic-states/terraform-dynamic-states.sh"
 readonly SCRIPT_UNDER_TEST
 FIXTURE_ROOT="${TEST_DIR}/fixtures/dynamic-root"
 readonly FIXTURE_ROOT

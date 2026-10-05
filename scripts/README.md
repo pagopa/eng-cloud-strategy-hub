@@ -20,10 +20,10 @@ credentials.
 
 | Path | Responsibility | Execution context |
 | --- | --- | --- |
-| `aws/terraform.sh` | Terraform wrapper for AWS roots. | AWS CLI profile and region resolution when an environment requires it. |
-| `azure/terraform.sh` | Terraform wrapper for Azure roots. | Azure subscription resolution when an environment requires it. |
-| `gcp/terraform.sh` | Terraform wrapper for GCP roots. | GCP project resolution when an environment requires it. |
-| `aws/aws-terraform-s3-state-creator.sh` | Creates or validates the AWS S3 state-bucket bootstrap resources. | AWS CLI and explicitly supplied bootstrap inputs. |
+| `aws/terraform-sh/terraform.sh` | Terraform wrapper for AWS roots. | AWS CLI profile and region resolution when an environment requires it. |
+| `azure/terraform-sh/terraform.sh` | Terraform wrapper for Azure roots. | Azure subscription resolution when an environment requires it. |
+| `gcp/terraform-sh/terraform.sh` | Terraform wrapper for GCP roots. | GCP project resolution when an environment requires it. |
+| `aws/aws-terraform-s3-state-creator/aws-terraform-s3-state-creator.sh` | Creates or validates the AWS S3 state-bucket bootstrap resources. | AWS CLI and explicitly supplied bootstrap inputs. |
 
 The three Terraform wrappers intentionally remain separate files while exposing the same top-level actions and options. `noenv` skips environment-specific backend and cloud-auth resolution; `--dry-run` prints commands without executing them.
 
@@ -34,11 +34,11 @@ wrappers do not accept a separate root-path argument. This safe example uses a
 checked-in synthetic root and dry-run mode:
 
 ```bash
-hub_root="$(pwd)"
-scripts/aws/terraform.sh help
+scripts_root="$(pwd)"
+"${scripts_root}/aws/terraform-sh/terraform.sh" help
 (
-	cd tests/scripts/terraform_wrappers/fixtures/azure-root
-	"${hub_root}/scripts/azure/terraform.sh" plan noenv --no-default-tfvars --dry-run
+	cd ../tests/scripts/terraform_wrappers/fixtures/azure-root
+	"${scripts_root}/azure/terraform-sh/terraform.sh" plan noenv --no-default-tfvars --dry-run
 )
 ```
 
@@ -51,9 +51,9 @@ The AWS state creator is a separate bootstrap path. Use its test suite as the lo
 The offline suites use fake cloud CLIs and synthetic fixtures:
 
 ```bash
-make terraform-wrapper-tests
-make aws-s3-state-creator-tests
-bash -n scripts/aws/terraform.sh scripts/azure/terraform.sh scripts/gcp/terraform.sh
+make -C .. terraform-wrapper-tests
+make -C .. aws-s3-state-creator-tests
+bash -n aws/terraform-sh/terraform.sh azure/terraform-sh/terraform.sh gcp/terraform-sh/terraform.sh
 ```
 
 The corresponding workflow is [.github/workflows/terraform-sh-tests.yml](../.github/workflows/terraform-sh-tests.yml). It runs Bash syntax checks, ShellCheck, and both simulation suites without requiring remote Terraform state.

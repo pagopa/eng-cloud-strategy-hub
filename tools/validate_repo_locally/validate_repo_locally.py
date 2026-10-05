@@ -39,9 +39,9 @@ SHELL_TARGET_ROOTS = (
     "validate-repo-locally.sh",
 )
 TERRAFORM_WRAPPER_TARGETS = (
-    "scripts/aws/terraform.sh",
-    "scripts/azure/terraform.sh",
-    "scripts/gcp/terraform.sh",
+    "scripts/aws/terraform-sh/terraform.sh",
+    "scripts/azure/terraform-sh/terraform.sh",
+    "scripts/gcp/terraform-sh/terraform.sh",
     "tests/scripts/terraform_wrappers/lib/assertions.sh",
     "tests/scripts/terraform_wrappers/run.sh",
     "tests/scripts/terraform_wrappers/fakes/terraform",
@@ -52,7 +52,7 @@ TERRAFORM_WRAPPER_TARGETS = (
     "tests/scripts/terraform_wrappers/fakes/tflist",
 )
 AWS_STATE_CREATOR_TARGETS = (
-    "scripts/aws/aws-terraform-s3-state-creator.sh",
+    "scripts/aws/aws-terraform-s3-state-creator/aws-terraform-s3-state-creator.sh",
     "tests/scripts/aws_terraform_s3_state_creator/run.sh",
     "tests/scripts/aws_terraform_s3_state_creator/fakes/aws",
     "tests/scripts/terraform_wrappers/lib/assertions.sh",
