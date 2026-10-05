@@ -16,11 +16,24 @@ log_file="${FAKE_LOG_DIR:?}/terraform.log"
 
 subcommand="${1:-}"
 
+if [[ -n "${FAKE_TERRAFORM_FAIL_ON:-}" && "$subcommand" == "${FAKE_TERRAFORM_FAIL_ON}" ]]; then
+  printf 'fake terraform: forced %s failure\n' "$subcommand" >&2
+  exit "${FAKE_TERRAFORM_FAIL_STATUS:-1}"
+fi
+
 case "$subcommand" in
   version)
     printf 'Terraform v1.9.0\n'
     ;;
-  init|apply|destroy|refresh|import|output|taint|untaint|validate|fmt|graph|console|force-unlock)
+  init)
+    printf 'Terraform has been successfully initialized!\n'
+    ;;
+  output)
+    if [[ " $* " == *' -json '* ]]; then
+      printf '{"example":{"sensitive":false,"type":"string","value":"fake"}}\n'
+    fi
+    ;;
+  apply|destroy|refresh|import|taint|untaint|validate|fmt|graph|console|force-unlock)
     ;;
   state)
     if [[ "${2:-}" == 'list' ]]; then

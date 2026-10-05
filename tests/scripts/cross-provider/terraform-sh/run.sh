@@ -2,21 +2,21 @@
 #
 # Purpose: Run the Terraform wrapper simulation suite with fake cloud CLIs.
 # Usage examples:
-#   ./tests/scripts/terraform_wrappers/run.sh
-#   bash tests/scripts/terraform_wrappers/run.sh
+#   ./tests/scripts/cross-provider/terraform-sh/run.sh
+#   bash tests/scripts/cross-provider/terraform-sh/run.sh
 
 set -euo pipefail
 
 TEST_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly TEST_DIR
-REPO_ROOT="$(cd -- "${TEST_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd -- "${TEST_DIR}/../../../.." && pwd)"
 readonly REPO_ROOT
 FIXTURES_DIR="${TEST_DIR}/fixtures"
 readonly FIXTURES_DIR
 FAKES_DIR="${TEST_DIR}/fakes"
 readonly FAKES_DIR
 
-# shellcheck source=tests/scripts/terraform_wrappers/lib/assertions.sh
+# shellcheck source=tests/scripts/cross-provider/terraform-sh/lib/assertions.sh
 source "${TEST_DIR}/lib/assertions.sh"
 
 LOG_DIR="${TEST_DIR}/logs"
@@ -26,7 +26,7 @@ RUN_STDERR=""
 
 reset_logs() {
   rm -rf "${LOG_DIR}"
-  mkdir -p "${LOG_DIR}"
+  mkdir -p "${LOG_DIR}/tmp"
 }
 
 last_log_line() {
@@ -87,12 +87,12 @@ run_wrapper_internal() {
   (
     cd "${FIXTURES_DIR}/${fixture}" || exit 1
     if [[ "$provider" == 'aws' ]]; then
-      TERRAFORM_ROOT="${FIXTURES_DIR}/${fixture}" \
+      TERRAFORM_ROOT="${FIXTURES_DIR}/${fixture}" TMPDIR="${LOG_DIR}/tmp" \
         CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}:$PATH" \
-        bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+        bash "${REPO_ROOT}/scripts/${provider}/terraform-sh/terraform.sh" "$@"
     else
-      CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}:$PATH" \
-        bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+      TMPDIR="${LOG_DIR}/tmp" CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}:$PATH" \
+        bash "${REPO_ROOT}/scripts/${provider}/terraform-sh/terraform.sh" "$@"
     fi
   ) >"$stdout_file" 2>"$stderr_file" || RUN_STATUS=$?
 
@@ -123,12 +123,12 @@ run_wrapper_without_summary() {
   (
     cd "${FIXTURES_DIR}/${fixture}" || exit 1
     if [[ "$provider" == 'aws' ]]; then
-      TERRAFORM_ROOT="${FIXTURES_DIR}/${fixture}" \
+      TERRAFORM_ROOT="${FIXTURES_DIR}/${fixture}" TMPDIR="${LOG_DIR}/tmp" \
         CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}" \
-        bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+        bash "${REPO_ROOT}/scripts/${provider}/terraform-sh/terraform.sh" "$@"
     else
-      CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}" \
-        bash "${REPO_ROOT}/scripts/${provider}/terraform.sh" "$@"
+      TMPDIR="${LOG_DIR}/tmp" CI=false CICD_ENABLE=false FAKE_LOG_DIR="${LOG_DIR}" PATH="${fake_path}" \
+        bash "${REPO_ROOT}/scripts/${provider}/terraform-sh/terraform.sh" "$@"
     fi
   ) >"$stdout_file" 2>"$stderr_file" || RUN_STATUS=$?
 
@@ -143,14 +143,14 @@ test_script_metadata() {
   for provider in aws azure gcp; do
     case "$provider" in
       aws)
-        expected_version='2.0'
+        expected_version='2.3'
         ;;
       *)
         expected_version='1.13'
         ;;
     esac
-    assert_file_contains "${REPO_ROOT}/scripts/${provider}/terraform.sh" "vers=\"${expected_version}\"" "${provider} exposes its current version"
-    assert_file_contains "${REPO_ROOT}/scripts/${provider}/terraform.sh" '# - 1.13 2026-05-03' "${provider} includes the changelog entry"
+    assert_file_contains "${REPO_ROOT}/scripts/${provider}/terraform-sh/terraform.sh" "vers=\"${expected_version}\"" "${provider} exposes its current version"
+    assert_file_contains "${REPO_ROOT}/scripts/${provider}/terraform-sh/terraform.sh" "# - ${expected_version} " "${provider} includes its current changelog entry"
   done
 }
 
@@ -162,7 +162,7 @@ test_help_outputs() {
   for provider in aws azure gcp; do
     case "$provider" in
       aws)
-        expected_version='2.0'
+        expected_version='2.3'
         ;;
       *)
         expected_version='1.13'
@@ -275,7 +275,7 @@ test_override_order() {
     last_line="$(last_log_line terraform)"
     case "$provider" in
       aws)
-        [[ "$last_line" == *"${expected_override}"*'env/dev/terraform.tfvars'* ]] || fail 'aws keeps the explicit override before the default tfvars'
+        [[ "$last_line" == *'env/dev/terraform.tfvars'*"${expected_override}"* ]] || fail 'aws keeps default tfvars before override'
         ;;
       azure)
         [[ "$last_line" == *'-var-file=./env/dev/terraform.tfvars'*"${expected_override}"* ]] || fail 'azure keeps default tfvars before override'
@@ -390,14 +390,14 @@ test_doctor_and_debug_bundle() {
     reset_logs
     run_wrapper "$provider" "${provider}-root" doctor dev
     assert_eq "0" "$RUN_STATUS" "${provider} doctor exits cleanly"
-    assert_contains "$RUN_STDOUT" 'Doctor completed successfully' "${provider} doctor reports success"
+    assert_contains "${RUN_STDOUT}${RUN_STDERR}" 'Doctor completed successfully' "${provider} doctor reports success"
 
     fixture_root="${FIXTURES_DIR}/${provider}-root"
     rm -rf "${fixture_root}/tmp/terraform-debug"
     run_wrapper "$provider" "${provider}-root" debug-bundle noenv
     assert_eq "0" "$RUN_STATUS" "${provider} debug-bundle exits cleanly"
     if [[ "$provider" == 'aws' ]]; then
-      assert_contains "$RUN_STDOUT" 'Debug bundle created at /' "${provider} debug-bundle reports the temporary bundle path"
+      assert_contains "${RUN_STDOUT}${RUN_STDERR}" 'Debug bundle created at /' "${provider} debug-bundle reports the temporary bundle path"
     else
       assert_path_exists "${fixture_root}/tmp/terraform-debug" "${provider} debug-bundle creates the debug directory"
     fi

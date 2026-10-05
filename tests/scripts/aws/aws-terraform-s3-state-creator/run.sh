@@ -2,24 +2,24 @@
 #
 # Purpose: Validate aws-terraform-s3-state-creator behavior with a fake AWS CLI.
 # Usage examples:
-#   ./tests/scripts/aws_terraform_s3_state_creator/run.sh
-#   bash tests/scripts/aws_terraform_s3_state_creator/run.sh
+#   ./tests/scripts/aws/aws-terraform-s3-state-creator/run.sh
+#   bash tests/scripts/aws/aws-terraform-s3-state-creator/run.sh
 
 set -euo pipefail
 
 TEST_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly TEST_DIR
-REPO_ROOT="$(cd -- "${TEST_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd -- "${TEST_DIR}/../../../.." && pwd)"
 readonly REPO_ROOT
-SCRIPT_UNDER_TEST="${REPO_ROOT}/scripts/aws/aws-terraform-s3-state-creator.sh"
+SCRIPT_UNDER_TEST="${REPO_ROOT}/scripts/aws/aws-terraform-s3-state-creator/aws-terraform-s3-state-creator.sh"
 readonly SCRIPT_UNDER_TEST
 FAKES_DIR="${TEST_DIR}/fakes"
 readonly FAKES_DIR
 LOG_DIR="${TEST_DIR}/logs"
 readonly LOG_DIR
 
-# shellcheck source=tests/scripts/terraform_wrappers/lib/assertions.sh
-source "${REPO_ROOT}/tests/scripts/terraform_wrappers/lib/assertions.sh"
+# shellcheck source=tests/scripts/cross-provider/terraform-sh/lib/assertions.sh
+source "${REPO_ROOT}/tests/scripts/cross-provider/terraform-sh/lib/assertions.sh"
 
 RUN_STATUS=0
 RUN_STDOUT=""

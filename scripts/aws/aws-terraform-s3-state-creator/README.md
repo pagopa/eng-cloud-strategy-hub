@@ -22,13 +22,13 @@ It does not create a repository file, manage live Terraform state, configure Ter
 ## Usage
 
 ```bash
-bash scripts/aws/aws-terraform-s3-state-creator.sh \
+bash ./aws-terraform-s3-state-creator.sh \
   --region eu-south-1 \
   --account-name sandbox \
   --bucket my-tf-state \
   --dry-run
 
-bash scripts/aws/aws-terraform-s3-state-creator.sh \
+bash ./aws-terraform-s3-state-creator.sh \
   --region eu-south-1 \
   --account-name sandbox \
   --bucket my-tf-state \
@@ -39,7 +39,7 @@ bash scripts/aws/aws-terraform-s3-state-creator.sh \
 General form:
 
 ```text
-bash scripts/aws/aws-terraform-s3-state-creator.sh [options]
+bash ./aws-terraform-s3-state-creator.sh [options]
 ```
 
 ## Inputs
@@ -96,17 +96,17 @@ The script does not store credentials or live bucket state in this repository.
 ## Validation
 
 ```bash
-bash -n scripts/aws/aws-terraform-s3-state-creator.sh
-shellcheck -s bash -x scripts/aws/aws-terraform-s3-state-creator.sh
-make aws-s3-state-creator-tests
+bash -n ./aws-terraform-s3-state-creator.sh
+shellcheck -s bash -x ./aws-terraform-s3-state-creator.sh
+make -C ../../../ aws-s3-state-creator-tests
 ```
 
 The S3 state-creator simulation suite uses a fake AWS CLI and covers argument validation, account checks, dry-run behavior, recovery controls, policy and tag merging, versioning verification, and operator cancellation without using a live AWS account.
 
 ## Related documentation
 
-- [AWS scripts index](README.md).
-- [Scripts overview](../README.md).
-- [Terraform Operator Tooling rules](../../docs/domain/terraform-operator-tooling/RULES.md).
-- [S3 state-creator simulation suite](../../tests/scripts/aws_terraform_s3_state_creator/run.sh).
-- [Terraform shell-test workflow](../../.github/workflows/terraform-sh-tests.yml).
+- [AWS scripts index](../README.md).
+- [Scripts overview](../../README.md).
+- [Terraform Operator Tooling rules](../../../docs/domain/terraform-operator-tooling/RULES.md).
+- [S3 state-creator simulation suite](../../../tests/scripts/aws/aws-terraform-s3-state-creator/run.sh).
+- [Code analysis workflow](../../../.github/workflows/_code-analysis.yml).
