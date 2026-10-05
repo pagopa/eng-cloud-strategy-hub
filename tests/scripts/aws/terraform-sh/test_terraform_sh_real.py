@@ -80,10 +80,14 @@ class RealTerraformTestCase(unittest.TestCase):
     ) -> None:
         self.assertEqual(expected, result.returncode, result.stdout + result.stderr)
 
-    def applied_winner(self, *apply_args: str, extra_env: dict[str, str] | None = None) -> str:
+    def applied_winner(
+        self, *apply_args: str, extra_env: dict[str, str] | None = None
+    ) -> str:
         self.assert_status(
             0,
-            self.run_wrapper("apply", "dev", *apply_args, "-auto-approve", extra_env=extra_env),
+            self.run_wrapper(
+                "apply", "dev", *apply_args, "-auto-approve", extra_env=extra_env
+            ),
         )
         result = self.run_wrapper("output", "dev", "-raw", "winner")
         self.assert_status(0, result)
@@ -100,10 +104,14 @@ class RealTerraformPrecedenceTests(RealTerraformTestCase):
         with self.subTest(layer="cli -var"):
             self.assertEqual(
                 "cli",
-                self.applied_winner("--tfvars", "overrides/o.tfvars", "-var=winner=cli"),
+                self.applied_winner(
+                    "--tfvars", "overrides/o.tfvars", "-var=winner=cli"
+                ),
             )
         with self.subTest(layer="--tfvars override"):
-            self.assertEqual("override", self.applied_winner("--tfvars", "overrides/o.tfvars"))
+            self.assertEqual(
+                "override", self.applied_winner("--tfvars", "overrides/o.tfvars")
+            )
         with self.subTest(layer="env terraform.tfvars"):
             self.assertEqual("env_default", self.applied_winner())
 
@@ -130,7 +138,9 @@ class RealTerraformPlanTests(RealTerraformTestCase):
         for variable in ("TF_CLI_ARGS", "TF_CLI_ARGS_plan"):
             with self.subTest(variable=variable):
                 changed = self.run_wrapper(
-                    "plan", "dev", "--skip-init",
+                    "plan",
+                    "dev",
+                    "--skip-init",
                     extra_env={variable: "-detailed-exitcode"},
                 )
                 self.assert_status(2, changed)

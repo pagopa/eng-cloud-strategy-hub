@@ -57,7 +57,11 @@ def parse_cli_source() -> str:
 def readme_usage_commands() -> list[list[str]]:
     text = README.read_text(encoding="utf-8")
     section = text[text.index("## Usage") :]
-    block = section[section.index("```bash") + len("```bash") : section.index("```", section.index("```bash") + 1)]
+    block = section[
+        section.index("```bash") + len("```bash") : section.index(
+            "```", section.index("```bash") + 1
+        )
+    ]
     joined = block.replace("\\\n", " ")
     return [
         shlex.split(line)
@@ -114,7 +118,9 @@ class ReadmeExampleTests(unittest.TestCase):
                         timeout=60,
                         check=False,
                     )
-                    self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                    self.assertEqual(
+                        0, result.returncode, result.stdout + result.stderr
+                    )
                     self.assertFalse((base / "terraform.log").exists())
 
 

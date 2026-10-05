@@ -214,7 +214,9 @@ class TerraformSuiteStepTests(unittest.TestCase):
     ) -> tuple[int, list[list[str]]]:
         calls: list[list[str]] = []
 
-        def fake_run_command(_context: object, args: list[object], **_kwargs: object) -> int:
+        def fake_run_command(
+            _context: object, args: list[object], **_kwargs: object
+        ) -> int:
             rendered = [str(arg) for arg in args]
             calls.append(rendered)
             if failing_marker and failing_marker in rendered:

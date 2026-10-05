@@ -160,9 +160,7 @@ class TfvarsPrecedenceTests(WrapperTestCase):
         self.write("env/dev/terraform.tfvars.json", "{}")
         self.write("env/dev/a.tfvars")
 
-        result = self.run_wrapper(
-            "plan", "dev", "--tfvars", "overrides/custom.tfvars"
-        )
+        result = self.run_wrapper("plan", "dev", "--tfvars", "overrides/custom.tfvars")
 
         self.assert_success(result)
         self.assertEqual(
@@ -229,7 +227,9 @@ class DefaultTerraformRootTests(WrapperTestCase):
 
 
 class DryRunTests(WrapperTestCase):
-    def assert_dry_run_is_inert(self, *args: str, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    def assert_dry_run_is_inert(
+        self, *args: str, extra_env: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         before = self.tree_digest(self.root)
 
         result = self.run_wrapper(*args, "--dry-run", extra_env=extra_env)
@@ -276,7 +276,9 @@ class SecretRedactionTests(WrapperTestCase):
         with backend.open("a", encoding="utf-8") as handle:
             handle.write("\n".join(lines) + "\n")
 
-    def assert_no_secret_in_output(self, result: subprocess.CompletedProcess[str]) -> None:
+    def assert_no_secret_in_output(
+        self, result: subprocess.CompletedProcess[str]
+    ) -> None:
         output = result.stdout + result.stderr
         for value in SECRET_VALUES.values():
             self.assertNotIn(value, output)
@@ -413,7 +415,9 @@ class InitTests(WrapperTestCase):
 class UnlockTests(WrapperTestCase):
     def test_ci_probe_error_is_visible_and_temporaries_are_removed(self) -> None:
         result = self.run_wrapper(
-            "unlock", "dev", "--force",
+            "unlock",
+            "dev",
+            "--force",
             extra_env={"CI": "true", "FAKE_TERRAFORM_FAIL_ON": "plan"},
         )
 
@@ -449,7 +453,8 @@ class UnlockTests(WrapperTestCase):
             self.var_args(self.calls_for("plan")[-1]),
         )
         self.assertEqual(
-            ["force-unlock", "-force", "fake-lock-id"], self.calls_for("force-unlock")[-1]
+            ["force-unlock", "-force", "fake-lock-id"],
+            self.calls_for("force-unlock")[-1],
         )
         self.assertEqual({}, self.tree_digest(self.tmpdir))
 
@@ -522,7 +527,9 @@ class PassthroughGrammarTests(WrapperTestCase):
         result = self.run_wrapper("state", "dev", "list")
 
         self.assert_success(result)
-        self.assertIn("-backend-config=bucket=aws-dev-state", self.calls_for("init")[-1])
+        self.assertIn(
+            "-backend-config=bucket=aws-dev-state", self.calls_for("init")[-1]
+        )
         self.assertEqual(["state", "list"], self.calls_for("state")[-1])
 
     def test_unknown_context_still_fails_for_plan(self) -> None:
@@ -588,13 +595,17 @@ class OutputStreamTests(WrapperTestCase):
 
 class DiagnosticsTests(WrapperTestCase):
     def test_doctor_accepts_root_relative_override(self) -> None:
-        result = self.run_wrapper("doctor", "dev", "--tfvars", "overrides/custom.tfvars")
+        result = self.run_wrapper(
+            "doctor", "dev", "--tfvars", "overrides/custom.tfvars"
+        )
 
         self.assert_success(result)
         self.assertIn("overrides/custom.tfvars", result.stderr)
 
     def test_doctor_reports_missing_override(self) -> None:
-        result = self.run_wrapper("doctor", "dev", "--tfvars", "overrides/missing.tfvars")
+        result = self.run_wrapper(
+            "doctor", "dev", "--tfvars", "overrides/missing.tfvars"
+        )
 
         self.assert_failure(result)
         self.assertIn("overrides/missing.tfvars", result.stderr)
@@ -626,7 +637,10 @@ class DetailedExitCodeTests(WrapperTestCase):
             "plan",
             "dev",
             *args,
-            extra_env={"FAKE_TERRAFORM_FAIL_ON": "plan", "FAKE_TERRAFORM_FAIL_STATUS": status},
+            extra_env={
+                "FAKE_TERRAFORM_FAIL_ON": "plan",
+                "FAKE_TERRAFORM_FAIL_STATUS": status,
+            },
         )
 
     def test_changes_present_exit_code_is_not_a_failure(self) -> None:
@@ -651,8 +665,12 @@ class DetailedExitCodeTests(WrapperTestCase):
 
     def test_non_plan_exit_two_is_still_a_failure(self) -> None:
         result = self.run_wrapper(
-            "output", "noenv",
-            extra_env={"FAKE_TERRAFORM_FAIL_ON": "output", "FAKE_TERRAFORM_FAIL_STATUS": "2"},
+            "output",
+            "noenv",
+            extra_env={
+                "FAKE_TERRAFORM_FAIL_ON": "output",
+                "FAKE_TERRAFORM_FAIL_STATUS": "2",
+            },
         )
 
         self.assertEqual(2, result.returncode)
@@ -660,12 +678,21 @@ class DetailedExitCodeTests(WrapperTestCase):
 
     def test_summary_continues_after_plan_changes(self) -> None:
         result = self.run_wrapper(
-            "summ", "dev", "-detailed-exitcode", "--summary-format", "json",
-            extra_env={"FAKE_TERRAFORM_FAIL_ON": "plan", "FAKE_TERRAFORM_FAIL_STATUS": "2"},
+            "summ",
+            "dev",
+            "-detailed-exitcode",
+            "--summary-format",
+            "json",
+            extra_env={
+                "FAKE_TERRAFORM_FAIL_ON": "plan",
+                "FAKE_TERRAFORM_FAIL_STATUS": "2",
+            },
         )
 
         self.assertEqual(2, result.returncode)
-        self.assertTrue(result.stdout.strip(), "The summary must be emitted after plan changes")
+        self.assertTrue(
+            result.stdout.strip(), "The summary must be emitted after plan changes"
+        )
         self.assertEqual({"create": 1}, json.loads(result.stdout))
         self.assertIn("CHANGES PRESENT", result.stderr)
         self.assertNotIn("FAILED", result.stderr)
@@ -675,7 +702,9 @@ class DetailedExitCodeTests(WrapperTestCase):
         summarizer = self.write("bin/tf-summarize", "#!/usr/bin/env bash\nexit 2\n")
         summarizer.chmod(0o755)
         result = self.run_wrapper(
-            "summ", "dev", "-detailed-exitcode",
+            "summ",
+            "dev",
+            "-detailed-exitcode",
             extra_env={
                 "PATH": f"{summarizer.parent}:{FAKES_DIR}:{os.environ['PATH']}",
                 "FAKE_TERRAFORM_FAIL_ON": "plan",
