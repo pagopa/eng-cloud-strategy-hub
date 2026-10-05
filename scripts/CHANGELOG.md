@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.13.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/scripts-v1.12.0...scripts-v1.13.0) (2026-10-05)
+
+
+### Features
+
+* better aws terraform.sh and reorder scripts ([#74](https://github.com/pagopa/eng-cloud-strategy-hub/issues/74)) ([d82c595](https://github.com/pagopa/eng-cloud-strategy-hub/commit/d82c5955a4c28840f096577e5a05144ed9f34850))
+* Refactor Terraform wrapper for improved usability and context handling ([#72](https://github.com/pagopa/eng-cloud-strategy-hub/issues/72)) ([71ce334](https://github.com/pagopa/eng-cloud-strategy-hub/commit/71ce334049bd55faaa4b64ff6fcbb06c36578068))
+
+
+### Bug Fixes
+
+* **tests:** Update script paths for AWS Terraform dynamic states and S3 state creator ([d82c595](https://github.com/pagopa/eng-cloud-strategy-hub/commit/d82c5955a4c28840f096577e5a05144ed9f34850))
+
 ## [1.12.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/scripts-v1.11.1...scripts-v1.12.0) (2026-09-09)
 
 
