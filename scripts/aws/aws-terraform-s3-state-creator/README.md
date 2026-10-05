@@ -109,4 +109,4 @@ The S3 state-creator simulation suite uses a fake AWS CLI and covers argument va
 - [Scripts overview](../../README.md).
 - [Terraform Operator Tooling rules](../../../docs/domain/terraform-operator-tooling/RULES.md).
 - [S3 state-creator simulation suite](../../../tests/scripts/aws_terraform_s3_state_creator/run.sh).
-- [Terraform shell-test workflow](../../../.github/workflows/terraform-sh-tests.yml).
+- [Code analysis workflow](../../../.github/workflows/_code-analysis.yml).

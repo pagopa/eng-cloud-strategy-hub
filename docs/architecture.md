@@ -58,7 +58,7 @@ The diagram describes current repository relationships, not a deployment topolog
 ## 6. Architectural boundaries
 
 - `.github/` is the source for repository governance and workflow entrypoints; `actions/` is the source for reusable composite action implementations. Status: Evidenced. Evidence: `.github/`, `actions/global/`.
-- `scripts/` owns provider wrapper behavior; `tests/scripts/` owns offline simulation and fixtures. Status: Evidenced. Evidence: `scripts/`, `tests/scripts/terraform_wrappers/`, `.github/workflows/terraform-sh-tests.yml`.
+- `scripts/` owns provider wrapper behavior; `tests/scripts/` owns offline simulation and fixtures. Status: Evidenced. Evidence: `scripts/`, `tests/scripts/terraform_wrappers/`, `.github/workflows/_code-analysis.yml`.
 - `tools/validate_repo_locally/` coordinates selected local checks but does not replace GitHub-hosted workflows. Status: Evidenced. Evidence: `tools/validate_repo_locally/validate_repo_locally.py`, `validate-repo-locally.sh`.
 - Live cloud state, remote Terraform backends, consumer applications, long-lived credentials, and provider governance data are outside the repository boundary. Status: Documented. Evidence: `README.md`, `scripts/README.md`.
 
@@ -95,7 +95,7 @@ prints the commands when `--dry-run` is used. Evidence:
 
 ### Deployment/operations flow
 
-No repository-owned application deployment flow is evidenced. The AWS state creator is an operator bootstrap script, not a general deployment pipeline. Evidence: `scripts/aws/aws-terraform-s3-state-creator/aws-terraform-s3-state-creator.sh`, `.github/workflows/terraform-sh-tests.yml`.
+No repository-owned application deployment flow is evidenced. The AWS state creator is an operator bootstrap script, not a general deployment pipeline. Evidence: `scripts/aws/aws-terraform-s3-state-creator/aws-terraform-s3-state-creator.sh`.
 
 ## 9. Configuration and environment
 
@@ -110,7 +110,7 @@ No repository-owned application deployment flow is evidenced. The AWS state crea
 | Change type | Suggested validation | Evidence |
 | --- | --- | --- |
 | Workflow or composite action | `./validate-repo-locally.sh --only actionlint`, plus the relevant action smoke or consumer check | `.github/workflows/_code-analysis.yml`, `tools/validate_repo_locally/validate_repo_locally.py` |
-| Bash wrapper or shell fixture | `bash -n`, `shellcheck`, and `make terraform-wrapper-tests` or `make aws-s3-state-creator-tests` | `.github/workflows/terraform-sh-tests.yml`, `Makefile` |
+| Bash wrapper or shell fixture | `bash -n`, `shellcheck`, and `make terraform-wrapper-tests` or `make aws-s3-state-creator-tests` | `.github/workflows/_code-analysis.yml`, `Makefile` |
 | Python runner or action helper | `python3 -m pytest -q tests/` and the relevant local simulator step | `tests/`, `tools/validate_repo_locally/` |
 | YAML, JSON, Terraform, or broad repository change | `pre-commit run --all-files --config .pre-commit-config.yaml` when the pinned container or local toolchain is available | `.pre-commit-config.yaml`, `.github/workflows/_pre-commit.yml` |
 

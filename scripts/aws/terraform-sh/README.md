@@ -126,4 +126,4 @@ The wrapper simulation suite uses fake cloud CLIs and synthetic fixtures. It exe
 - [Scripts overview](../../README.md).
 - [Terraform Operator Tooling rules](../../../docs/domain/terraform-operator-tooling/RULES.md).
 - [Standard wrapper simulation suite](../../../tests/scripts/terraform_wrappers/run.sh).
-- [Terraform shell-test workflow](../../../.github/workflows/terraform-sh-tests.yml).
+- [Code analysis workflow](../../../.github/workflows/_code-analysis.yml).

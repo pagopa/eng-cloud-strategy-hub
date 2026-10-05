@@ -45,7 +45,7 @@ make -C ../.. aws-s3-state-creator-tests
 bash ../../tests/scripts/aws_terraform_dynamic_states/run.sh
 ```
 
-The repository workflow [`.github/workflows/terraform-sh-tests.yml`](../../.github/workflows/terraform-sh-tests.yml) runs the syntax checks, ShellCheck, the standard wrapper simulation suite, the dynamic-state simulation suite, and the S3 state-creator suite. The dynamic-state suite has no dedicated Make target and is invoked directly.
+The repository workflow [the code analysis workflow](../../.github/workflows/_code-analysis.yml) runs Bash syntax checks and ShellCheck for repository shell targets. The standard wrapper, dynamic-state, and S3 state-creator simulation suites above remain local validation commands. The dynamic-state suite has no dedicated Make target and is invoked directly.
 
 ## Related documentation
 

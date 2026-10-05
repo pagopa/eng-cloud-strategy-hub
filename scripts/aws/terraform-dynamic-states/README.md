@@ -136,4 +136,4 @@ The dynamic-state simulation suite uses fake AWS and Terraform CLIs and covers d
 - [Scripts overview](../../README.md).
 - [Terraform Operator Tooling rules](../../../docs/domain/terraform-operator-tooling/RULES.md).
 - [Dynamic-state simulation suite](../../../tests/scripts/aws_terraform_dynamic_states/run.sh).
-- [Terraform shell-test workflow](../../../.github/workflows/terraform-sh-tests.yml).
+- [Code analysis workflow](../../../.github/workflows/_code-analysis.yml).

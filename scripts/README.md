@@ -56,6 +56,6 @@ make -C .. aws-s3-state-creator-tests
 bash -n aws/terraform-sh/terraform.sh azure/terraform-sh/terraform.sh gcp/terraform-sh/terraform.sh
 ```
 
-The corresponding workflow is [.github/workflows/terraform-sh-tests.yml](../.github/workflows/terraform-sh-tests.yml). It runs Bash syntax checks, ShellCheck, and both simulation suites without requiring remote Terraform state.
+The corresponding workflow is [the code analysis workflow](../.github/workflows/_code-analysis.yml). It runs Bash syntax checks and ShellCheck for repository shell targets. The offline simulation suites above remain local validation commands and do not require remote Terraform state.
 
 No diagram is provided because the wrapper-to-test relationships are maintained in [docs/architecture.md](../docs/architecture.md#2-system-overview).
