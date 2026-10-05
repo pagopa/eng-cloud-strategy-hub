@@ -43,7 +43,11 @@ class WrapperTestCase(unittest.TestCase):
         return target
 
     def run_wrapper(
-        self, *args: str, extra_env: dict[str, str] | None = None
+        self,
+        *args: str,
+        extra_env: dict[str, str] | None = None,
+        use_default_root: bool = False,
+        wrapper_path: Path | None = None,
     ) -> subprocess.CompletedProcess[str]:
         env = {
             key: value
@@ -55,13 +59,14 @@ class WrapperTestCase(unittest.TestCase):
                 "PATH": f"{FAKES_DIR}:{os.environ.get('PATH', '/usr/bin:/bin')}",
                 "TMPDIR": str(self.tmpdir),
                 "FAKE_LOG_DIR": str(self.logs),
-                "TERRAFORM_ROOT": str(self.root),
                 "CI": "false",
             }
         )
+        if not use_default_root:
+            env["TERRAFORM_ROOT"] = str(self.root)
         env.update(extra_env or {})
         return subprocess.run(
-            ["bash", str(WRAPPER), *args],
+            ["bash", str(wrapper_path or WRAPPER), *args],
             cwd=self.root,
             env=env,
             stdin=subprocess.DEVNULL,
@@ -70,6 +75,15 @@ class WrapperTestCase(unittest.TestCase):
             timeout=60,
             check=False,
         )
+
+    def terraform_working_directories(self) -> list[str]:
+        log_file = self.logs / "terraform.log"
+        if not log_file.exists():
+            return []
+        return [
+            line.split(" argv=", 1)[0].removeprefix("cwd=")
+            for line in log_file.read_text(encoding="utf-8").splitlines()
+        ]
 
     def terraform_calls(self) -> list[list[str]]:
         log_file = self.logs / "terraform.log"
@@ -194,6 +208,24 @@ class TfvarsPrecedenceTests(WrapperTestCase):
             ["-var-file=overrides/custom.tfvars"],
             self.var_args(self.calls_for("plan")[-1]),
         )
+
+
+class DefaultTerraformRootTests(WrapperTestCase):
+    def test_symlinked_wrapper_uses_directory_containing_symlink_as_default_root(
+        self,
+    ) -> None:
+        project_wrapper = self.root / "terraform.sh"
+        project_wrapper.symlink_to(WRAPPER)
+
+        result = self.run_wrapper(
+            "plan",
+            "--skip-init",
+            use_default_root=True,
+            wrapper_path=project_wrapper,
+        )
+
+        self.assert_success(result)
+        self.assertEqual([str(self.root)], self.terraform_working_directories())
 
 
 class DryRunTests(WrapperTestCase):

@@ -143,14 +143,14 @@ test_script_metadata() {
   for provider in aws azure gcp; do
     case "$provider" in
       aws)
-        expected_version='2.2'
+        expected_version='2.3'
         ;;
       *)
         expected_version='1.13'
         ;;
     esac
     assert_file_contains "${REPO_ROOT}/scripts/${provider}/terraform-sh/terraform.sh" "vers=\"${expected_version}\"" "${provider} exposes its current version"
-    assert_file_contains "${REPO_ROOT}/scripts/${provider}/terraform-sh/terraform.sh" '# - 1.13 2026-05-03' "${provider} includes the changelog entry"
+    assert_file_contains "${REPO_ROOT}/scripts/${provider}/terraform-sh/terraform.sh" "# - ${expected_version} " "${provider} includes its current changelog entry"
   done
 }
 
@@ -162,7 +162,7 @@ test_help_outputs() {
   for provider in aws azure gcp; do
     case "$provider" in
       aws)
-        expected_version='2.2'
+        expected_version='2.3'
         ;;
       *)
         expected_version='1.13'

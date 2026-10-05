@@ -6,8 +6,9 @@
 #   ./terraform.sh apply target.tf --dry-run
 #   ./terraform.sh summ --summary-format pr
 #
-# Version: 2.2
+# Version: 2.3
 # Change log:
+# - 2.3 2026-10-05: use the symlinked project directory as the default Terraform root.
 # - 2.2 2026-10-05: send run UI to stderr, forward Terraform subcommand operands, report -detailed-exitcode changes, and share tfvars resolution with diagnostics.
 # - 2.1 2026-10-05: enforce tfvars precedence, honor dry-run everywhere, redact backend secrets, and reject ignored inputs.
 # - 2.0 2026-08-11: remove project-specific context and make root resolution explicit and portable.
@@ -19,7 +20,11 @@ set -euo pipefail
 SCRIPT_NAME="$(basename "$0")"
 readonly SCRIPT_NAME
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-DEFAULT_TERRAFORM_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
+if [[ -L "${BASH_SOURCE[0]}" ]]; then
+  DEFAULT_TERRAFORM_ROOT="$SCRIPT_DIR"
+else
+  DEFAULT_TERRAFORM_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
+fi
 readonly SCRIPT_DIR
 readonly DEFAULT_TERRAFORM_ROOT
 readonly LOCK_PLATFORMS=(
@@ -30,7 +35,7 @@ readonly LOCK_PLATFORMS=(
   "linux_arm64"
 )
 
-vers="2.2"
+vers="2.3"
 
 action="help"
 context_selector=""
