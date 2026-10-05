@@ -69,7 +69,6 @@ FAILED_REASON=""
 PREFLIGHT_PRINTED=false
 CLEANUP_FAILED=false
 CHANGES_PRESENT=false
-detailed_exitcode=false
 readonly UI_WIDTH=78
 
 phase_timestamp() {
@@ -289,12 +288,13 @@ work_run() {
   fi
 
   # terraform plan -detailed-exitcode uses status 2 for "succeeded with changes".
-  if ((exit_code == 2)) && [[ "$detailed_exitcode" == true ]]; then
+  if ((exit_code == 2)) && [[ "${1:-}" == terraform && "${2:-}" == plan ]]; then
     CHANGES_PRESENT=true
     work_end changes
     return 2
   fi
 
+  CHANGES_PRESENT=false
   work_end fail "${name} failed"
   return "$exit_code"
 }
@@ -557,7 +557,7 @@ parse_cli() {
         shift
       fi
 
-      if [[ $# -gt 0 && "$1" != -* && "$1" == *.tf ]]; then
+      if [[ $# -gt 0 && "$1" != -* && "$1" == *.tf ]] && action_supports_target_shortcut; then
         filetf="$1"
         shift
       fi
@@ -736,7 +736,7 @@ resolve_context() {
 
   if [[ -n "$context_selector" && "$context_selector" != "noenv" ]] \
     && [[ ! -f "${base_dir}/${context_selector}/backend.ini" && ! -f "${base_dir}/env/${context_selector}/backend.ini" ]] \
-    && action_accepts_terraform_operand; then
+    && { action_accepts_terraform_operand || [[ "$action" == apply && -f "$context_selector" ]]; }; then
     terraform_args=("$context_selector" ${terraform_args[@]+"${terraform_args[@]}"})
     context_selector=""
   fi
@@ -1056,7 +1056,12 @@ extract_targets_from_tf_file() {
 
   [[ -f "$filetf" ]] || die "Target file '${filetf}' does not exist"
 
-  while IFS= read -r line; do
+  # This shortcut is line-based, not an HCL parser. Reject ambiguous text.
+  if grep -Eq '/\*|<<' "$filetf"; then
+    die "Target file '${filetf}' contains block-comment or heredoc markers; use explicit -target arguments instead"
+  fi
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
     if [[ "$line" =~ $resource_pattern ]]; then
       target_args+=("-target=${BASH_REMATCH[1]}.${BASH_REMATCH[2]}")
       continue
@@ -1170,11 +1175,13 @@ run_summary() {
   run_cmd_to_stderr "${plan_cmd[@]}"
   plan_exit_code=$?
   set -e
-  if ((plan_exit_code != 0)); then
+  if ((plan_exit_code == 2)); then
+    CHANGES_PRESENT=true
+    work_end changes
+  elif ((plan_exit_code != 0)); then
     work_end fail "terraform plan failed"
     return "$plan_exit_code"
-  fi
-  if [[ "$dry_run" == true ]]; then
+  elif [[ "$dry_run" == true ]]; then
     work_end dry-run
   else
     work_end ok
@@ -1182,7 +1189,8 @@ run_summary() {
 
   summary_format_args
   summarize_cmd=("${command_args[@]}" "$plan_file")
-  work_run "SUMMARY" "${summarize_cmd[@]}"
+  work_run "SUMMARY" "${summarize_cmd[@]}" || return $?
+  return "$plan_exit_code"
 }
 
 run_provider_lock() {
@@ -1225,7 +1233,7 @@ probe_lock_id() {
   local probe_plan="$2"
 
   build_probe_command "$probe_plan"
-  if "${command_args[@]}" >"$probe_log" 2>&1; then
+  if "${command_args[@]}" 2>&1 | tee "$probe_log" >&2; then
     return 1
   fi
 
@@ -1452,17 +1460,7 @@ run_tflist_compat() {
 }
 
 run_generic_action() {
-  local arg=""
-
   require_cmd "terraform" "needed for action '${action}'"
-
-  if [[ "$action" == "plan" ]] && ((${#terraform_args[@]} > 0)); then
-    for arg in "${terraform_args[@]}"; do
-      if [[ "$arg" == "-detailed-exitcode" ]]; then
-        detailed_exitcode=true
-      fi
-    done
-  fi
 
   if action_uses_var_files; then
     resolve_var_files

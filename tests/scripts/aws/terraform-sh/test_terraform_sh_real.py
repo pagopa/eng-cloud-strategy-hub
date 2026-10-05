@@ -125,6 +125,18 @@ class RealTerraformPrecedenceTests(RealTerraformTestCase):
 
 
 class RealTerraformPlanTests(RealTerraformTestCase):
+    def test_detailed_exitcode_from_environment_reports_changes(self) -> None:
+        self.assert_status(0, self.run_wrapper("init", "dev"))
+        for variable in ("TF_CLI_ARGS", "TF_CLI_ARGS_plan"):
+            with self.subTest(variable=variable):
+                changed = self.run_wrapper(
+                    "plan", "dev", "--skip-init",
+                    extra_env={variable: "-detailed-exitcode"},
+                )
+                self.assert_status(2, changed)
+                self.assertIn("CHANGES PRESENT", changed.stderr)
+                self.assertNotIn("FAILED", changed.stderr)
+
     def test_detailed_exitcode_reports_changes_then_clean(self) -> None:
         changed = self.run_wrapper("plan", "dev", "-detailed-exitcode")
         self.assert_status(2, changed)

@@ -107,7 +107,7 @@ Actions that require initialization run `terraform init -reconfigure` first. `--
 
 Standard output carries only the requested command's output: Terraform output, `tf-summarize` output, help text, and the commands printed by `--dry-run`. Preflight, work phases, `terraform init` output, messages, and the verdict go to standard error. This keeps `output -json` and `summ --summary-format json` usable in pipes.
 
-`plan -detailed-exitcode` exits with `2` when changes are present. The wrapper keeps that exit code and reports `CHANGES PRESENT` instead of `FAILED`. Any other non-zero exit code is a failure.
+Terraform plan exit code `2` means changes are present when `-detailed-exitcode` is enabled, including through `TF_CLI_ARGS` or `TF_CLI_ARGS_plan`. The wrapper preserves that code and reports `CHANGES PRESENT` instead of `FAILED`. The `summ` action still generates its summary and then returns `2`; a summary error takes precedence. Other non-zero results are failures. GitHub Actions callers must explicitly handle code `2` when it is an expected result.
 
 `plan`, `summ`, `doctor`, and `debug-bundle` are intended for inspection. `apply`, `destroy`, and `unlock` can change external state. Provider-lock updates can change the selected root's local lock file.
 
@@ -115,7 +115,11 @@ Standard output carries only the requested command's output: Terraform output, `
 
 Printed commands replace the values of sensitive `backend.ini` keys, such as `access_key`, `secret_key`, and `token`, with `REDACTED`. Terraform still receives the real values. The redaction covers wrapper output only, not Terraform's own output. The target-file shortcut also carries risk because targeted runs can hide dependencies; the wrapper emits a warning when it derives `-target` arguments.
 
+The target-file shortcut reads declarations line by line. It rejects files containing `/*` or `<<` markers, including markers inside strings, before initialization. Use explicit Terraform `-target` arguments for those files. This conservative guard prevents comments and heredoc text from becoming unintended targets without adding an HCL parser.
+
 `unlock` requires deliberate handling. Without `--force`, the operator must type `unlock` exactly. The wrapper warns that `terraform force-unlock` should be used only for a lock the operator owns or has identified as orphaned.
+
+The `unlock` lock-probing plan streams its combined output to standard error and removes its temporary files after execution. A directly invoked GitHub Actions `run` step receives both standard output and standard error; caller redirections can change their visibility.
 
 ## Dependencies
 

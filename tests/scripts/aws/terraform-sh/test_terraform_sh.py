@@ -279,6 +279,21 @@ class SavedPlanTests(WrapperTestCase):
         self.write("plans/review.tfplan")
         self.write("plans/other.tfplan")
 
+    def test_positional_plan_without_context(self) -> None:
+        result = self.run_wrapper("apply", "plans/review.tfplan")
+
+        self.assert_success(result)
+        argv = self.calls_for("apply")[-1]
+        self.assertEqual("plans/review.tfplan", argv[-1])
+        self.assertEqual([], self.var_args(argv))
+
+    def test_positional_plan_is_resolved_in_selected_root(self) -> None:
+        self.write("alternate/review.tfplan")
+        result = self.run_wrapper("apply", "review.tfplan", "--root", "alternate")
+
+        self.assert_success(result)
+        self.assertEqual("review.tfplan", self.calls_for("apply")[-1][-1])
+
     def assert_rejected_before_init(self, *args: str, message: str) -> None:
         result = self.run_wrapper(*args)
 
@@ -364,6 +379,18 @@ class InitTests(WrapperTestCase):
 
 
 class UnlockTests(WrapperTestCase):
+    def test_ci_probe_error_is_visible_and_temporaries_are_removed(self) -> None:
+        result = self.run_wrapper(
+            "unlock", "dev", "--force",
+            extra_env={"CI": "true", "FAKE_TERRAFORM_FAIL_ON": "plan"},
+        )
+
+        self.assert_failure(result)
+        self.assertIn("fake terraform: forced plan failure", result.stderr)
+        self.assertEqual("", result.stdout)
+        self.assertEqual([], self.calls_for("force-unlock"))
+        self.assertEqual({}, self.tree_digest(self.tmpdir))
+
     def test_explicit_lock_id_initializes_selected_backend_first(self) -> None:
         result = self.run_wrapper("unlock", "dev", "--lock-id", "lock-1", "--force")
 
@@ -446,6 +473,13 @@ class BackendIniTests(WrapperTestCase):
 
 
 class PassthroughGrammarTests(WrapperTestCase):
+    def test_fmt_file_is_forwarded_as_operand(self) -> None:
+        self.write("main.tf", "terraform {}\n")
+        result = self.run_wrapper("fmt", "main.tf")
+
+        self.assert_success(result)
+        self.assertEqual(["fmt", "main.tf"], self.calls_for("fmt")[-1])
+
     def test_subcommand_without_context_is_forwarded(self) -> None:
         result = self.run_wrapper("state", "list")
 
@@ -465,6 +499,30 @@ class PassthroughGrammarTests(WrapperTestCase):
         self.assert_failure(result)
         self.assertIn("No Terraform context 'dvv'", result.stderr)
         self.assertEqual([], self.terraform_calls())
+
+
+class TargetShortcutTests(WrapperTestCase):
+    def test_ambiguous_hcl_is_rejected_before_init(self) -> None:
+        for content in (
+            '/*\nresource "terraform_data" "commented" {}\n*/\n',
+            'locals {\n text = <<EOF\nresource "terraform_data" "text" {}\nEOF\n}\n',
+            'locals {\n text = <<-EOF\nresource "terraform_data" "text" {}\nEOF\n}\n',
+        ):
+            with self.subTest(content=content):
+                target = self.write("ambiguous.tf", content)
+                result = self.run_wrapper("apply", "dev", str(target), "--dry-run")
+
+                self.assert_failure(result)
+                self.assertIn("-target", result.stderr)
+                self.assertEqual([], self.terraform_calls())
+                self.assertEqual("", result.stdout)
+
+    def test_plain_target_without_final_newline(self) -> None:
+        target = self.write("target.tf", 'resource "terraform_data" "active" {}')
+        result = self.run_wrapper("plan", "dev", str(target), "--dry-run")
+
+        self.assert_success(result)
+        self.assertIn("-target=terraform_data.active", result.stdout)
 
 
 class OutputStreamTests(WrapperTestCase):
@@ -552,11 +610,51 @@ class DetailedExitCodeTests(WrapperTestCase):
         self.assertEqual(1, result.returncode)
         self.assertIn("FAILED", result.stderr)
 
-    def test_exit_two_without_detailed_exitcode_is_a_failure(self) -> None:
+    def test_plan_exit_two_is_changes_even_without_explicit_flag(self) -> None:
         result = self.run_plan(status="2")
 
         self.assertEqual(2, result.returncode)
+        self.assertIn("CHANGES PRESENT", result.stderr)
+        self.assertNotIn("FAILED", result.stderr)
+
+    def test_non_plan_exit_two_is_still_a_failure(self) -> None:
+        result = self.run_wrapper(
+            "output", "noenv",
+            extra_env={"FAKE_TERRAFORM_FAIL_ON": "output", "FAKE_TERRAFORM_FAIL_STATUS": "2"},
+        )
+
+        self.assertEqual(2, result.returncode)
         self.assertIn("FAILED", result.stderr)
+
+    def test_summary_continues_after_plan_changes(self) -> None:
+        result = self.run_wrapper(
+            "summ", "dev", "-detailed-exitcode", "--summary-format", "json",
+            extra_env={"FAKE_TERRAFORM_FAIL_ON": "plan", "FAKE_TERRAFORM_FAIL_STATUS": "2"},
+        )
+
+        self.assertEqual(2, result.returncode)
+        self.assertTrue(result.stdout.strip(), "The summary must be emitted after plan changes")
+        self.assertEqual({"create": 1}, json.loads(result.stdout))
+        self.assertIn("CHANGES PRESENT", result.stderr)
+        self.assertNotIn("FAILED", result.stderr)
+        self.assertEqual({}, self.tree_digest(self.tmpdir))
+
+    def test_summary_error_takes_precedence_over_plan_changes(self) -> None:
+        summarizer = self.write("bin/tf-summarize", "#!/usr/bin/env bash\nexit 2\n")
+        summarizer.chmod(0o755)
+        result = self.run_wrapper(
+            "summ", "dev", "-detailed-exitcode",
+            extra_env={
+                "PATH": f"{summarizer.parent}:{FAKES_DIR}:{os.environ['PATH']}",
+                "FAKE_TERRAFORM_FAIL_ON": "plan",
+                "FAKE_TERRAFORM_FAIL_STATUS": "2",
+            },
+        )
+
+        self.assertEqual(2, result.returncode)
+        self.assertIn("FAILED", result.stderr)
+        self.assertNotIn("CHANGES PRESENT", result.stderr)
+        self.assertEqual({}, self.tree_digest(self.tmpdir))
 
 
 if __name__ == "__main__":
