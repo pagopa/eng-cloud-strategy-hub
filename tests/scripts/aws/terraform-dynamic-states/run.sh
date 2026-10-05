@@ -2,14 +2,14 @@
 #
 # Purpose: Validate terraform-dynamic-states behavior with fake AWS and Terraform CLIs.
 # Usage examples:
-#   ./tests/scripts/aws_terraform_dynamic_states/run.sh
-#   bash tests/scripts/aws_terraform_dynamic_states/run.sh
+#   ./tests/scripts/aws/terraform-dynamic-states/run.sh
+#   bash tests/scripts/aws/terraform-dynamic-states/run.sh
 
 set -euo pipefail
 
 TEST_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly TEST_DIR
-REPO_ROOT="$(cd -- "${TEST_DIR}/../../.." && pwd)"
+REPO_ROOT="$(cd -- "${TEST_DIR}/../../../.." && pwd)"
 readonly REPO_ROOT
 SCRIPT_UNDER_TEST="${REPO_ROOT}/scripts/aws/terraform-dynamic-states/terraform-dynamic-states.sh"
 readonly SCRIPT_UNDER_TEST
@@ -24,8 +24,8 @@ readonly LOCK_LISTING_FILE
 LOCK_METADATA_DIR="${FIXTURE_ROOT}/locks"
 readonly LOCK_METADATA_DIR
 
-# shellcheck source=tests/scripts/terraform_wrappers/lib/assertions.sh
-source "${REPO_ROOT}/tests/scripts/terraform_wrappers/lib/assertions.sh"
+# shellcheck source=tests/scripts/cross-provider/terraform-sh/lib/assertions.sh
+source "${REPO_ROOT}/tests/scripts/cross-provider/terraform-sh/lib/assertions.sh"
 
 RUN_STATUS=0
 RUN_STDOUT=""

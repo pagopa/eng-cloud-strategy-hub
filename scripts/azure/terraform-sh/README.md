@@ -16,7 +16,7 @@ synthetic root after capturing the local script path:
 bash ./terraform.sh help
 script_path="$(pwd)/terraform.sh"
 (
-	cd ../../../tests/scripts/terraform_wrappers/fixtures/azure-root
+	cd ../../../tests/scripts/cross-provider/terraform-sh/fixtures/azure-root
 	bash "${script_path}" plan noenv --no-default-tfvars --dry-run
 	bash "${script_path}" summ noenv --summary-format pr --dry-run
 )
@@ -55,4 +55,4 @@ The wrapper simulation suite uses fake cloud CLIs and synthetic fixtures; it doe
 
 - [Scripts overview](../../README.md).
 - [Terraform Operator Tooling rules](../../../docs/domain/terraform-operator-tooling/RULES.md).
-- [Wrapper simulation suite](../../../tests/scripts/terraform_wrappers/run.sh).
+- [Wrapper simulation suite](../../../tests/scripts/cross-provider/terraform-sh/run.sh).

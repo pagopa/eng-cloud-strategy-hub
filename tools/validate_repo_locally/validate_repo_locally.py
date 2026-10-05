@@ -38,24 +38,27 @@ SHELL_TARGET_ROOTS = (
     "tools",
     "validate-repo-locally.sh",
 )
+TERRAFORM_WRAPPER_SUITE = "tests/scripts/cross-provider/terraform-sh"
+AWS_TERRAFORM_SH_TESTS = "tests/scripts/aws/terraform-sh"
+AWS_STATE_CREATOR_SUITE = "tests/scripts/aws/aws-terraform-s3-state-creator"
 TERRAFORM_WRAPPER_TARGETS = (
     "scripts/aws/terraform-sh/terraform.sh",
     "scripts/azure/terraform-sh/terraform.sh",
     "scripts/gcp/terraform-sh/terraform.sh",
-    "tests/scripts/terraform_wrappers/lib/assertions.sh",
-    "tests/scripts/terraform_wrappers/run.sh",
-    "tests/scripts/terraform_wrappers/fakes/terraform",
-    "tests/scripts/terraform_wrappers/fakes/tf-summarize",
-    "tests/scripts/terraform_wrappers/fakes/az",
-    "tests/scripts/terraform_wrappers/fakes/aws",
-    "tests/scripts/terraform_wrappers/fakes/gcloud",
-    "tests/scripts/terraform_wrappers/fakes/tflist",
+    f"{TERRAFORM_WRAPPER_SUITE}/lib/assertions.sh",
+    f"{TERRAFORM_WRAPPER_SUITE}/run.sh",
+    f"{TERRAFORM_WRAPPER_SUITE}/fakes/terraform",
+    f"{TERRAFORM_WRAPPER_SUITE}/fakes/tf-summarize",
+    f"{TERRAFORM_WRAPPER_SUITE}/fakes/az",
+    f"{TERRAFORM_WRAPPER_SUITE}/fakes/aws",
+    f"{TERRAFORM_WRAPPER_SUITE}/fakes/gcloud",
+    f"{TERRAFORM_WRAPPER_SUITE}/fakes/tflist",
 )
 AWS_STATE_CREATOR_TARGETS = (
     "scripts/aws/aws-terraform-s3-state-creator/aws-terraform-s3-state-creator.sh",
-    "tests/scripts/aws_terraform_s3_state_creator/run.sh",
-    "tests/scripts/aws_terraform_s3_state_creator/fakes/aws",
-    "tests/scripts/terraform_wrappers/lib/assertions.sh",
+    f"{AWS_STATE_CREATOR_SUITE}/run.sh",
+    f"{AWS_STATE_CREATOR_SUITE}/fakes/aws",
+    f"{TERRAFORM_WRAPPER_SUITE}/lib/assertions.sh",
 )
 STEP_ALIASES = {
     "code-analysis": (
@@ -182,13 +185,13 @@ def build_steps() -> list[Step]:
         ),
         Step(
             "terraform-sh-tests",
-            ".github/workflows/terraform-sh-tests.yml",
+            ".github/workflows/_code-analysis.yml",
             "Terraform wrapper syntax, lint, and simulation suite",
             run_terraform_wrapper_tests,
         ),
         Step(
             "aws-s3-state-creator-tests",
-            ".github/workflows/terraform-sh-tests.yml",
+            ".github/workflows/_code-analysis.yml",
             "AWS state bucket creator syntax, lint, and simulation suite",
             run_aws_state_creator_tests,
         ),
@@ -575,12 +578,20 @@ def run_copilot_entrypoints(context: RunnerContext) -> int:
     return 0
 
 
+def run_syntax_checks(context: RunnerContext, targets: Sequence[Path]) -> int:
+    for target in targets:
+        status = run_command(context, ["bash", "-n", target])
+        if status != 0:
+            return status
+    return 0
+
+
 def run_terraform_wrapper_tests(context: RunnerContext) -> int:
     targets = resolve_paths(context.root, TERRAFORM_WRAPPER_TARGETS)
     if targets is None:
         return 1
 
-    syntax_status = run_command(context, ["bash", "-n", *targets])
+    syntax_status = run_syntax_checks(context, targets)
     if syntax_status != 0:
         return syntax_status
 
@@ -594,7 +605,7 @@ def run_terraform_wrapper_tests(context: RunnerContext) -> int:
 
     original_modes = read_file_modes(targets)
     logs_snapshot = snapshot_directory(
-        context.root / "tests/scripts/terraform_wrappers/logs",
+        context.root / TERRAFORM_WRAPPER_SUITE / "logs",
         context.tmp_dir / "snapshots/terraform-wrapper-logs",
         context.dry_run,
     )
@@ -604,7 +615,22 @@ def run_terraform_wrapper_tests(context: RunnerContext) -> int:
         if chmod_status != 0:
             return chmod_status
         suite_status = run_command(
-            context, ["bash", "tests/scripts/terraform_wrappers/run.sh"]
+            context, ["bash", f"{TERRAFORM_WRAPPER_SUITE}/run.sh"]
+        )
+        if suite_status != 0:
+            return suite_status
+        suite_status = run_command(
+            context,
+            [
+                sys.executable,
+                "-m",
+                "unittest",
+                "discover",
+                "-s",
+                AWS_TERRAFORM_SH_TESTS,
+                "-p",
+                "test_*.py",
+            ],
         )
         return suite_status
     finally:
@@ -618,7 +644,7 @@ def run_aws_state_creator_tests(context: RunnerContext) -> int:
     if targets is None:
         return 1
 
-    syntax_status = run_command(context, ["bash", "-n", *targets])
+    syntax_status = run_syntax_checks(context, targets)
     if syntax_status != 0:
         return syntax_status
 
@@ -632,7 +658,7 @@ def run_aws_state_creator_tests(context: RunnerContext) -> int:
 
     original_modes = read_file_modes(targets)
     logs_snapshot = snapshot_directory(
-        context.root / "tests/scripts/aws_terraform_s3_state_creator/logs",
+        context.root / AWS_STATE_CREATOR_SUITE / "logs",
         context.tmp_dir / "snapshots/aws-state-creator-logs",
         context.dry_run,
     )
@@ -643,7 +669,7 @@ def run_aws_state_creator_tests(context: RunnerContext) -> int:
             return chmod_status
         suite_status = run_command(
             context,
-            ["bash", "tests/scripts/aws_terraform_s3_state_creator/run.sh"],
+            ["bash", f"{AWS_STATE_CREATOR_SUITE}/run.sh"],
         )
         return suite_status
     finally:

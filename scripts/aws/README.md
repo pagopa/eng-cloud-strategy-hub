@@ -42,7 +42,7 @@ shellcheck -s bash -x terraform-sh/terraform.sh \
 
 make -C ../.. terraform-wrapper-tests
 make -C ../.. aws-s3-state-creator-tests
-bash ../../tests/scripts/aws_terraform_dynamic_states/run.sh
+bash ../../tests/scripts/aws/terraform-dynamic-states/run.sh
 ```
 
 The repository workflow [the code analysis workflow](../../.github/workflows/_code-analysis.yml) runs Bash syntax checks and ShellCheck for repository shell targets. The standard wrapper, dynamic-state, and S3 state-creator simulation suites above remain local validation commands. The dynamic-state suite has no dedicated Make target and is invoked directly.
@@ -52,6 +52,7 @@ The repository workflow [the code analysis workflow](../../.github/workflows/_co
 - [Terraform Operator Tooling rules](../../docs/domain/terraform-operator-tooling/RULES.md) — required context selection and destructive-action guard.
 - [Scripts overview](../README.md) — cross-cloud wrapper boundary and common entry points.
 - [Architecture and testing guidance](../../docs/architecture.md) — repository flows and validation ownership.
-- [Standard wrapper simulation suite](../../tests/scripts/terraform_wrappers/run.sh).
-- [Dynamic-state simulation suite](../../tests/scripts/aws_terraform_dynamic_states/run.sh).
-- [S3 state-creator simulation suite](../../tests/scripts/aws_terraform_s3_state_creator/run.sh).
+- [Cross-provider wrapper simulation suite](../../tests/scripts/cross-provider/terraform-sh/run.sh).
+- [AWS wrapper behavior tests](../../tests/scripts/aws/terraform-sh/test_terraform_sh.py).
+- [Dynamic-state simulation suite](../../tests/scripts/aws/terraform-dynamic-states/run.sh).
+- [S3 state-creator simulation suite](../../tests/scripts/aws/aws-terraform-s3-state-creator/run.sh).

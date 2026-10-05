@@ -6,8 +6,10 @@
 #   ./terraform.sh apply target.tf --dry-run
 #   ./terraform.sh summ --summary-format pr
 #
-# Version: 2.0
+# Version: 2.2
 # Change log:
+# - 2.2 2026-10-05: send run UI to stderr, forward Terraform subcommand operands, report -detailed-exitcode changes, and share tfvars resolution with diagnostics.
+# - 2.1 2026-10-05: enforce tfvars precedence, honor dry-run everywhere, redact backend secrets, and reject ignored inputs.
 # - 2.0 2026-08-11: remove project-specific context and make root resolution explicit and portable.
 # - 1.14 2026-08-04: add Decision Run logging with preflight, work phases, cleanup, and verdict.
 # - 1.13 2026-05-03: align wrapper CLI, tfvars fallback, summaries, lock, unlock, doctor, and debug bundle.
@@ -28,7 +30,7 @@ readonly LOCK_PLATFORMS=(
   "linux_arm64"
 )
 
-vers="2.0"
+vers="2.2"
 
 action="help"
 context_selector=""
@@ -55,6 +57,7 @@ backend_args=()
 tfvars_overrides=()
 resolved_tfvars=()
 resolved_tfvars_paths=()
+missing_tfvars_overrides=()
 target_args=()
 cleanup_paths=()
 command_args=()
@@ -65,6 +68,8 @@ FAILED_PHASE=""
 FAILED_REASON=""
 PREFLIGHT_PRINTED=false
 CLEANUP_FAILED=false
+CHANGES_PRESENT=false
+detailed_exitcode=false
 readonly UI_WIDTH=78
 
 phase_timestamp() {
@@ -99,19 +104,21 @@ ui_pad_rule() {
   fi
   printf -v fill '%*s' "$fill_len" ''
   fill="${fill// /─}"
-  printf '%s%s %s\n' "$left" "$fill" "$right"
+  printf '%s%s %s\n' "$left" "$fill" "$right" >&2
 }
 
 ui_section_line() {
   local text="$1"
 
-  printf '%s\n' "$text"
+  printf '%s\n' "$text" >&2
 }
 
 print_run_header() {
-  printf 'terraform v%s\n' "$vers"
-  printf '%s\n' "$action"
-  printf '%s\n' "$base_dir"
+  {
+    printf 'terraform v%s\n' "$vers"
+    printf '%s\n' "$action"
+    printf '%s\n' "$base_dir"
+  } >&2
 }
 
 run_mode_label() {
@@ -215,7 +222,7 @@ work_start() {
 
   CURRENT_PHASE="$name"
   CURRENT_PHASE_STARTED_AT="$(phase_timestamp)"
-  printf '\n'
+  printf '\n' >&2
   ui_pad_rule "── ${name} " "running"
 }
 
@@ -243,6 +250,9 @@ work_end() {
     dry-run)
       right="🧪 dry-run"
       ;;
+    changes)
+      right="🟡 changes ${duration}s"
+      ;;
     *)
       right="$status"
       ;;
@@ -252,7 +262,7 @@ work_end() {
   if [[ "$status" == "fail" && -n "$detail" ]]; then
     printf 'reason  %s\n' "$detail" >&2
   elif [[ "$status" == "skip" && -n "$detail" ]]; then
-    printf '        %s\n' "$detail"
+    printf '        %s\n' "$detail" >&2
   fi
   CURRENT_PHASE=""
   CURRENT_PHASE_STARTED_AT=0
@@ -278,6 +288,13 @@ work_run() {
     return 0
   fi
 
+  # terraform plan -detailed-exitcode uses status 2 for "succeeded with changes".
+  if ((exit_code == 2)) && [[ "$detailed_exitcode" == true ]]; then
+    CHANGES_PRESENT=true
+    work_end changes
+    return 2
+  fi
+
   work_end fail "${name} failed"
   return "$exit_code"
 }
@@ -297,7 +314,9 @@ print_verdict() {
   fi
 
   ui_pad_rule "── VERDICT "
-  if [[ "$ok" == true ]]; then
+  if [[ "$ok" == changes ]]; then
+    ui_section_line "🟡  CHANGES PRESENT                                     total  ${total}s"
+  elif [[ "$ok" == true ]]; then
     ui_section_line "✅  SUCCESS                                             total  ${total}s"
   else
     ui_section_line "❌  FAILED                                              total  ${total}s"
@@ -315,13 +334,16 @@ cleanup() {
   local ok=true
   local report_phase=""
   local report_reason=""
+  local show_phases="$PREFLIGHT_PRINTED"
 
   if [[ -n "$CURRENT_PHASE" ]]; then
     FAILED_PHASE="${FAILED_PHASE:-$CURRENT_PHASE}"
     work_end fail "${FAILED_REASON:-phase interrupted}"
   fi
 
-  work_start "CLEANUP"
+  if [[ "$show_phases" == true ]]; then
+    work_start "CLEANUP"
+  fi
 
   if ((${#cleanup_paths[@]} > 0)); then
     for cleanup_path in "${cleanup_paths[@]}"; do
@@ -337,7 +359,17 @@ cleanup() {
     done
   fi
 
-  if ((exit_code != 0)); then
+  if [[ "$show_phases" != true ]]; then
+    if [[ "$CLEANUP_FAILED" == true && "$exit_code" == 0 ]]; then
+      final_code=1
+    fi
+    exit "$final_code"
+  fi
+
+  if ((exit_code == 2)) && [[ "$CHANGES_PRESENT" == true ]]; then
+    ok=changes
+    work_end ok
+  elif ((exit_code != 0)); then
     ok=false
     report_phase="${FAILED_PHASE:-unknown}"
     report_reason="${FAILED_REASON:-workflow failed}"
@@ -364,15 +396,15 @@ cleanup() {
 trap cleanup EXIT
 
 info() {
-  printf 'ℹ️  %s\n' "$*"
+  printf 'ℹ️  %s\n' "$*" >&2
 }
 
 success() {
-  printf '✅ %s\n' "$*"
+  printf '✅ %s\n' "$*" >&2
 }
 
 warn() {
-  printf '⚠️  %s\n' "$*"
+  printf '⚠️  %s\n' "$*" >&2
 }
 
 die() {
@@ -386,9 +418,37 @@ add_cleanup_path() {
   cleanup_paths+=("$1")
 }
 
+is_sensitive_backend_key() {
+  local key=""
+
+  key="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  case "$key" in
+    *access_key*|*secret*|*token*|*password*|*sas*)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+format_cmd() {
+  local arg=""
+  local pair=""
+  local formatted=""
+
+  for arg in "$@"; do
+    if [[ "$arg" == -backend-config=*=* ]]; then
+      pair="${arg#-backend-config=}"
+      if is_sensitive_backend_key "${pair%%=*}"; then
+        arg="-backend-config=${pair%%=*}=REDACTED"
+      fi
+    fi
+    formatted+="$(printf '%q' "$arg") "
+  done
+  printf '%s\n' "$formatted"
+}
+
 print_cmd() {
-  printf '%q ' "$@"
-  printf '\n'
+  format_cmd "$@"
 }
 
 run_cmd() {
@@ -402,9 +462,18 @@ run_cmd() {
 
   "$@" || exit_code=$?
   if ((exit_code != 0)); then
-    FAILED_REASON="Command failed: $(printf '%q ' "$@")"
+    FAILED_REASON="Command failed: $(format_cmd "$@")"
     return "$exit_code"
   fi
+}
+
+# Preparatory commands write to stderr so stdout carries only the requested command's output.
+run_cmd_to_stderr() {
+  if [[ "$dry_run" == true ]]; then
+    run_cmd "$@"
+    return
+  fi
+  run_cmd "$@" >&2
 }
 
 require_cmd() {
@@ -458,7 +527,7 @@ Wrapper options:
   --skip-init                Skip terraform init before action execution.
   --init-arg <arg>           Add an argument to terraform init. Repeatable.
   --summary-format <format>  table|markdown|tree|separate-tree|json|json-sum|html|pr
-  --tfplan <file>            Path used by summ for the generated plan.
+  --tfplan <file>            Plan path written by summ or saved plan consumed by apply.
   --summary-out <file>       Save tf-summarize output when supported.
   --lock-id <id>             Lock id used by unlock.
   --from-log <file>          Extract the lock id from a Terraform log.
@@ -633,6 +702,7 @@ load_backend_config() {
       {
         key = trim($1)
         value = trim(substr($0, index($0, "=") + 1))
+        sub(/[[:space:]]+[#;].*$/, "", value)
         sub(/^"/, "", value)
         sub(/"$/, "", value)
         if (key != "") {
@@ -663,6 +733,13 @@ resolve_context() {
   backend_args=()
   aws_profile=""
   aws_region=""
+
+  if [[ -n "$context_selector" && "$context_selector" != "noenv" ]] \
+    && [[ ! -f "${base_dir}/${context_selector}/backend.ini" && ! -f "${base_dir}/env/${context_selector}/backend.ini" ]] \
+    && action_accepts_terraform_operand; then
+    terraform_args=("$context_selector" ${terraform_args[@]+"${terraform_args[@]}"})
+    context_selector=""
+  fi
 
   if [[ -z "$context_selector" ]]; then
     if [[ -f "${base_dir}/backend.ini" ]]; then
@@ -740,6 +817,46 @@ validate_cli_combinations() {
   if [[ "$action" == "summ" ]]; then
     validate_summary_format
   fi
+
+  if [[ "$action" == "apply" ]]; then
+    normalize_saved_plan
+  fi
+}
+
+is_value_taking_flag() {
+  case "$1" in
+    -*=*|-auto-approve|-compact-warnings|-no-color|-json|-destroy|-refresh-only|-input|-lock)
+      return 1
+      ;;
+    -*)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+normalize_saved_plan() {
+  local last_index=0
+  local candidate=""
+  local previous=""
+
+  if ((${#terraform_args[@]} > 0)); then
+    last_index=$((${#terraform_args[@]} - 1))
+    candidate="${terraform_args[$last_index]}"
+    if ((last_index > 0)); then
+      previous="${terraform_args[$((last_index - 1))]}"
+    fi
+    if [[ "$candidate" != -* && -f "$candidate" ]] && ! is_value_taking_flag "$previous"; then
+      [[ -z "$tfplan_path" ]] || die "Only one saved plan can be applied; use either a positional plan or --tfplan"
+      tfplan_path="$candidate"
+      unset "terraform_args[$last_index]"
+    fi
+  fi
+
+  [[ -n "$tfplan_path" ]] || return 0
+  [[ -f "$tfplan_path" ]] || die "Saved plan '${tfplan_path}' does not exist"
+  [[ -z "$filetf" ]] || die "A saved plan cannot be combined with a target file"
+  ((${#tfvars_overrides[@]} == 0)) || die "A saved plan cannot be combined with --tfvars"
 }
 
 is_cicd_mode() {
@@ -788,7 +905,7 @@ resolve_override_path() {
 
 action_uses_var_files() {
   case "$action" in
-    plan|apply|destroy|refresh|console|summ)
+    plan|apply|destroy|refresh|console|summ|unlock)
       return 0
       ;;
     *)
@@ -808,24 +925,44 @@ action_uses_init() {
   esac
 }
 
-resolve_var_files() {
+# Wrapper-owned actions keep a fail-closed context; Terraform subcommands may take the slot as an operand.
+action_accepts_terraform_operand() {
+  case "$action" in
+    plan|apply|destroy|refresh|console|summ|unlock|init|tlock|doctor|debug-bundle|tflist|list|clean|help|-h|\?)
+      return 1
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
+collect_var_files() {
+  local mode="$1"
   local candidate=""
   local candidate_name=""
+  local default_name=""
   local override=""
   local resolved_override=""
 
   resolved_tfvars=()
   resolved_tfvars_paths=()
+  missing_tfvars_overrides=()
 
-  if ! action_uses_var_files; then
-    return 0
-  fi
-
+  # Precedence, lowest first: env *.tfvars, env defaults, --tfvars overrides, then terraform passthrough args.
   if [[ "$no_default_tfvars" == false ]]; then
     while IFS= read -r candidate; do
       [[ -f "$candidate" ]] || continue
       candidate_name="${candidate##*/}"
-      [[ "$candidate_name" == "terraform.tfvars" ]] && continue
+      case "$candidate_name" in
+        terraform.tfvars|terraform.tfvars.json)
+          continue
+          ;;
+        *.auto.tfvars|*.auto.tfvars.json)
+          # Terraform already loads these from its working directory.
+          [[ "$input_dir" == "$base_dir" ]] && continue
+          ;;
+      esac
       resolved_tfvars+=("-var-file=${candidate}")
       resolved_tfvars_paths+=("${candidate}")
     done < <(
@@ -836,20 +973,38 @@ resolve_var_files() {
         printf '%s\n' "${candidates[@]}" | sort
       fi
     )
+
+    for default_name in terraform.tfvars terraform.tfvars.json; do
+      if [[ -f "${input_dir}/${default_name}" ]]; then
+        resolved_tfvars+=("-var-file=${input_dir}/${default_name}")
+        resolved_tfvars_paths+=("${input_dir}/${default_name}")
+      fi
+    done
   fi
 
   if ((${#tfvars_overrides[@]} > 0)); then
     for override in "${tfvars_overrides[@]}"; do
-      resolved_override="$(resolve_override_path "$override")"
+      if [[ "$mode" == strict ]]; then
+        resolved_override="$(resolve_override_path "$override")"
+      elif ! resolved_override="$(resolve_override_path "$override" 2>/dev/null)"; then
+        missing_tfvars_overrides+=("$override")
+        continue
+      fi
       resolved_tfvars+=("-var-file=${resolved_override}")
       resolved_tfvars_paths+=("${resolved_override}")
     done
   fi
+}
 
-  if [[ "$no_default_tfvars" == false && -f "${input_dir}/terraform.tfvars" ]]; then
-    resolved_tfvars+=("-var-file=${input_dir}/terraform.tfvars")
-    resolved_tfvars_paths+=("${input_dir}/terraform.tfvars")
+resolve_var_files() {
+  resolved_tfvars=()
+  resolved_tfvars_paths=()
+
+  if ! action_uses_var_files; then
+    return 0
   fi
+
+  collect_var_files strict
 }
 
 ensure_initialized() {
@@ -870,8 +1025,12 @@ ensure_initialized() {
     init_command+=("${init_args[@]}")
   fi
 
+  if [[ "$action" == "init" ]] && ((${#terraform_args[@]} > 0)); then
+    init_command+=("${terraform_args[@]}")
+  fi
+
   set +e
-  run_cmd "${init_command[@]}"
+  run_cmd_to_stderr "${init_command[@]}"
   exit_code=$?
   set -e
 
@@ -984,7 +1143,6 @@ summary_format_args() {
 
 run_summary() {
   local plan_file=""
-  local plan_log=""
   local plan_cmd=()
   local summarize_cmd=()
   local plan_exit_code=0
@@ -997,6 +1155,8 @@ run_summary() {
 
   if [[ -n "$tfplan_path" ]]; then
     plan_file="$tfplan_path"
+  elif [[ "$dry_run" == true ]]; then
+    plan_file="${TMPDIR:-/tmp}/terraform-summ-plan.XXXXXX"
   else
     plan_file="$(mktemp "${TMPDIR:-/tmp}/terraform-summ-plan.XXXXXX")"
     add_cleanup_path "$plan_file"
@@ -1006,34 +1166,18 @@ run_summary() {
   plan_cmd=("${command_args[@]}" "-out=${plan_file}")
 
   work_start "PLAN"
-  if [[ "$summary_format" == "pr" && "$dry_run" == false ]]; then
-    plan_log="$(mktemp "${TMPDIR:-/tmp}/terraform-summ-log.XXXXXX")"
-    add_cleanup_path "$plan_log"
-    set +e
-    "${plan_cmd[@]}" 2>&1 | tee "$plan_log"
-    plan_exit_code="${PIPESTATUS[0]}"
-    set -e
-    if ((plan_exit_code == 0)); then
-      work_end ok
-    else
-      work_end fail "terraform plan failed"
-      return "$plan_exit_code"
-    fi
+  set +e
+  run_cmd_to_stderr "${plan_cmd[@]}"
+  plan_exit_code=$?
+  set -e
+  if ((plan_exit_code != 0)); then
+    work_end fail "terraform plan failed"
+    return "$plan_exit_code"
+  fi
+  if [[ "$dry_run" == true ]]; then
+    work_end dry-run
   else
-    set +e
-    run_cmd "${plan_cmd[@]}"
-    plan_exit_code=$?
-    set -e
-    if ((plan_exit_code == 0)); then
-      if [[ "$dry_run" == true ]]; then
-        work_end dry-run
-      else
-        work_end ok
-      fi
-    else
-      work_end fail "terraform plan failed"
-      return "$plan_exit_code"
-    fi
+    work_end ok
   fi
 
   summary_format_args
@@ -1063,28 +1207,25 @@ extract_lock_id_from_log() {
   sed -n 's/.*ID:[[:space:]]*\([0-9A-Za-z-][0-9A-Za-z-]*\).*/\1/p' "$log_file" | head -n 1
 }
 
-probe_lock_id() {
-  local probe_log=""
-  local probe_plan=""
-  local probe_cmd=()
+build_probe_command() {
+  local probe_plan="$1"
 
-  require_cmd "terraform" "needed for lock probing"
-
-  probe_log="$(mktemp "${TMPDIR:-/tmp}/terraform-unlock-log.XXXXXX")"
-  probe_plan="$(mktemp "${TMPDIR:-/tmp}/terraform-unlock-plan.XXXXXX")"
-  add_cleanup_path "$probe_log"
-  add_cleanup_path "$probe_plan"
-
-  resolve_var_files
-  probe_cmd=("terraform" "plan" "-compact-warnings" "-refresh=false" "-lock-timeout=0s" "-out=${probe_plan}")
+  command_args=("terraform" "plan" "-compact-warnings" "-refresh=false" "-lock-timeout=0s" "-out=${probe_plan}")
   if ((${#resolved_tfvars[@]} > 0)); then
-    probe_cmd+=("${resolved_tfvars[@]}")
+    command_args+=("${resolved_tfvars[@]}")
   fi
   if ((${#terraform_args[@]} > 0)); then
-    probe_cmd+=("${terraform_args[@]}")
+    command_args+=("${terraform_args[@]}")
   fi
+}
 
-  if "${probe_cmd[@]}" >"$probe_log" 2>&1; then
+# Runs in a command substitution, so temporary files must be created and registered by the caller.
+probe_lock_id() {
+  local probe_log="$1"
+  local probe_plan="$2"
+
+  build_probe_command "$probe_plan"
+  if "${command_args[@]}" >"$probe_log" 2>&1; then
     return 1
   fi
 
@@ -1109,20 +1250,30 @@ confirm_unlock() {
 
 run_unlock() {
   local resolved_lock_id="$unlock_lock_id"
+  local probe_log=""
+  local probe_plan=""
   local unlock_cmd=()
 
+  resolve_var_files
   print_preflight
-  if [[ -z "$resolved_lock_id" && "$skip_init" == false ]]; then
-    ensure_initialized
-  fi
+  ensure_initialized
 
   work_start "LOCK DISCOVERY"
   if [[ -z "$resolved_lock_id" && -n "$unlock_from_log" ]]; then
     resolved_lock_id="$(extract_lock_id_from_log "$unlock_from_log")"
   fi
 
-  if [[ -z "$resolved_lock_id" ]]; then
-    resolved_lock_id="$(probe_lock_id || true)"
+  if [[ -z "$resolved_lock_id" && "$dry_run" == true ]]; then
+    build_probe_command "${TMPDIR:-/tmp}/terraform-unlock-plan.XXXXXX"
+    run_cmd "${command_args[@]}"
+    resolved_lock_id="LOCK_ID_FROM_PROBE"
+  elif [[ -z "$resolved_lock_id" ]]; then
+    require_cmd "terraform" "needed for lock probing"
+    probe_log="$(mktemp "${TMPDIR:-/tmp}/terraform-unlock-log.XXXXXX")"
+    add_cleanup_path "$probe_log"
+    probe_plan="$(mktemp "${TMPDIR:-/tmp}/terraform-unlock-plan.XXXXXX")"
+    add_cleanup_path "$probe_plan"
+    resolved_lock_id="$(probe_lock_id "$probe_log" "$probe_plan" || true)"
   fi
 
   if [[ -z "$resolved_lock_id" ]]; then
@@ -1142,33 +1293,6 @@ run_unlock() {
   work_run "UNLOCK" "${unlock_cmd[@]}"
 }
 
-populate_debug_var_files() {
-  local default_var_file=""
-  local override=""
-
-  resolved_tfvars_paths=()
-  if [[ "$no_default_tfvars" == false ]]; then
-    if [[ -f "${input_dir}/terraform.tfvars" ]]; then
-      default_var_file="${input_dir}/terraform.tfvars"
-    elif [[ -f "${input_dir}/terraform.tfvars.json" ]]; then
-      default_var_file="${input_dir}/terraform.tfvars.json"
-    fi
-    if [[ -n "$default_var_file" ]]; then
-      resolved_tfvars_paths+=("$default_var_file")
-    fi
-  fi
-
-  if ((${#tfvars_overrides[@]} > 0)); then
-    for override in "${tfvars_overrides[@]}"; do
-      if [[ "$override" = /* && -f "$override" ]]; then
-        resolved_tfvars_paths+=("$override")
-      elif [[ -f "${input_dir}/${override}" ]]; then
-        resolved_tfvars_paths+=("${input_dir}/${override}")
-      fi
-    done
-  fi
-}
-
 collect_debug_bundle() {
   local bundle_dir=""
   local providers_file=""
@@ -1176,7 +1300,17 @@ collect_debug_bundle() {
 
   print_preflight
   work_start "DEBUG BUNDLE"
-  populate_debug_var_files
+  collect_var_files tolerant
+  if [[ "$dry_run" == true ]]; then
+    run_cmd mktemp -d "${TMPDIR:-/tmp}/terraform-debug.XXXXXX"
+    run_cmd terraform version
+    if [[ -d .terraform ]]; then
+      run_cmd terraform providers
+      run_cmd terraform workspace show
+    fi
+    work_end dry-run
+    return 0
+  fi
   bundle_dir="$(mktemp -d "${TMPDIR:-/tmp}/terraform-debug.XXXXXX")"
 
   {
@@ -1190,6 +1324,9 @@ collect_debug_bundle() {
     printf '%s\n' "${resolved_tfvars_paths[@]}" > "${bundle_dir}/var-files.txt"
   else
     printf 'No resolved var files\n' > "${bundle_dir}/var-files.txt"
+  fi
+  if ((${#missing_tfvars_overrides[@]} > 0)); then
+    printf '%s\n' "${missing_tfvars_overrides[@]}" > "${bundle_dir}/missing-var-files.txt"
   fi
 
   if command -v terraform >/dev/null 2>&1; then
@@ -1211,6 +1348,7 @@ collect_debug_bundle() {
 
 run_doctor() {
   local issues=0
+  local var_file=""
   local override=""
 
   print_preflight
@@ -1226,20 +1364,20 @@ run_doctor() {
 
   if [[ "$no_default_tfvars" == true ]]; then
     info "Default tfvars disabled by --no-default-tfvars"
-  else
-    info "Default tfvars are optional"
   fi
 
-  if ((${#tfvars_overrides[@]} > 0)); then
-    for override in "${tfvars_overrides[@]}"; do
-      if [[ "$override" = /* && -f "$override" ]]; then
-        success "Override tfvars found: ${override}"
-      elif [[ -f "${input_dir}/${override}" ]]; then
-        success "Override tfvars found: ${override}"
-      else
-        warn "Override tfvars missing: ${override}"
-        issues=$((issues + 1))
-      fi
+  collect_var_files tolerant
+  if ((${#resolved_tfvars_paths[@]} > 0)); then
+    for var_file in "${resolved_tfvars_paths[@]}"; do
+      success "tfvars used by plan: ${var_file}"
+    done
+  else
+    info "No tfvars files would be passed to plan"
+  fi
+  if ((${#missing_tfvars_overrides[@]} > 0)); then
+    for override in "${missing_tfvars_overrides[@]}"; do
+      warn "Override tfvars missing: ${override}"
+      issues=$((issues + 1))
     done
   fi
 
@@ -1260,9 +1398,17 @@ run_doctor() {
 }
 
 clean_environment() {
+  local artifacts=("${base_dir}/.terraform" "${base_dir}/tfplan")
+
   work_start "CLEAN"
-  rm -rf -- "${base_dir}/.terraform"
-  rm -f -- "${base_dir}/tfplan" "${base_dir}"/tfplan.*
+  shopt -s nullglob
+  artifacts+=("${base_dir}"/tfplan.*)
+  shopt -u nullglob
+  run_cmd rm -rf -- "${artifacts[@]}"
+  if [[ "$dry_run" == true ]]; then
+    work_end dry-run
+    return 0
+  fi
   info "Removed local Terraform artifacts"
   work_end ok
 }
@@ -1306,7 +1452,17 @@ run_tflist_compat() {
 }
 
 run_generic_action() {
+  local arg=""
+
   require_cmd "terraform" "needed for action '${action}'"
+
+  if [[ "$action" == "plan" ]] && ((${#terraform_args[@]} > 0)); then
+    for arg in "${terraform_args[@]}"; do
+      if [[ "$arg" == "-detailed-exitcode" ]]; then
+        detailed_exitcode=true
+      fi
+    done
+  fi
 
   if action_uses_var_files; then
     resolve_var_files

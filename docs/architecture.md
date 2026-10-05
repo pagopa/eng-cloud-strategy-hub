@@ -27,7 +27,7 @@ The diagram describes current repository relationships, not a deployment topolog
 | Area | Current architecture | Intended architecture | Status | Evidence |
 | --- | --- | --- | --- | --- |
 | Repository role | Governance, reusable automation, operator wrappers, and validation are kept in one repository. | No separate intended shape is evidenced. | Documented | `README.md`, `AGENTS.local.md` |
-| Provider wrappers | AWS, Azure, and GCP wrappers remain separate files with an aligned command contract. | Preserve separate provider adapters while keeping behavior aligned through simulations. | Documented | `scripts/*/terraform/terraform.sh`, `tests/scripts/terraform_wrappers/run.sh` |
+| Provider wrappers | AWS, Azure, and GCP wrappers remain separate files with an aligned command contract. | Preserve separate provider adapters while keeping behavior aligned through simulations. | Documented | `scripts/*/terraform-sh/terraform.sh`, `tests/scripts/cross-provider/terraform-sh/run.sh` |
 | Knowledge layout | The context map and domain glossaries document three domains, while `AGENTS.local.md` still declares a single-context layout. | Use `CONTEXT-MAP.md` and one glossary per evidenced domain. | Documented | `AGENTS.local.md`, `docs/agents/domain.md`, `CONTEXT-MAP.md`, `docs/adr/0001-context-map.md` |
 
 ## 4. Technology stack
@@ -58,7 +58,7 @@ The diagram describes current repository relationships, not a deployment topolog
 ## 6. Architectural boundaries
 
 - `.github/` is the source for repository governance and workflow entrypoints; `actions/` is the source for reusable composite action implementations. Status: Evidenced. Evidence: `.github/`, `actions/global/`.
-- `scripts/` owns provider wrapper behavior; `tests/scripts/` owns offline simulation and fixtures. Status: Evidenced. Evidence: `scripts/`, `tests/scripts/terraform_wrappers/`, `.github/workflows/_code-analysis.yml`.
+- `scripts/` owns provider wrapper behavior; `tests/` mirrors the owning component path (`tests/scripts/<provider>/<component>/`, `tests/actions/global/<action>/`, `tests/tools/<tool>/`), and `tests/scripts/cross-provider/` owns suites that span providers. Status: Evidenced. Evidence: `scripts/`, `tests/scripts/cross-provider/terraform-sh/`, `.github/workflows/_code-analysis.yml`.
 - `tools/validate_repo_locally/` coordinates selected local checks but does not replace GitHub-hosted workflows. Status: Evidenced. Evidence: `tools/validate_repo_locally/validate_repo_locally.py`, `validate-repo-locally.sh`.
 - Live cloud state, remote Terraform backends, consumer applications, long-lived credentials, and provider governance data are outside the repository boundary. Status: Documented. Evidence: `README.md`, `scripts/README.md`.
 
@@ -120,7 +120,7 @@ The workflow and local checks may require tools such as actionlint, ShellCheck, 
 
 | Decision | Status | Evidence | Trade-off | Related ADR |
 | --- | --- | --- | --- | --- |
-| Keep provider wrappers as separate files with an aligned CLI contract. | Documented | `scripts/aws/terraform-sh/terraform.sh`, `scripts/azure/terraform-sh/terraform.sh`, `scripts/gcp/terraform-sh/terraform.sh`, `tests/scripts/terraform_wrappers/run.sh` | Duplicates some shell logic but keeps provider-specific behavior explicit. | None |
+| Keep provider wrappers as separate files with an aligned CLI contract. | Documented | `scripts/aws/terraform-sh/terraform.sh`, `scripts/azure/terraform-sh/terraform.sh`, `scripts/gcp/terraform-sh/terraform.sh`, `tests/scripts/cross-provider/terraform-sh/run.sh` | Duplicates some shell logic but keeps provider-specific behavior explicit. | None |
 | Use a context map for the three evidenced knowledge domains. | Accepted | `CONTEXT-MAP.md`, `docs/agents/domain.md` | Adds navigation files, but avoids forcing unrelated vocabulary into one glossary. | `docs/adr/0001-context-map.md` |
 
 ## 12. AI-agent working rules

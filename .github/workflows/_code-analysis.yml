@@ -13,10 +13,11 @@ on:
     paths:
       - ".github/workflows/**"
       - ".github/scripts/**"
-      - "actions/global/release-please-google/**"
+      - "actions/**"
+      - "Makefile"
       - "validate-repo-locally.sh"
       - "scripts/**"
-      - "tests/scripts/**"
+      - "tests/**"
       - "tools/**"
   push:
     branches:
@@ -24,10 +25,11 @@ on:
     paths:
       - ".github/workflows/**"
       - ".github/scripts/**"
-      - "actions/global/release-please-google/**"
+      - "actions/**"
+      - "Makefile"
       - "validate-repo-locally.sh"
       - "scripts/**"
-      - "tests/scripts/**"
+      - "tests/**"
       - "tools/**"
   workflow_dispatch:
 
@@ -156,8 +158,14 @@ jobs:
             exit 1
           fi
 
-          bash -n "${shell_targets[@]}" \
-            > "${RUNNER_TEMP}/bash-syntax.log" 2>&1 &
+          # bash -n reads only its first operand as a script, so check each file.
+          (
+            syntax_status=0
+            for shell_target in "${shell_targets[@]}"; do
+              bash -n "${shell_target}" || syntax_status=1
+            done
+            exit "${syntax_status}"
+          ) > "${RUNNER_TEMP}/bash-syntax.log" 2>&1 &
           bash_pid=$!
 
           shellcheck -s bash -x "${shell_targets[@]}" \
@@ -260,4 +268,46 @@ jobs:
             echo
             echo "- Status: \`${{ job.status }}\`"
             echo "- Runner: \`python3 -m unittest discover\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  repository-tests:
+    name: Repository Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      # Real Terraform with a local backend; no credentials or remote state are used.
+      - name: 🧰 Install Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # hashicorp/setup-terraform@v4.0.1 release: https://github.com/hashicorp/setup-terraform/releases/tag/v4.0.1
+        with:
+          terraform_version: 1.14.3
+          terraform_wrapper: false
+
+      - name: 🧪 Run Python test directories under tests/
+        run: make python-tests
+
+      - name: 🧪 Run cross-provider terraform.sh simulation suite
+        run: make terraform-wrapper-tests
+
+      - name: 🧪 Run AWS S3 state creator simulation suite
+        run: make aws-s3-state-creator-tests
+
+      - name: 🧪 Run AWS dynamic states simulation suite
+        run: make aws-dynamic-states-tests
+
+      - name: 📝 Publish job summary
+        if: ${{ always() }}
+        run: |
+          set -Eeuo pipefail
+          {
+            echo "## Repository Tests"
+            echo
+            echo "- Status: \`${{ job.status }}\`"
+            echo "- Python: \`make python-tests\` (every \`tests/**/test_*.py\` directory)"
+            echo "- Shell suites: \`make terraform-wrapper-tests aws-s3-state-creator-tests aws-dynamic-states-tests\`"
           } >> "${GITHUB_STEP_SUMMARY}"

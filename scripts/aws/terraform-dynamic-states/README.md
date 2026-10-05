@@ -28,7 +28,7 @@ before entering a checked-in synthetic root:
 ```bash
 script_path="$(pwd)/terraform-dynamic-states.sh"
 (
-	cd ../../../tests/scripts/aws_terraform_dynamic_states/fixtures/dynamic-root
+	cd ../../../tests/scripts/aws/terraform-dynamic-states/fixtures/dynamic-root
 	bash "${script_path}" plan dev --dry-run
 	bash "${script_path}" summ dev --summary-format pr
 	bash "${script_path}" find-locks all --cicd
@@ -125,7 +125,7 @@ Named dynamic scopes also require an AWS profile or other credentials that can a
 ```bash
 bash -n ./terraform-dynamic-states.sh
 shellcheck -s bash -x ./terraform-dynamic-states.sh
-bash ../../../tests/scripts/aws_terraform_dynamic_states/run.sh
+bash ../../../tests/scripts/aws/terraform-dynamic-states/run.sh
 ```
 
 The dynamic-state simulation suite uses fake AWS and Terraform CLIs and covers dynamic backend keys, scope variables, dry-run behavior, lock inventory, bulk-unlock planning, and dynamic-context diagnostics without using live cloud accounts or remote Terraform backends.
@@ -135,5 +135,5 @@ The dynamic-state simulation suite uses fake AWS and Terraform CLIs and covers d
 - [AWS scripts index](../README.md).
 - [Scripts overview](../../README.md).
 - [Terraform Operator Tooling rules](../../../docs/domain/terraform-operator-tooling/RULES.md).
-- [Dynamic-state simulation suite](../../../tests/scripts/aws_terraform_dynamic_states/run.sh).
+- [Dynamic-state simulation suite](../../../tests/scripts/aws/terraform-dynamic-states/run.sh).
 - [Code analysis workflow](../../../.github/workflows/_code-analysis.yml).

@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from types import ModuleType
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 SCRIPT_PATH = ROOT / "actions/global/semantic-release/scripts/generate-releaserc.py"
 
 

@@ -37,7 +37,7 @@ checked-in synthetic root and dry-run mode:
 scripts_root="$(pwd)"
 "${scripts_root}/aws/terraform-sh/terraform.sh" help
 (
-	cd ../tests/scripts/terraform_wrappers/fixtures/azure-root
+	cd ../tests/scripts/cross-provider/terraform-sh/fixtures/azure-root
 	"${scripts_root}/azure/terraform-sh/terraform.sh" plan noenv --no-default-tfvars --dry-run
 )
 ```
