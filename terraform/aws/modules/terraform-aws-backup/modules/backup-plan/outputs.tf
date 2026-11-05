@@ -12,3 +12,13 @@ output "selection_id" {
   description = "ID of the backup selection."
   value       = aws_backup_selection.this.id
 }
+
+output "rules" {
+  description = "Effective native rule set, including lifecycle and copy actions. External vault lock compatibility remains caller-owned."
+  value       = aws_backup_plan.this.rule
+}
+
+output "selection_tags" {
+  description = "Effective native ListOfTags selection set. Multiple entries use OR, not Conditions/AND."
+  value       = aws_backup_selection.this.selection_tag
+}

@@ -6,7 +6,7 @@ Default: retention di 3650 giorni, passaggio a cold storage dopo 30 giorni, gior
 
 ```hcl
 module "archival" {
-  source = "git::https://github.com/pagopa/<nome-repo>.git//modules/backup/modules/presets/archival?ref=v1.0.0"
+  source = "git::https://github.com/pagopa/eng-cloud-strategy-hub.git//terraform/aws/modules/terraform-aws-backup/modules/presets/archival?ref=aws-backup-v1.0.0"
 
   vault_name      = module.backup.vault_name
   backup_role_arn = module.backup.backup_role_arn
@@ -27,3 +27,9 @@ module "archival" {
 Output: `plan_id`.
 
 > AWS Backup richiede `delete_after >= cold_storage_after + 90`.
+
+The release ref is proposed and unpublished; use an available immutable commit
+containing the changes until publication. Callers own the AWS provider, existing
+vault, IAM role, and compatibility with external vault lock bounds. Cold
+storage is service-dependent and is not supported for S3 or continuous backups.
+Native [tests](./tests/) run in CI through `make terraform-backup-check`.

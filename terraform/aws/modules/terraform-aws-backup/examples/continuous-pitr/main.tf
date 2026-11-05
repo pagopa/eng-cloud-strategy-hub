@@ -1,13 +1,14 @@
 ###############################################################################
 # Example: Continuous backup (PITR) scoped to supported services only
 #
-# Point-in-Time Recovery is only supported by some services (DynamoDB, S3, RDS).
+# AWS Backup PITR supports S3 and supported RDS/Aurora configurations.
 # Using a dedicated tag set routes continuous backup into its own plan/selection
 # so PITR never runs against unsupported types (EFS, EKS, Redshift) — which
 # would otherwise produce FAILED jobs and noisy alerts.
 #
-# Tag DynamoDB/S3/RDS resources with:  backup-continuous = enabled
-# Tag everything in scope with:        backup-policy     = enabled
+# DynamoDB PITR is separate native configuration owned by the caller.
+# Tag supported resources with: backup-continuous = data
+# Tag the snapshot workload with: backup-workload = data
 ###############################################################################
 
 terraform {
@@ -16,21 +17,26 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.30.0, < 6.0.0"
+      version = ">= 5.71.0, < 6.0.0"
     }
   }
 
-  backend "s3" {
-    # Configure your backend here
-  }
 }
 
 provider "aws" {
   region = "eu-south-1"
 }
+provider "aws" {
+  alias  = "dr"
+  region = "eu-central-1"
+}
 
 module "backup" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup?ref=v1.0.0"
+  source = "../.."
+  providers = {
+    aws    = aws
+    aws.dr = aws.dr
+  }
 
   aws_region  = "eu-south-1"
   environment = "prod"
@@ -39,12 +45,16 @@ module "backup" {
 
   # Snapshot backup for everything in scope.
   selection_tags = {
-    "backup-policy" = "enabled"
+    "backup-workload" = "data"
   }
+
+  enable_continuous_backup  = true
+  continuous_retention_days = 35
+  retention_days            = 90
 
   # Continuous backup (PITR) only for the PITR-capable, explicitly-tagged subset.
   continuous_backup_selection_tags = {
-    "backup-continuous" = "enabled"
+    "backup-continuous" = "data"
   }
 
   dr_region = "eu-central-1"
@@ -55,7 +65,7 @@ module "backup" {
 }
 
 module "backup_alerting" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup-alerting?ref=v1.0.0"
+  source = "../../../terraform-aws-backup-alerting"
 
   solution_prefix = "team-data"
   kms_key_ids     = [module.backup.kms_key_id]

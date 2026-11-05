@@ -2,6 +2,16 @@
 # Backup Vault — Primary Region
 ###############################################################################
 
+data "aws_region" "primary" {}
+data "aws_region" "dr" {
+  count    = local.enable_cross_region_copy ? 1 : 0
+  provider = aws.dr
+}
+data "aws_caller_identity" "dr" {
+  count    = local.enable_cross_region_copy ? 1 : 0
+  provider = aws.dr
+}
+
 resource "aws_backup_vault" "primary" {
   name        = var.solution_prefix
   kms_key_arn = aws_kms_key.backup.arn
@@ -22,18 +32,30 @@ resource "aws_backup_vault_lock_configuration" "primary" {
 
   lifecycle {
     precondition {
-      condition     = local.retention_days >= local.vault_lock_min_retention_days
-      error_message = "retention_days (${local.retention_days}) must be >= the Vault Lock minimum retention (${local.vault_lock_min_retention_days}). Increase retention_days or lower vault_lock_min_retention_days."
+      condition     = local.vault_lock_min_retention_days <= var.vault_lock_max_retention_days && alltrue([for days in local.primary_retention_days : days >= 1 && days >= local.vault_lock_min_retention_days && days <= var.vault_lock_max_retention_days && floor(days) == days])
+      error_message = "Every primary snapshot, extra rule, and enabled PITR retention must be a positive whole day value within the primary Vault Lock bounds."
     }
 
     precondition {
-      condition     = local.cold_storage_after == 0 || local.retention_days >= local.cold_storage_after + 90
-      error_message = "When cold_storage_after is set, retention_days (${local.retention_days}) must be at least cold_storage_after + 90 (${local.cold_storage_after + 90}). AWS Backup requires recovery points to stay in cold storage for at least 90 days."
+      condition     = alltrue([for rule in local.default_plan_rules : rule.cold_storage_after >= 0 && floor(rule.cold_storage_after) == rule.cold_storage_after && (rule.cold_storage_after == 0 || rule.delete_after >= rule.cold_storage_after + 90)])
+      error_message = "Every primary rule must use whole non-negative cold-storage days and retain at least 90 days after transition."
     }
 
     precondition {
-      condition     = !local.is_prod || var.dr_region != null
-      error_message = "dr_region must be set when environment is prod, because production always enables the DR region configuration."
+      condition     = !local.is_prod || (var.dr_region != null && var.dr_region != var.aws_region)
+      error_message = "Production requires dr_region to be set and different from aws_region."
+    }
+    precondition {
+      condition     = data.aws_region.primary.name == var.aws_region
+      error_message = "The caller's aws provider region must match aws_region."
+    }
+    precondition {
+      condition     = local.is_prod ? data.aws_region.dr[0].name == var.dr_region && data.aws_caller_identity.dr[0].account_id == data.aws_caller_identity.current.account_id : true
+      error_message = "Production aws.dr must match dr_region and use the same AWS account as aws."
+    }
+    precondition {
+      condition     = !local.enable_continuous_backup || (var.continuous_backup_selection_tags == null ? false : length(var.continuous_backup_selection_tags) > 0)
+      error_message = "Enabled continuous backup requires non-empty dedicated continuous_backup_selection_tags."
     }
 
     precondition {
@@ -80,8 +102,23 @@ resource "aws_backup_vault_lock_configuration" "dr" {
 
   backup_vault_name   = aws_backup_vault.dr[0].name
   changeable_for_days = local.vault_lock_mode == "COMPLIANCE" ? var.vault_lock_changeable_for_days : null
-  min_retention_days  = local.vault_lock_min_retention_days
+  min_retention_days  = local.dr_vault_lock_min_retention_days
   max_retention_days  = var.vault_lock_max_retention_days
+
+  lifecycle {
+    precondition {
+      condition     = local.dr_vault_lock_min_retention_days <= var.vault_lock_max_retention_days && alltrue([for days in local.dr_retention_days : days >= 1 && days >= local.dr_vault_lock_min_retention_days && days <= var.vault_lock_max_retention_days && floor(days) == days])
+      error_message = "Every copy retention must be a positive whole day value within the destination Vault Lock bounds."
+    }
+    precondition {
+      condition = alltrue(flatten([
+        for rule in local.default_plan_rules : [
+          for copy in rule.copy_actions : copy.cold_storage_after >= 0 && floor(copy.cold_storage_after) == copy.cold_storage_after && (copy.cold_storage_after == 0 || copy.delete_after >= copy.cold_storage_after + 90)
+        ]
+      ]))
+      error_message = "Every copy lifecycle must use whole non-negative cold-storage days and retain at least 90 days after transition."
+    }
+  }
 }
 
 ###############################################################################
@@ -89,7 +126,8 @@ resource "aws_backup_vault_lock_configuration" "dr" {
 ###############################################################################
 
 module "default_plan" {
-  source = "./modules/backup-plan"
+  source     = "./modules/backup-plan"
+  depends_on = [aws_backup_vault_lock_configuration.primary, aws_backup_vault_lock_configuration.dr]
 
   plan_name      = "${var.solution_prefix}-default-plan"
   selection_name = "${var.solution_prefix}-selection"
@@ -107,18 +145,18 @@ module "default_plan" {
 ###############################################################################
 # Backup Plan — Continuous Backup (PITR), separate selection
 #
-# Created only when continuous_backup_selection_tags is set, so PITR runs only
-# against supported, explicitly-tagged resources (DynamoDB, S3, RDS).
+# Enabled explicitly and scoped to dedicated tags for supported S3/RDS resources.
 ###############################################################################
 
 module "continuous_plan" {
-  count  = local.continuous_in_separate_plan ? 1 : 0
-  source = "./modules/backup-plan"
+  count      = local.continuous_in_separate_plan ? 1 : 0
+  source     = "./modules/backup-plan"
+  depends_on = [aws_backup_vault_lock_configuration.primary]
 
   plan_name      = "${var.solution_prefix}-continuous-plan"
   selection_name = "${var.solution_prefix}-continuous-selection"
   iam_role_arn   = aws_iam_role.backup.arn
-  selection_tags = var.continuous_backup_selection_tags
+  selection_tags = var.continuous_backup_selection_tags == null ? {} : var.continuous_backup_selection_tags
   tags           = local.common_tags
 
   rules = [

@@ -17,6 +17,16 @@ resource "aws_backup_restore_testing_plan" "this" {
   }
 
   tags = local.common_tags
+
+  lifecycle {
+    precondition {
+      condition = length(var.excluded_resource_arns) == 0 && length(var.resource_types) == 0 && (
+        (length(var.selection_tags) == 1 && length(var.resource_arns) == 0) ||
+        (length(var.selection_tags) == 0 && length(var.resource_arns) > 0 && length(var.resource_arns) <= 30 && alltrue([for arn in var.resource_arns : !can(regex("[*?]", arn))]))
+      )
+      error_message = "Restore testing supports one exact tag or up to 30 explicit ARNs. Multi-tag OR, exclusions, mixed selectors, type-wide wildcards, and implicit all-resource selection cannot be safely represented."
+    }
+  }
 }
 
 ###############################################################################
@@ -38,10 +48,7 @@ resource "aws_backup_restore_testing_selection" "this" {
   # Hours the restored resource is retained so optional validation can run.
   validation_window_hours = var.restore_testing_max_duration
 
-  # Exactly one of protected_resource_arns / protected_resource_conditions may
-  # be set. When selection_tags are provided we scope by tag conditions;
-  # otherwise we fall back to selecting all resources of the type ("*").
-  protected_resource_arns = length(var.selection_tags) > 0 ? null : ["*"]
+  protected_resource_arns = length(var.selection_tags) > 0 ? ["*"] : var.resource_arns
 
   dynamic "protected_resource_conditions" {
     for_each = length(var.selection_tags) > 0 ? [1] : []

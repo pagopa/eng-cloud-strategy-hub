@@ -12,7 +12,7 @@ Mattoncino riusabile che crea un `aws_backup_plan` con una o più regole e una `
 
 ```hcl
 module "extra_plan" {
-  source = "git::https://github.com/pagopa/<nome-repo>.git//modules/backup/modules/backup-plan?ref=v1.0.0"
+  source = "git::https://github.com/pagopa/eng-cloud-strategy-hub.git//terraform/aws/modules/terraform-aws-backup/modules/backup-plan?ref=aws-backup-v1.0.0"
 
   plan_name    = "team-payments-hourly"
   iam_role_arn = module.backup.backup_role_arn
@@ -26,7 +26,7 @@ module "extra_plan" {
       rule_name         = "hourly"
       target_vault_name = module.backup.vault_name
       schedule          = "cron(0 * * * ? *)"
-      delete_after      = 7
+      delete_after      = 35
     }
   ]
 }
@@ -62,3 +62,21 @@ Tipi supportati da `resource_types`: **S3, DynamoDB, EC2, EBS, RDS, Aurora, EFS*
 | `plan_id` | ID del piano di backup |
 | `plan_arn` | ARN del piano di backup |
 | `selection_id` | ID della selezione di backup |
+| `rules` | Effective native rule set, including lifecycle and copy actions. |
+| `selection_tags` | Effective native ListOfTags set; multiple tags use OR. |
+
+The Git ref above is a proposed, unpublished first release; use an available
+immutable commit containing the changes until it is published. Callers supply
+the AWS provider, role, and existing vault names.
+
+Rule names must be unique. Retention must be positive whole days. Snapshot and
+copy cold transition requires at least 90 subsequent retained days. Continuous
+retention is 1-35 days and cannot use cold storage. Copying a continuous recovery
+point does not certify PITR at the destination.
+
+Tag entries use AWS `ListOfTags` OR semantics; they are not `Conditions` AND.
+Resource ARNs and types remain a union, and exclusions remain `NotResources`.
+External vault minima/maxima and service-specific cold/copy availability are
+caller-owned: this module cannot infer an external vault's lock settings.
+
+Native [tests](./tests/) run in CI through `make terraform-backup-check`.

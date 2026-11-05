@@ -8,13 +8,10 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.30.0, < 6.0.0"
+      version = ">= 5.71.0, < 6.0.0"
     }
   }
 
-  # backend "s3" {
-  #   # Configure your backend here
-  # }
 }
 
 provider "aws" {
@@ -23,8 +20,11 @@ provider "aws" {
 
 # Vault lock mode is by default set to GOVERNANCE in non-production
 module "backup" {
-  #source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup?ref=v1.0.0"
-  source = "../../"
+  source = "../.."
+  providers = {
+    aws    = aws
+    aws.dr = aws
+  }
 
   aws_region  = "eu-south-1"
   environment = "nonprod"
@@ -32,7 +32,7 @@ module "backup" {
   solution_prefix = "team-payments-dev-vault"
 
   selection_tags = {
-    "backup-policy" = "enabled"
+    "backup-workload" = "payments-dev"
   }
 
   # Shorter retention for dev
@@ -62,7 +62,6 @@ module "backup" {
 ###############################################################################
 
 module "backup_alerting" {
-  #source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup-alerting?ref=v1.0.0"
   source = "../../../terraform-aws-backup-alerting"
 
   solution_prefix = "team-payments-dev"

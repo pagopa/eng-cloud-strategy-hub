@@ -6,7 +6,7 @@ Default: pianificazione settimanale (domenica 02:00 UTC), retention di 90 giorni
 
 ```hcl
 module "weekly_full" {
-  source = "git::https://github.com/pagopa/<nome-repo>.git//modules/backup/modules/presets/weekly-full?ref=v1.0.0"
+  source = "git::https://github.com/pagopa/eng-cloud-strategy-hub.git//terraform/aws/modules/terraform-aws-backup/modules/presets/weekly-full?ref=aws-backup-v1.0.0"
 
   vault_name      = module.backup.vault_name
   backup_role_arn = module.backup.backup_role_arn
@@ -24,3 +24,10 @@ module "weekly_full" {
 | `tags` | `{}` | Tag aggiuntivi |
 
 Output: `plan_id`.
+
+The release ref is proposed and unpublished; use an available immutable commit
+containing the changes until publication. Callers own the AWS provider, existing
+vault, IAM role, and compatibility with external vault lock bounds. The schedule
+does not guarantee a successful recovery point or a service-specific full
+backup; verify job and restore evidence separately. Native [tests](./tests/)
+run in CI through `make terraform-backup-check`.

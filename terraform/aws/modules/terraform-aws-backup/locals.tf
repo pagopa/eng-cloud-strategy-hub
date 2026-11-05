@@ -24,20 +24,34 @@ locals {
 
   enable_continuous_backup = coalesce(
     var.enable_continuous_backup,
-    local.is_prod
+    false
   )
 
   vault_lock_mode = coalesce(
     var.vault_lock_mode,
-    local.is_prod ? "COMPLIANCE" : "GOVERNANCE"
+    "GOVERNANCE"
   )
 
-  # Vault Lock minimum retention. Defaults are environment-aware and are kept
-  # at or below the plan retention so the default plan never produces recovery
-  # points that violate the lock (prod: 35, nonprod: 7).
+  primary_retention_days = concat(
+    [local.retention_days],
+    [for rule in var.default_plan_additional_rules : rule.delete_after],
+    local.enable_continuous_backup ? [var.continuous_retention_days] : []
+  )
+  dr_retention_days = concat(
+    [local.copy_retention_days],
+    [
+      for rule in var.default_plan_additional_rules : coalesce(rule.copy_delete_after, rule.delete_after)
+      if rule.copy_to_dr == null ? local.enable_cross_region_copy : rule.copy_to_dr
+    ]
+  )
+
   vault_lock_min_retention_days = coalesce(
     var.vault_lock_min_retention_days,
-    local.is_prod ? 35 : 7
+    min(local.is_prod ? 35 : 7, min(local.primary_retention_days...))
+  )
+  dr_vault_lock_min_retention_days = coalesce(
+    var.vault_lock_min_retention_days,
+    min(local.is_prod ? 35 : 7, min(local.dr_retention_days...))
   )
 
   copy_retention_days = coalesce(
@@ -45,14 +59,8 @@ locals {
     local.retention_days
   )
 
-  # Continuous backup (PITR) supports a maximum delete_after of 35 days.
-  continuous_retention_days = min(local.retention_days, 35)
-
-  # When a dedicated tag set is provided, continuous backup runs in its own
-  # plan/selection (scoped to PITR-capable resources) instead of sharing the
-  # main selection. This avoids FAILED continuous jobs on unsupported types.
-  continuous_in_separate_plan = local.enable_continuous_backup && var.continuous_backup_selection_tags != null
-  continuous_in_default_plan  = local.enable_continuous_backup && var.continuous_backup_selection_tags == null
+  continuous_retention_days   = var.continuous_retention_days
+  continuous_in_separate_plan = local.enable_continuous_backup
 
   common_tags = merge(
     {
@@ -75,7 +83,7 @@ locals {
       delete_after       = rule.delete_after
 
       recovery_point_tags = merge(local.common_tags, rule.recovery_point_tags)
-      copy_actions = (try(rule.copy_to_dr, null) == null ? local.enable_cross_region_copy : rule.copy_to_dr) ? [
+      copy_actions = local.enable_cross_region_copy && (rule.copy_to_dr == null ? true : rule.copy_to_dr) ? [
         {
           destination_vault_arn = aws_backup_vault.dr[0].arn
           cold_storage_after    = coalesce(rule.copy_cold_storage_after, rule.cold_storage_after)
@@ -105,18 +113,6 @@ locals {
         ] : []
       }
     ],
-    local.continuous_in_default_plan ? [
-      {
-        rule_name                = "continuous-backup"
-        target_vault_name        = aws_backup_vault.primary.name
-        schedule                 = var.backup_schedule
-        start_window             = var.backup_window_minutes
-        completion_window        = var.backup_window_minutes * 2
-        enable_continuous_backup = true
-        delete_after             = local.continuous_retention_days
-        recovery_point_tags      = local.common_tags
-      }
-    ] : [],
     local.default_plan_additional_rules
   )
 }

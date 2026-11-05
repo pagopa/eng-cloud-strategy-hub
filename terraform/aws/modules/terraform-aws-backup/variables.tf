@@ -2,7 +2,7 @@
 # Required Variables
 ###############################################################################
 variable "aws_region" {
-  description = "Primary region where the workload lives. Used as the module's primary-region input and as the fallback region for the internal aws.dr alias when cross-region copy is disabled."
+  description = "Primary region where the workload lives. Must match the caller-supplied aws provider."
   type        = string
 }
 
@@ -86,8 +86,8 @@ variable "retention_days" {
   default     = null
 
   validation {
-    condition     = var.retention_days == null ? true : var.retention_days >= 1
-    error_message = "retention_days must be a positive number of days."
+    condition     = var.retention_days == null ? true : var.retention_days >= 1 && floor(var.retention_days) == var.retention_days
+    error_message = "retention_days must be a positive whole number of days."
   }
 }
 
@@ -97,8 +97,8 @@ variable "cold_storage_after" {
   default     = null
 
   validation {
-    condition     = var.cold_storage_after == null ? true : var.cold_storage_after >= 0
-    error_message = "cold_storage_after must be 0 (disabled) or a positive number of days."
+    condition     = var.cold_storage_after == null ? true : var.cold_storage_after >= 0 && floor(var.cold_storage_after) == var.cold_storage_after
+    error_message = "cold_storage_after must be a non-negative whole number of days; 0 disables transition."
   }
 }
 
@@ -125,7 +125,7 @@ variable "cross_region_copy" {
 }
 
 variable "dr_region" {
-  description = "Target region for DR copy. Used both to configure the module's internal aws.dr alias and to validate against the DenyNoEURegions SCP allow-list. Required when environment is prod."
+  description = "Target region for production DR copy. Must differ from aws_region, match the caller's aws.dr provider, and belong to the existing EU allow-list."
   type        = string
   default     = null
 
@@ -139,6 +139,10 @@ variable "copy_retention_days" {
   description = "Retention period for cross-region copies. Defaults to the primary retention_days."
   type        = number
   default     = null
+  validation {
+    condition     = var.copy_retention_days == null ? true : var.copy_retention_days >= 1 && floor(var.copy_retention_days) == var.copy_retention_days
+    error_message = "copy_retention_days must be a positive whole number of days."
+  }
 }
 
 ###############################################################################
@@ -146,21 +150,30 @@ variable "copy_retention_days" {
 ###############################################################################
 
 variable "enable_continuous_backup" {
-  description = "Enable continuous backup (Point-In-Time Recovery) for supported services (DynamoDB, S3, RDS)."
+  description = "Enable dedicated AWS Backup continuous backup for supported S3 and RDS/Aurora resources. Disabled by default. DynamoDB PITR is configured natively by the caller."
   type        = bool
   default     = null
 }
 
 variable "continuous_backup_selection_tags" {
   description = <<-EOT
-    Optional dedicated tag set used to select resources for the continuous
-    backup (PITR) rule. PITR is only supported by some services (DynamoDB, S3,
-    RDS); selecting unsupported types (EFS, EKS, Redshift) produces FAILED jobs.
-    When set, continuous backup runs in its own plan/selection scoped to these
-    tags. When null (default), the continuous rule shares the main selection_tags.
+    Dedicated, non-empty tags required when continuous backup is enabled.
+    Continuous backup always uses its own selection; it never falls back to
+    snapshot tags. Tag matches use OR, so each tag must identify only supported
+    S3 or RDS/Aurora resources. DynamoDB PITR is separate native configuration.
   EOT
   type        = map(string)
   default     = null
+}
+
+variable "continuous_retention_days" {
+  description = "Independent AWS Backup PITR retention in whole days, from 1 to 35."
+  type        = number
+  default     = 35
+  validation {
+    condition     = var.continuous_retention_days >= 1 && var.continuous_retention_days <= 35 && floor(var.continuous_retention_days) == var.continuous_retention_days
+    error_message = "continuous_retention_days must be a whole number from 1 to 35; retention is never silently capped."
+  }
 }
 
 ###############################################################################
@@ -168,7 +181,7 @@ variable "continuous_backup_selection_tags" {
 ###############################################################################
 
 variable "vault_lock_mode" {
-  description = "Vault Lock mode: COMPLIANCE or GOVERNANCE. Defaults to COMPLIANCE in prod, GOVERNANCE in nonprod."
+  description = "Vault Lock mode: GOVERNANCE (default in both environments) or explicit COMPLIANCE, which becomes immutable after its cooling-off period."
   type        = string
   default     = null
 
@@ -179,9 +192,13 @@ variable "vault_lock_mode" {
 }
 
 variable "vault_lock_min_retention_days" {
-  description = "Minimum retention enforced by Vault Lock. Recovery points cannot have a retention shorter than this. Defaults to 35 in prod and 7 in nonprod."
+  description = "Explicit minimum retention for both vaults. When null, each vault uses the lower of its environment minimum (35/7) and its shortest core-managed rule; external plans remain caller-owned."
   type        = number
   default     = null
+  validation {
+    condition     = var.vault_lock_min_retention_days == null ? true : var.vault_lock_min_retention_days >= 1 && floor(var.vault_lock_min_retention_days) == var.vault_lock_min_retention_days
+    error_message = "vault_lock_min_retention_days must be a positive whole number of days."
+  }
 }
 
 variable "vault_lock_max_retention_days" {
@@ -190,8 +207,8 @@ variable "vault_lock_max_retention_days" {
   default     = 3650
 
   validation {
-    condition     = var.vault_lock_max_retention_days >= 1
-    error_message = "vault_lock_max_retention_days must be a positive number of days."
+    condition     = var.vault_lock_max_retention_days >= 1 && floor(var.vault_lock_max_retention_days) == var.vault_lock_max_retention_days
+    error_message = "vault_lock_max_retention_days must be a positive whole number of days."
   }
 }
 

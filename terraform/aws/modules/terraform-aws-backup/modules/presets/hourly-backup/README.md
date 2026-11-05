@@ -6,11 +6,12 @@ Default: pianificazione oraria, retention di 7 giorni, finestra di avvio di 60 m
 
 ```hcl
 module "hourly" {
-  source = "git::https://github.com/pagopa/<nome-repo>.git//modules/backup/modules/presets/hourly-backup?ref=v1.0.0"
+  source = "git::https://github.com/pagopa/eng-cloud-strategy-hub.git//terraform/aws/modules/terraform-aws-backup/modules/presets/hourly-backup?ref=aws-backup-v1.0.0"
 
   vault_name      = module.backup.vault_name
   backup_role_arn = module.backup.backup_role_arn
   selection_tags  = { "backup-policy" = "hourly" }
+  retention_days = 35 # Override the 7-day default for a production vault.
 }
 ```
 
@@ -24,3 +25,9 @@ module "hourly" {
 | `tags` | `{}` | Tag aggiuntivi |
 
 Output: `plan_id`.
+
+The release ref is proposed and unpublished; use an available immutable commit
+containing the changes until publication. Callers own the AWS provider, existing
+vault, and IAM role. The isolated preset defaults to 7 days; it does not infer
+external vault lock bounds. Every override must fit those bounds. Native
+[tests](./tests/) run in CI through `make terraform-backup-check`.

@@ -8,25 +8,30 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.30.0, < 6.0.0"
+      version = ">= 5.71.0, < 6.0.0"
     }
   }
 
-  backend "s3" {
-    # Configure your backend here
-  }
 }
 
 provider "aws" {
   region = "eu-south-1"
 }
+provider "aws" {
+  alias  = "dr"
+  region = "eu-central-1"
+}
 
 ###############################################################################
 # Core Backup Module
 ###############################################################################
-# Vault lock mode is by default set to COMPLIANCE in production, but can be overridden to GOVERNANCE if the team is not ready for non-deletable backups.
+# GOVERNANCE is the default; COMPLIANCE requires explicit opt-in.
 module "backup" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup?ref=v1.0.0"
+  source = "../.."
+  providers = {
+    aws    = aws
+    aws.dr = aws.dr
+  }
 
   aws_region  = "eu-south-1"
   environment = "prod"
@@ -34,7 +39,7 @@ module "backup" {
   solution_prefix = "team-payments-vault"
 
   selection_tags = {
-    "backup-policy" = "enabled"
+    "backup-workload" = "payments"
   }
 
   # Override retention for this team (default is 35 days)
@@ -50,7 +55,6 @@ module "backup" {
       cold_storage_after = 30
       delete_after       = 120
       copy_to_dr         = false # Disable DR copy for this rule even though production enables cross-region copy by default.
-      copy_delete_after  = 180
       recovery_point_tags = {
         "backup-frequency" = "weekly"
       }
@@ -58,7 +62,7 @@ module "backup" {
   ]
 
   # In production DR copy is enabled by default. Setting dr_region selects the
-  # DR target region and activates the internal aws.dr provider accordingly.
+  # DR target region must match the caller's aws.dr provider.
   dr_region = "eu-central-1"
 
   # Enable restore testing
@@ -73,11 +77,11 @@ module "backup" {
 }
 
 ###############################################################################
-# Alerting Module (separate lifecycle)
+# Alerting module (independent API; shared root and state in this example)
 ###############################################################################
 
 module "backup_alerting" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup-alerting?ref=v1.0.0"
+  source = "../../../terraform-aws-backup-alerting"
 
   solution_prefix = "team-payments"
 
@@ -98,7 +102,7 @@ module "backup_alerting" {
 ###############################################################################
 
 module "backup_long_retention" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup/modules/presets/long-retention?ref=v1.0.0"
+  source = "../../modules/presets/long-retention"
 
   vault_name      = module.backup.vault_name
   backup_role_arn = module.backup.backup_role_arn
@@ -121,7 +125,7 @@ module "backup_long_retention" {
 ###############################################################################
 
 module "backup_hourly" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup/modules/presets/hourly-backup?ref=v1.0.0"
+  source = "../../modules/presets/hourly-backup"
 
   vault_name      = module.backup.vault_name
   backup_role_arn = module.backup.backup_role_arn
@@ -130,7 +134,7 @@ module "backup_hourly" {
     "backup-tier" = "critical-rpo"
   }
 
-  retention_days = 7
+  retention_days = 35
 
   tags = {
     "backup-owner" = "team-payments"
@@ -143,7 +147,7 @@ module "backup_hourly" {
 ###############################################################################
 
 module "backup_twice_daily" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup/modules/backup-plan?ref=v1.0.0"
+  source = "../../modules/backup-plan"
 
   plan_name    = "team-payments-twice-daily"
   iam_role_arn = module.backup.backup_role_arn

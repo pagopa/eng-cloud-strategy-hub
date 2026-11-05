@@ -6,7 +6,7 @@ Default: retention di 3650 giorni, passaggio a cold storage dopo 90 giorni, gior
 
 ```hcl
 module "long_retention" {
-  source = "git::https://github.com/pagopa/<nome-repo>.git//modules/backup/modules/presets/long-retention?ref=v1.0.0"
+  source = "git::https://github.com/pagopa/eng-cloud-strategy-hub.git//terraform/aws/modules/terraform-aws-backup/modules/presets/long-retention?ref=aws-backup-v1.0.0"
 
   vault_name      = module.backup.vault_name
   backup_role_arn = module.backup.backup_role_arn
@@ -25,3 +25,10 @@ module "long_retention" {
 | `tags` | `{}` | Tag aggiuntivi |
 
 Output: `plan_id`.
+
+The release ref is proposed and unpublished; use an available immutable commit
+containing the changes until publication. Callers own the AWS provider, existing
+vault, IAM role, and compatibility with external vault lock bounds. Retention
+must leave at least 90 days after cold transition; service support is not
+inferred from tags. Native [tests](./tests/) run in CI through
+`make terraform-backup-check`.

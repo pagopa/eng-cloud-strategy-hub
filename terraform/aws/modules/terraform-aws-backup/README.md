@@ -1,279 +1,454 @@
 # terraform-aws-backup
 
-Modulo Terraform per la strategia di backup AWS di PagoPA. Crea, per ogni account, l'infrastruttura di backup di base: vault, Vault Lock, piano di backup, ruoli IAM, cifratura KMS e restore testing opzionale.
+Reusable AWS Backup modules for workload teams. Each core module instance creates
+its own encrypted vaults, Vault Lock configuration, backup and restore IAM roles,
+and a scheduled snapshot plan. Continuous backup and automated restore testing
+are optional.
 
-**L'alerting è gestito da un modulo separato** — [`terraform-aws-backup-alerting`](../terraform-aws-backup-alerting/) — che ha un ciclo di vita indipendente e può essere modificato (cambio destinatari, aggiunta di sottoscrittori) senza toccare l'infrastruttura di backup.
+This is a shared module library, not a central account collecting all backups.
+Consumers deploy it in their own workload accounts. Notifications use the
+separate [alerting module](../terraform-aws-backup-alerting/).
 
-## Indice
+## Contents
 
-- [Come funziona](#come-funziona)
-- [Utilizzo rapido](#utilizzo-rapido)
-- [Requisiti](#requisiti)
-- [Provider](#provider)
-- [Architettura](#architettura)
-- [Come selezionare le risorse da proteggere](#come-selezionare-le-risorse-da-proteggere)
-- [Default per ambiente](#default-per-ambiente)
-- [Estendere i backup: preset e piani su misura](#estendere-i-backup-preset-e-piani-su-misura)
-- [Struttura del modulo](#struttura-del-modulo)
-- [Risorse create](#risorse-create)
-- [Input](#input)
-- [Output](#output)
-- [Note operative](#note-operative)
-- [Validazione](#validazione)
+- [Before you start](#before-you-start)
+- [Non-production setup](#non-production-setup)
+- [Production setup](#production-setup)
+- [Names and resource selection](#names-and-resource-selection)
+- [Scheduled snapshots versus continuous PITR](#scheduled-snapshots-versus-continuous-pitr)
+- [Retention and Vault Lock](#retention-and-vault-lock)
+- [Additional schedules and presets](#additional-schedules-and-presets)
+- [Alerts and restore testing](#alerts-and-restore-testing)
+- [Inputs and outputs](#inputs-and-outputs)
+- [Validation and rollout](#validation-and-rollout)
 
-## Come funziona
+## Before you start
 
-Ogni team usa questo modulo nel **proprio account** per proteggere i workload con AWS Backup. Il modulo crea un vault cifrato con chiave customer-managed (CMK), lo rende immutabile tramite Vault Lock, e gli associa un piano di backup giornaliero che seleziona le risorse da proteggere (per impostazione predefinita, in base ai tag). Il comportamento di default si adatta all'ambiente (`prod` / `nonprod`).
+Use a Git subdirectory source; do not copy module files into consumer repositories.
+Replace `<COMMIT_SHA>` in every snippet with the same published immutable commit
+that has passed the required CI checks. The proposed `aws-backup-v1.0.0` release
+is not yet published or verified. Snippets are templates until their ref is
+replaced; none is evidence of a successful deployment.
 
-## Utilizzo rapido
+The consumer owns:
 
-L'integrazione minima richiede: il provider AWS della regione primaria, `aws_region`, l'ambiente, un prefisso e il criterio di selezione delle risorse. In `prod`, `dr_region` è obbligatoria perché la configurazione DR è attiva di default.
+- AWS credentials and any assume-role configuration.
+- Provider configurations and a remote backend with state locking.
+- Separate deployment/state boundaries for production and non-production.
+- Workload resources, their selection tags, and service-specific prerequisites.
+- Region/service availability, AWS Backup service opt-in where required, and
+  permissions for the workload's backup and restore operations.
+- Retention requirements, notification recipients, and real recovery tests.
+
+Declare the following in each consumer root:
 
 ```hcl
-provider "aws" {
-  region = "eu-south-1" # regione primaria del workload
-}
+terraform {
+  required_version = ">= 1.5.0"
 
-module "backup" {
-  source = "git::https://github.com/pagopa/<nome-repo>.git//modules/backup?ref=v1.0.0"
-
-  aws_region = "eu-south-1"
-  environment = "prod"
-
-  solution_prefix = "team-payments-vault"
-
-  # Seleziona le risorse da proteggere in base al tag (metodo predefinito)
-  selection_tags = {
-    "backup-policy" = "enabled"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.71.0, < 6.0.0"
+    }
   }
-
-  tags = {
-    "backup-owner" = "team-payments"
-  }
-}
-
-# Alerting (modulo separato, ciclo di vita indipendente)
-module "backup_alerting" {
-  source = "git::https://github.com/pagopa/<nome-repo>.git//modules/backup-alerting?ref=v1.0.0"
-
-  solution_prefix = "team-payments"
-  kms_key_ids     = [module.backup.kms_key_id]
-  email_endpoints = ["team-payments-oncall@pagopa.it"]
 }
 ```
 
-Con questa configurazione, ogni risorsa di un tipo supportato che porta il tag `backup-policy = enabled` viene inclusa automaticamente nel piano di backup giornaliero.
+Core requires AWS provider 5.71.0 because Terraform needs restore-testing schemas
+even when those resources are disabled. Native mock tests require Terraform
+1.7 or later; the deployment compatibility floor remains 1.5.0.
 
-Nella cartella [`examples/`](./examples/) trovi configurazioni complete ed eseguibili per i vari scenari (produzione, non-produzione, piani aggiuntivi, PITR, opt-in compliance).
+## Non-production setup
 
-## Requisiti
-
-| Nome | Versione |
-|------|----------|
-| terraform | >= 1.5.0 |
-| aws | >= 5.30.0, < 6.0.0 |
-
-## Provider
-
-Il modulo richiede **una configurazione di provider nel caller**:
-
-- `aws` — regione primaria dove vive il workload.
-
-Il modulo configura internamente l'alias `aws.dr` usando:
-
-- `aws_region` come fallback quando la copia cross-region è disattivata.
-- `dr_region` quando la copia cross-region è attiva.
+Use this in the non-production root. Both module aliases map to the primary
+provider because this environment creates no DR resources.
 
 ```hcl
 provider "aws" {
   region = "eu-south-1"
 }
+
+module "backup" {
+  source = "git::https://github.com/pagopa/eng-cloud-strategy-hub.git//terraform/aws/modules/terraform-aws-backup?ref=<COMMIT_SHA>"
+
+  providers = {
+    aws    = aws
+    aws.dr = aws
+  }
+
+  aws_region      = "eu-south-1"
+  environment     = "nonprod"
+  solution_prefix = "payments-dev-eu-south-1"
+
+  selection_tags = {
+    "backup-workload" = "payments-dev"
+  }
+
+  tags = {
+    Environment = "dev"
+    Product     = "payments"
+  }
+}
 ```
 
-> In `prod` devi valorizzare `dr_region`: il modulo lo usa sia per configurare l'alias interno `aws.dr` sia per validare la regione contro l'allow-list delle regioni UE.
+This configures daily snapshots retained for **14 days**, one encrypted primary
+vault, GOVERNANCE lock, no DR copy, no PITR, and no automated restore testing.
+Set `retention_days = 7` inside the module call if a seven-day policy is intended.
+Invoking the module creates the backup infrastructure; `nonprod` is not an
+additional enable/disable switch.
 
-## Architettura
+The [non-production example](./examples/non-production/) deliberately overrides
+snapshot retention to seven days and adds a weekly rule and alerting. Those are
+example choices, not environment defaults.
 
+## Production setup
+
+Use this in a separate production root. Configure both providers for the same
+AWS account, with different regions.
+
+```hcl
+provider "aws" {
+  region = "eu-south-1"
+}
+
+provider "aws" {
+  alias  = "dr"
+  region = "eu-central-1"
+}
+
+module "backup" {
+  source = "git::https://github.com/pagopa/eng-cloud-strategy-hub.git//terraform/aws/modules/terraform-aws-backup?ref=<COMMIT_SHA>"
+
+  providers = {
+    aws    = aws
+    aws.dr = aws.dr
+  }
+
+  aws_region      = "eu-south-1"
+  dr_region       = "eu-central-1"
+  environment     = "prod"
+  solution_prefix = "payments-prod-eu-south-1"
+
+  selection_tags = {
+    "backup-workload" = "payments-prod"
+  }
+
+  tags = {
+    Environment = "prod"
+    Product     = "payments"
+  }
+}
 ```
-┌───────────────────────────────────────────────────────────────────────────┐
-│ Account del workload                                                        │
-│                                                                             │
-│  terraform-aws-backup (core)          terraform-aws-backup-alerting         │
-│  ┌────────────────────────────┐       ┌────────────────────────────────┐   │
-│  │ Piano backup ──► Vault     │       │ EventBridge ──► SNS ──► Email   │   │
-│  │              (Vault Lock)  │       │            (failures)   Webhook │   │
-│  │ KMS CMK (primaria)        │       │                                 │   │
-│  │ Ruoli IAM (backup+restore)│       │ Alert cancellazione chiave KMS  │   │
-│  │ Restore Testing Plan      │       └────────────────────────────────┘   │
-│  │              │             │                                             │
-│  │              │ copia cross-region                                        │
-│  │              ▼             │                                             │
-│  │ Vault DR + KMS CMK (DR)   │                                             │
-│  └────────────────────────────┘                                             │
-└───────────────────────────────────────────────────────────────────────────┘
+
+This configures daily snapshots retained for **35 days**, primary and DR
+encrypted vaults, copies of the daily snapshots retained for **35 days**, and
+GOVERNANCE lock on both vaults. PITR and automated restore testing remain off.
+
+Production DR is mandatory. The deprecated `cross_region_copy` input does not
+disable it. `dr_region` must match `aws.dr`, differ from `aws_region`, and be one
+of `eu-central-1`, `eu-south-1`, `eu-west-1`, or `eu-west-3`. The module checks
+the observed regions and that both providers use the same account.
+
+For longer primary history with shorter DR retention, add:
+
+```hcl
+retention_days      = 90
+copy_retention_days = 35
 ```
 
-## Come selezionare le risorse da proteggere
+The [production example](./examples/production/) is an extended configuration
+with longer retention, cold storage, restore testing, presets, and alerts.
+Do not treat all of its options as mandatory or appropriate for every service.
 
-Puoi assegnare le risorse al piano di backup in tre modi. **Ne basta uno.** Quando ne usi più di uno, AWS Backup li combina in **unione** (una risorsa è inclusa se soddisfa almeno un criterio).
+## Names and resource selection
 
-| Input | Seleziona per | Note |
-|-------|---------------|------|
-| `selection_tags` | Tag della risorsa | **Metodo predefinito** (in linea con la strategia di tagging concordata) |
-| `resource_types` | Tutte le risorse di un tipo di servizio | ARN wildcard, es. `["DynamoDB","S3"]` |
-| `resource_arns` | ARN espliciti o wildcard | Selezione puntuale |
-| `excluded_resource_arns` | Esclusioni (`not_resources`) | Per escludere risorse effimere |
+### `solution_prefix`: name the backup installation
 
-**Selezione per tag (consigliata).** È sufficiente taggare le risorse: il team non deve modificare il Terraform. AWS Backup include qualsiasi risorsa di un tipo supportato da AWS Backup che porta i tag indicati — questo vale anche per servizi non presenti nella lista `resource_types` qui sotto (es. un Redshift correttamente taggato viene comunque protetto).
+This value names the infrastructure created by the module: vaults, IAM roles,
+KMS aliases, and plans. For example:
+
+```hcl
+solution_prefix = "payments-prod-eu-south-1"
+```
+
+Choose a stable, unique value for each workload, environment, and regional
+installation in the same account. IAM role names are account-global, not
+region-local. Use 2-50 characters: letters, digits, hyphens, or underscores.
+Changing the prefix after deployment may replace resources or conflict with
+destruction protections. It does not select which workload resources to back up.
+
+### `selection_tags`: choose existing workload resources
+
+This map describes tags AWS Backup must match on the workload resources:
 
 ```hcl
 selection_tags = {
-  "backup-policy" = "enabled"
+  "backup-workload" = "payments-prod"
 }
 ```
 
-**Selezione per tipo di servizio.** Utile per proteggere *tutte* le risorse di un servizio nell'account/regione, a prescindere dai tag. Questo metodo costruisce gli ARN wildcard, quindi è limitato ai tipi di cui il modulo conosce il pattern ARN.
+The consumer must apply the matching tag to each intended resource, through that
+resource's own Terraform configuration:
 
 ```hcl
-resource_types         = ["DynamoDB", "S3", "RDS"]
-excluded_resource_arns = ["arn:aws:dynamodb:eu-south-1:123456789012:table/tabella-effimera"]
+tags = {
+  "backup-workload" = "payments-prod"
+}
 ```
 
-Tipi supportati da `resource_types`: **S3, DynamoDB, EC2, EBS, RDS, Aurora, EFS**. AWS Backup ammette al massimo 30 ARN wildcard per selezione. Vedi `examples/by-service-type/`.
+The module does **not** add this tag to workload resources. Its separate `tags`
+input labels the infrastructure it creates; it does not choose backup targets.
+Matching tags establish selection, not proof that a backup job succeeds.
 
-> Se passi a `resource_types` un tipo non gestito, il `plan` fallisce con un messaggio esplicito che elenca i tipi supportati (nessun fallimento silenzioso). Per aggiungere un nuovo tipo basta una riga nella mappa `resource_type_arns` del sotto-modulo `backup-plan` (vedi sezione successiva).
+Multiple `selection_tags` entries use legacy AWS `ListOfTags` **OR** semantics.
+For example, `{ workload = "payments", stage = "prod" }` selects a resource
+matching either tag, not only resources matching both. Prefer one workload and
+environment-specific selection tag when isolation is required.
 
-## Default per ambiente
+### Other selectors
 
-La variabile `environment` (`prod` o `nonprod`) guida i valori di default. Ogni valore è comunque sovrascrivibile.
+| Input | Meaning |
+| --- | --- |
+| `resource_types` | All resources matching the module's service ARN patterns. Supported types: S3, DynamoDB, EC2, EBS, RDS, Aurora, EFS. |
+| `resource_arns` | Explicit resource ARNs or intentional wildcard patterns. |
+| `excluded_resource_arns` | Exclusions mapped to AWS `NotResources`; not a standalone inclusion selector. |
 
-| Impostazione | `prod` | `nonprod` |
-|--------------|--------|-----------|
-| Backup attivo | sì | opt-in |
-| Vault Lock | COMPLIANCE | GOVERNANCE |
-| Copia cross-region | abilitata | disabilitata |
-| Retention | 35 giorni | 14 giorni |
-| Cold storage | opt-in | opt-in |
-| Backup continuo (PITR) | abilitato | disabilitato |
-| Retention minima del Lock | 35 giorni | 7 giorni |
+Supply at least one inclusion selector. Tags, types, and ARNs combine as a
+union, not an intersection. Type-wide selection can include unrelated workloads;
+use it deliberately. See [by-service-type](./examples/by-service-type/) and the
+[backup-plan module](./modules/backup-plan/) for selector details.
 
-## Estendere i backup: preset e piani su misura
+## Scheduled snapshots versus continuous PITR
 
-Oltre al piano giornaliero di default puoi aggiungere altri piani. I **preset** sono wrapper pronti all'uso sopra il sotto-modulo `backup-plan`: si invocano come moduli aggiuntivi accanto al core.
+**Scheduled backup** creates recovery points on a schedule. You restore to one
+of the available recovery points. A daily backup does not contain changes made
+after that recovery point.
 
-Se la **stessa selezione di risorse** del piano di default ha bisogno di una o più schedule aggiuntive, senza creare un piano separato, usa `default_plan_additional_rules` direttamente sul modulo core. Se invece cambiano la selezione delle risorse o il piano deve avere un ciclo di vita indipendente, continua a usare un preset o il sotto-modulo `backup-plan`.
+**PITR means Point-In-Time Recovery.** Continuous backup maintains a recoverable
+history, using service-specific mechanisms, so you can choose a time within its
+available recovery window. It is not instantaneous replication or an immediate
+restore; freshness, precision, and recovery duration depend on the service.
 
-| Preset | Percorso | Caso d'uso |
-|--------|----------|------------|
-| Hourly Backup | `modules/presets/hourly-backup/` | Workload a basso RPO (≤ 1h) |
-| Long Retention | `modules/presets/long-retention/` | Conservazione normativa a 10 anni |
-| Archival | `modules/presets/archival/` | Archiviazione a basso costo (cold storage) |
-| Weekly Full | `modules/presets/weekly-full/` | Full settimanale garantito |
+Example: a successful daily recovery point is available at 01:00, and data is
+deleted accidentally at 15:00. The snapshot can recover the earlier state, but
+not the intervening changes. PITR may recover the state at 14:59 if that time is
+available. Neither mechanism guarantees that restored application data is valid;
+test recovery separately.
 
-Esempio: aggiungere un piano orario per le risorse critiche.
+| Property | Scheduled snapshots | AWS Backup continuous PITR |
+| --- | --- | --- |
+| Restore point | An available scheduled recovery point | A time within the available recovery window |
+| Typical purpose | Historical recovery and long-term retention | Precise recovery from recent mistakes |
+| Retention input | `retention_days` | `continuous_retention_days`, independently set to 1-35 days |
+| Selection input | `selection_tags`, types, or ARNs | Required non-empty `continuous_backup_selection_tags` |
+| Enabled by default | Yes, when core is invoked | No, in either environment |
+| Cold storage | Only for supported services and valid lifecycle | Not supported |
+| DR in this module | Daily snapshots copied in production; additional rules control their copies | The dedicated continuous plan has no copy actions |
+
+They are complementary. A resource intended for both protections should match
+both selections. Configuring a PITR tag alone does not enable PITR, and enabling
+PITR never falls back to the snapshot selection.
+
+Add these inputs inside either environment's `module "backup"` call:
+
+```hcl
+retention_days            = 90
+enable_continuous_backup  = true
+continuous_retention_days = 35
+
+continuous_backup_selection_tags = {
+  "backup-pitr" = "payments-prod"
+}
+```
+
+Use an environment-specific PITR value, such as `payments-dev`, in non-production.
+Apply that tag only to compatible S3 or supported RDS/Aurora resources. The
+module cannot inspect tagged resources to prove their PITR compatibility.
+
+- S3 requires versioning and appropriate backup/restore IAM permissions.
+  Continuous S3 backup also requires EventBridge. S3 cold storage is unsupported.
+- Native DynamoDB PITR is separate caller-owned table configuration. Advanced
+  DynamoDB AWS Backup snapshots/copy features do not make DynamoDB a supported
+  target for this continuous rule.
+- Do not assume that copying a recovery point preserves destination PITR.
+  This module's dedicated PITR plan does not configure DR copies.
+
+See the [continuous-pitr example](./examples/continuous-pitr/), which uses
+90-day snapshots and 35-day PITR without cold storage. Official references:
+[continuous backup](https://docs.aws.amazon.com/aws-backup/latest/devguide/point-in-time-recovery.html),
+[S3 backup](https://docs.aws.amazon.com/aws-backup/latest/devguide/s3-backups.html),
+and [advanced DynamoDB backup](https://docs.aws.amazon.com/aws-backup/latest/devguide/advanced-ddb-backup.html).
+
+## Retention and Vault Lock
+
+Retention is how long a recovery point is kept. Vault Lock limits the permitted
+retention of jobs writing to that vault; its minimum is not the backup schedule
+or the retention of every backup.
+
+| Default | Production | Non-production |
+| --- | --- | --- |
+| Snapshot retention | 35 days | 14 days |
+| Snapshot copy retention | Same as primary retention unless overridden | No copy |
+| Lock mode | GOVERNANCE | GOVERNANCE |
+| Automatic minimum | Lower of 35 days and the shortest core-managed retention in that vault | Lower of 7 days and the shortest core-managed retention |
+| Maximum retention | 3650 days | 3650 days |
+| PITR and cold storage | Explicit opt-in | Explicit opt-in |
+
+The primary minimum includes primary snapshot rules and enabled PITR retention.
+DR has its own derived minimum based only on actual copied rules. An explicit
+`vault_lock_min_retention_days` applies to both vaults. Every managed retention
+must fit the relevant minimum and `vault_lock_max_retention_days`.
+
+Retention must be positive whole days. Cold transition must be non-negative
+whole days, with zero disabling it. A transition after 30 days requires at least
+120 days of retention: 30 warm days plus 90 days after transition. Copy lifecycle
+must also satisfy this rule and the destination lock bounds.
+
+**GOVERNANCE is not permanent immutability:** sufficiently privileged users can
+remove its lock. **COMPLIANCE becomes irreversible after its cooling-off period**
+in either environment. It is not enabled just because `environment = "prod"`.
+
+The [nonprod-compliance-optin example](./examples/nonprod-compliance-optin/)
+explicitly chooses COMPLIANCE, 35-day retention, a 35-day lock minimum, and a
+seven-day cooling-off period. Those are deliberate policy choices, not a normal
+development setup. Changing a module ref cannot undo a finalized COMPLIANCE lock.
+
+Vault CMKs retain `prevent_destroy = true`. Do not remove it for routine cleanup
+or to make tests pass. Key deletion requires a separately authorized recovery
+and key-retention decision.
+
+## Additional schedules and presets
+
+Use `default_plan_additional_rules` for more schedules on the default selection,
+primary vault, and backup role. Rule names must be unique. In production, rules
+copy to DR by default; use `copy_to_dr = false` for a primary-only rule. Do not
+set copy lifecycle fields on a rule that does not copy.
+
+Use a separate preset or [backup-plan](./modules/backup-plan/) call when the
+selection differs or a bespoke plan is needed:
+
+| Preset | Default purpose and retention |
+| --- | --- |
+| [hourly-backup](./modules/presets/hourly-backup/) | Hourly schedule, seven-day retention |
+| [weekly-full](./modules/presets/weekly-full/) | Weekly schedule, 90-day retention; the name does not guarantee job success or a service-specific full backup |
+| [long-retention](./modules/presets/long-retention/) | 3650-day retention, cold transition after 90 days where supported |
+| [archival](./modules/presets/archival/) | 3650-day retention, cold transition after 30 days where supported |
+
+Core cannot discover external plans or adjust its locks for them. The consumer
+must fit every external rule and on-demand job within the vault's bounds.
+For example, override the hourly preset's seven-day default when writing to a
+production vault whose minimum is 35 days:
 
 ```hcl
 module "hourly" {
-  source = "git::https://github.com/pagopa/<nome-repo>.git//modules/backup/modules/presets/hourly-backup?ref=v1.0.0"
+  source = "git::https://github.com/pagopa/eng-cloud-strategy-hub.git//terraform/aws/modules/terraform-aws-backup/modules/presets/hourly-backup?ref=<COMMIT_SHA>"
 
   vault_name      = module.backup.vault_name
   backup_role_arn = module.backup.backup_role_arn
-
-  selection_tags = {
-    "backup-tier" = "critical"
-  }
-
-  retention_days = 7
+  selection_tags = { "backup-workload" = "payments-prod" }
+  retention_days = 35
 }
 ```
 
-Per pianificazioni completamente personalizzate, invoca direttamente il sotto-modulo `modules/backup-plan/` (vedi `examples/with-extra-plans/`).
+See [with-extra-plans](./examples/with-extra-plans/). A frequent schedule is not
+proof of an achieved RPO; observe successful recovery points and test restores.
 
-## Struttura del modulo
+## Alerts and restore testing
 
-```
-terraform-aws-backup/
-├── *.tf                         ← core: vault, Vault Lock, KMS, IAM, piano di default, restore testing
-├── modules/
-│   ├── backup-plan/             ← "mattoncino" riusabile: piano + selezione risorse
-│   └── presets/                 ← wrapper con default opinati sopra backup-plan
-│       ├── hourly-backup/
-│       ├── long-retention/
-│       ├── archival/
-│       └── weekly-full/
-└── examples/
-    ├── production/                 ← prod: Vault Lock COMPLIANCE, copia cross-region, restore testing
-    ├── non-production/             ← nonprod: Vault Lock GOVERNANCE, nessuna copia
-    ├── with-extra-plans/           ← preset + un piano su misura
-    ├── continuous-pitr/            ← PITR limitato ai servizi supportati tramite tag dedicato
-    ├── by-service-type/            ← selezione per tipo di servizio (ARN wildcard) invece dei tag
-    └── nonprod-compliance-optin/   ← pre-prod che attiva il Vault Lock COMPLIANCE
+The core does not create notification resources. Add the alerting module beside
+it in either consumer root, using that environment's prefix and recipients:
+
+```hcl
+module "backup_alerting" {
+  source = "git::https://github.com/pagopa/eng-cloud-strategy-hub.git//terraform/aws/modules/terraform-aws-backup-alerting?ref=<COMMIT_SHA>"
+
+  providers = { aws = aws }
+
+  solution_prefix = "payments-prod-eu-south-1"
+  kms_key_ids     = [module.backup.kms_key_id]
+  email_endpoints = ["oncall@example.com"]
+}
 ```
 
-La logica del piano vive in **un solo posto** (`backup-plan`): sia il piano di default sia i preset lo riusano.
+SNS email subscriptions require confirmation. CloudTrail supplies the configured
+KMS API events. Test real notification delivery; creating the subscription is
+not delivery evidence.
 
-## Risorse create
+Primary-region alerting does not monitor DR automatically. For production DR,
+add another alerting instance with `providers = { aws = aws.dr }`, a distinct
+prefix, and `kms_key_ids = [module.backup.dr_kms_key_id]`. Independent module APIs
+do not imply independent state when composed in one root. See the
+[alerting README](../terraform-aws-backup-alerting/README.md).
 
-| Risorsa | Quantità | Scopo |
-|---------|----------|-------|
-| `aws_backup_vault` | 1 (+1 DR) | Archiviazione dei recovery point |
-| `aws_backup_vault_lock_configuration` | 1 (+1 DR) | Immutabilità |
-| `aws_backup_plan` | 1 | Pianificazione di default (via sotto-modulo `backup-plan`) |
-| `aws_backup_selection` | 1 | Selezione risorse per tag (via sotto-modulo `backup-plan`) |
-| `aws_iam_role` | 2 | Ruoli di servizio backup + restore |
-| `aws_kms_key` | 1 (+1 DR) | Cifratura del vault |
-| `aws_backup_restore_testing_plan` | 0-1 | Validazione del restore (opt-in) |
-| `aws_backup_restore_testing_selection` | 0-N | Una per tipo di risorsa quando il restore testing è attivo |
+Set `enable_restore_testing = true` to request scheduled restore tests in the
+primary vault. The default schedule is Saturday at 03:00 UTC. Selection supports
+one tag with a wildcard ARN, or up to 30 explicit ARNs without tags. Multi-tag
+OR, exclusions, mixed selectors, type-wide selection, and implicit all-resource
+fallback are rejected rather than silently broadening or narrowing scope.
 
-## Input
+Restore job completion is not proof of application data integrity or RTO.
+The consumer must supply service prerequisites and its own recovery validation.
 
-L'elenco completo di variabili, con descrizioni e default, è in [variables.tf](./variables.tf). Le principali:
+## Inputs and outputs
 
-| Variabile | Tipo | Obbligatoria | Default | Descrizione |
-|-----------|------|--------------|---------|-------------|
-| `environment` | string | sì | — | `prod` o `nonprod`. Guida i default di Vault Lock, copia, retention. |
-| `solution_prefix` | string | no | `backup-solution` | Prefisso per le risorse (vault, ruoli IAM, alias KMS, piani). |
-| `aws_region` | string | sì | — | Regione primaria del workload, passata al modulo per configurare il provider DR interno quando la copia cross-region è disattivata. |
-| `selection_tags` | map(string) | no¹ | `{}` | Tag per selezionare le risorse (metodo predefinito). |
-| `resource_types` | list(string) | no¹ | `[]` | Tipi di servizio da proteggere interamente. |
-| `resource_arns` | list(string) | no¹ | `[]` | ARN espliciti/wildcard da includere. |
-| `retention_days` | number | no | 35 prod / 14 nonprod | Giorni di conservazione dei recovery point. |
-| `default_plan_additional_rules` | list(object) | no | `[]` | Regole schedulate aggiuntive sul piano di default, riusando selezione, vault e ruolo IAM del core. |
-| `cross_region_copy` | string | no | `Default` | Compatibilità deprecata: il modulo non la usa più per decidere la DR, che è attiva in `prod` e disattiva in `nonprod`. |
-| `dr_region` | string | no² | `null` | Regione DR usata per configurare l'alias interno `aws.dr` quando la copia cross-region è attiva. |
-| `vault_lock_mode` | string | no | COMPLIANCE prod / GOVERNANCE nonprod | Modalità del Vault Lock. |
-| `enable_continuous_backup` | bool | no | true prod / false nonprod | Abilita PITR sui servizi supportati. |
-| `enable_restore_testing` | bool | no | `false` | Crea il Restore Testing Plan. |
-| `tags` | map(string) | no | `{}` | Tag aggiuntivi su tutte le risorse. |
+The complete contract is in [variables.tf](./variables.tf) and
+[outputs.tf](./outputs.tf). The main inputs are:
 
-¹ Va fornito almeno uno tra `selection_tags`, `resource_types`, `resource_arns`.
-² Obbligatoria quando la copia cross-region risulta attiva.
+| Input | Purpose |
+| --- | --- |
+| `environment` | Required: `prod` or `nonprod`; controls defaults and DR resources |
+| `aws_region`, `dr_region` | Observed provider regions must match; DR region is required in production |
+| `solution_prefix` | Stable installation name; default `backup-solution`, but use a unique explicit value |
+| `selection_tags`, `resource_types`, `resource_arns` | At least one inclusion selector is required |
+| `excluded_resource_arns` | Exclude resources from the default selection |
+| `retention_days`, `copy_retention_days` | Primary snapshot and copy retention |
+| `enable_continuous_backup` | Opt into a separate continuous plan |
+| `continuous_backup_selection_tags`, `continuous_retention_days` | Dedicated PITR scope and independent 1-35-day retention |
+| `cold_storage_after` | Optional snapshot cold transition; service-specific support required |
+| `vault_lock_mode` | GOVERNANCE default or explicit COMPLIANCE |
+| `vault_lock_min_retention_days`, `vault_lock_max_retention_days` | Explicit lock bounds; maximum defaults to 3650 |
+| `vault_lock_changeable_for_days` | COMPLIANCE cooling-off period; default three days |
+| `default_plan_additional_rules` | Extra schedules on the default selection |
+| `enable_restore_testing` | Opt into automated restore testing |
+| `tags` | Labels created infrastructure, not workload selection |
 
-## Output
+| Output | Consumer use |
+| --- | --- |
+| `vault_name`, `vault_arn` | Primary vault for additional plans |
+| `dr_vault_arn` | DR vault; null in non-production |
+| `backup_plan_id`, `backup_plan_arn` | Default plan identification |
+| `continuous_plan_id` | Separate PITR plan; null unless enabled with valid dedicated tags |
+| `backup_role_arn`, `restore_role_arn` | Service roles for backup and restore |
+| `kms_key_id`, `kms_key_arn` | Primary encryption key; pass ID to alerting |
+| `dr_kms_key_id`, `dr_kms_key_arn` | DR encryption key; null in non-production |
+| `restore_testing_plan_arn` | Restore-testing plan; null when disabled |
 
-| Nome | Descrizione |
-|------|-------------|
-| `vault_arn` | ARN del vault di backup primario |
-| `vault_name` | Nome del vault di backup primario |
-| `dr_vault_arn` | ARN del vault DR (null se disabilitato) |
-| `backup_plan_id` | ID del piano di backup di default |
-| `backup_plan_arn` | ARN del piano di backup di default |
-| `continuous_plan_id` | ID del piano dedicato di backup continuo (null se `continuous_backup_selection_tags` non è impostato) |
-| `backup_role_arn` | ARN del ruolo IAM di backup |
-| `restore_role_arn` | ARN del ruolo IAM di restore |
-| `kms_key_arn` | ARN della CMK del vault primario |
-| `kms_key_id` | ID della CMK del vault primario |
-| `dr_kms_key_arn` | ARN della CMK del vault DR (null se disabilitato) |
-| `dr_kms_key_id` | ID della CMK del vault DR (null se disabilitato) |
-| `restore_testing_plan_arn` | ARN del Restore Testing Plan (null se disabilitato) |
+Caller-owned providers support `count` and `for_each` with distinct names. The
+core and presets reuse the same [backup-plan implementation](./modules/backup-plan/).
 
-## Note operative
+## Validation and rollout
 
-- **Vincolo del Vault Lock sulla retention.** Qualsiasi job che scrive nel vault (incluso un eventuale backup on-demand o un piano esterno) deve avere una `delete_after` compresa tra `vault_lock_min_retention_days` e `vault_lock_max_retention_days`. Un job fuori da questo intervallo viene rifiutato dal vault. I piani creati dal modulo rispettano sempre questo vincolo.
-- **Cold storage.** Quando si imposta `cold_storage_after`, AWS Backup richiede `retention_days >= cold_storage_after + 90`. Il modulo verifica questa condizione a tempo di plan.
-- **Vault Lock COMPLIANCE è irreversibile** in produzione dopo il periodo di cooling-off (`vault_lock_changeable_for_days`). Da confermare a livello di processo prima del rollout in prod.
-- **Cancellazione delle CMK protetta.** Le chiavi KMS dei vault hanno `prevent_destroy = true`: un `terraform destroy` si fermerà su di esse finché il lifecycle non viene rimosso esplicitamente. È una protezione voluta contro la perdita di accesso ai backup cifrati.
+The repository's [Terraform Backup workflow](../../../../.github/workflows/terraform-backup.yml)
+is designed to run formatting, backend-disabled initialization, caller-root
+validation, and native mock tests for all seven public modules and seven examples.
+It also checks failure propagation, AWS provider 5.71.0, Terraform 1.5.7
+compatibility, and workflow linting. Mock tests use Terraform 1.14.3.
 
-## Validazione
+Candidate-bound native CI evidence is still pending. Local formatting or authored
+tests do not establish native success. This implementation performs no local
+initialization, real AWS apply, release publication, or required-check changes.
 
-- `terraform fmt` / `terraform validate`. I caller devono fornire il provider `aws` della regione primaria e il valore `aws_region`; `dr_region` serve solo quando la copia cross-region è attiva.
+A consumer rollout should:
+
+1. Pin a published candidate that has passed the required CI jobs.
+2. Configure its own backend and authentication, and review the consumer plan.
+3. Deploy to one authorized non-production workload first. Stop promotion if
+   the selection is wrong or backup, restore, or alert delivery fails.
+4. Verify a real backup, a restore with data checks, and actual notifications.
+5. Promote to production and verify a real DR copy and recovery from it.
+
+Use the consumer's approved Terraform pipeline for deployment. The repository's
+mock workflow is not that deployment pipeline. On failure, stop promotion and
+review changes; do not use blanket destruction as rollback for protected keys
+or finalized COMPLIANCE vaults.

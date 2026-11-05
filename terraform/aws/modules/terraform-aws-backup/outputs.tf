@@ -28,7 +28,7 @@ output "backup_plan_arn" {
 }
 
 output "continuous_plan_id" {
-  description = "ID of the dedicated continuous-backup plan. Null unless continuous_backup_selection_tags is set."
+  description = "ID of the dedicated continuous-backup plan. Null unless enable_continuous_backup is true with non-empty dedicated tags."
   value       = local.continuous_in_separate_plan ? module.continuous_plan[0].plan_id : null
 }
 

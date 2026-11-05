@@ -15,21 +15,26 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.30.0, < 6.0.0"
+      version = ">= 5.71.0, < 6.0.0"
     }
   }
 
-  backend "s3" {
-    # Configure your backend here
-  }
 }
 
 provider "aws" {
   region = "eu-south-1"
 }
+provider "aws" {
+  alias  = "dr"
+  region = "eu-central-1"
+}
 
 module "backup" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup?ref=v1.0.0"
+  source = "../.."
+  providers = {
+    aws    = aws
+    aws.dr = aws.dr
+  }
 
   aws_region  = "eu-south-1"
   environment = "prod"
@@ -52,7 +57,7 @@ module "backup" {
 }
 
 module "backup_alerting" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup-alerting?ref=v1.0.0"
+  source = "../../../terraform-aws-backup-alerting"
 
   solution_prefix = "team-payments"
   kms_key_ids     = [module.backup.kms_key_id]
@@ -65,7 +70,8 @@ module "backup_alerting" {
 ###############################################################################
 
 # module "backup_combined" {
-#   source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup?ref=v1.0.0"
+#   source = "../.."
+#   providers = { aws = aws, aws.dr = aws.dr }
 #
 #   aws_region      = "eu-south-1"
 #   environment     = "prod"

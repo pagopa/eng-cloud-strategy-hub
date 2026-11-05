@@ -1,8 +1,7 @@
 ###############################################################################
 # Example: Email alerting (default topic)
 #
-# Snippet showing the alerting module's inputs. `module.backup` refers to the
-# core terraform-aws-backup module deployed in the same configuration.
+# Standalone alerting composition; callers supply the existing backup key IDs.
 ###############################################################################
 
 terraform {
@@ -21,12 +20,12 @@ provider "aws" {
 }
 
 module "backup_alerting" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup-alerting?ref=v1.0.0"
+  source = ".."
 
   solution_prefix = "team-payments"
 
   # Monitor the backup CMK for accidental deletion
-  kms_key_ids = [module.backup.kms_key_id]
+  kms_key_ids = ["00000000-0000-0000-0000-000000000001"]
 
   # Email alerts
   email_endpoints = ["team-payments-oncall@pagopa.it"]
@@ -42,7 +41,7 @@ module "backup_alerting" {
 ###############################################################################
 
 module "backup_alerting_simple" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup-alerting?ref=v1.0.0"
+  source = ".."
 
   solution_prefix = "team-identity"
 
@@ -66,11 +65,11 @@ module "backup_alerting_simple" {
 ###############################################################################
 
 module "backup_alerting_grafana" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup-alerting?ref=v1.0.0"
+  source = ".."
 
   solution_prefix = "team-platform"
 
-  webhook_endpoints = ["https://grafana.internal.pagopa.it/api/alertmanager/webhook"]
+  webhook_endpoints = ["https://alerts.example.com/webhook"]
 
   email_endpoints = ["team-platform-oncall@pagopa.it"]
 

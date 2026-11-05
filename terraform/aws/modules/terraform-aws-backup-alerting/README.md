@@ -2,12 +2,18 @@
 
 Modulo Terraform per l'alerting di AWS Backup. Crea regole EventBridge, un topic SNS e le relative sottoscrizioni per notificare ai team i job di backup falliti via email (e altri endpoint supportati da SNS).
 
-Il modulo è **indipendente dal modulo core** (`terraform-aws-backup`) e ha un proprio ciclo di vita: i team possono modificare il routing degli alert o cambiare i destinatari senza toccare l'infrastruttura di backup.
+The module is independently callable and requires only the caller's primary AWS provider. Modules composed in one root share deployment and state; separate state is a caller decision.
+
+Replace `<COMMIT_SHA>` in the Git sources below with a published immutable commit
+that has passed the required CI checks. The proposed `aws-backup-v1.0.0` release
+is not published or verified. Callers own credentials, assume-role configuration,
+backend, and unique workload/environment/region-specific resource prefixes.
 
 ## Indice
 
 - [Come funziona](#come-funziona)
 - [Utilizzo rapido](#utilizzo-rapido)
+- [Consumer setup and regional scope](#consumer-setup-and-regional-scope)
 - [Requisiti](#requisiti)
 - [Architettura](#architettura)
 - [Funzionalità](#funzionalità)
@@ -26,9 +32,11 @@ AWS Backup emette eventi sullo stato dei job. Questo modulo crea una regola Even
 
 ```hcl
 module "backup_alerting" {
-  source = "git::https://github.com/pagopa/<nome-repo>.git//modules/backup-alerting?ref=v1.0.0"
+  source = "git::https://github.com/pagopa/eng-cloud-strategy-hub.git//terraform/aws/modules/terraform-aws-backup-alerting?ref=<COMMIT_SHA>"
 
-  solution_prefix = "team-payments"
+  providers = { aws = aws }
+
+  solution_prefix = "payments-prod-eu-south-1"
 
   # Monitora la CMK del backup contro la cancellazione accidentale
   kms_key_ids = [module.backup.kms_key_id]
@@ -43,6 +51,42 @@ module "backup_alerting" {
 ```
 
 > Le sottoscrizioni email richiedono una conferma: ogni indirizzo riceve un messaggio di conferma da AWS SNS e deve cliccare il link prima di ricevere gli alert.
+
+## Consumer setup and regional scope
+
+Use the same integration in non-production and production, with environment-
+specific prefixes and recipients. Declare the caller's AWS provider before the
+module call. See the [core consumer guide](../terraform-aws-backup/README.md)
+for minimal configurations and the difference between snapshots and PITR.
+
+- `solution_prefix` names this module's rules, topic, and KMS alias. It does not
+  select workload resources or restrict backup-job events to that prefix.
+- `kms_key_ids` scopes the KMS event filter. Use `[module.backup.kms_key_id]`
+  for the primary vault key. An empty list leaves the KMS rule unfiltered by key.
+- This module has no `selection_tags` input. Backup/copy/restore event filtering
+  uses configured event types and states, not the core's workload tags.
+- It is independently callable without core if the caller supplies the required
+  values. Composing both in one root does not give them separate state.
+- SNS confirmation and real delivery tests are required. Mocked policies and
+  subscription creation are not evidence that recipients receive alerts.
+
+For DR coverage in production, add a separate regional instance:
+
+```hcl
+module "backup_alerting_dr" {
+  source = "git::https://github.com/pagopa/eng-cloud-strategy-hub.git//terraform/aws/modules/terraform-aws-backup-alerting?ref=<COMMIT_SHA>"
+
+  providers = { aws = aws.dr }
+
+  solution_prefix = "payments-prod-eu-central-1"
+  kms_key_ids     = [module.backup.dr_kms_key_id]
+  email_endpoints = ["oncall@example.com"]
+}
+```
+
+This assumes the production core and caller's `aws.dr` provider already exist.
+Do not use this block for non-production, where the core DR key ID is null.
+Primary-region alerting does not automatically observe the DR region.
 
 ## Requisiti
 
@@ -112,9 +156,9 @@ Per inoltrare gli alert a un topic già esistente invece di crearne uno nuovo:
 
 ```hcl
 module "backup_alerting" {
-  source = "git::https://github.com/pagopa/<nome-repo>.git//modules/backup-alerting?ref=v1.0.0"
+  source = "git::https://github.com/pagopa/eng-cloud-strategy-hub.git//terraform/aws/modules/terraform-aws-backup-alerting?ref=<COMMIT_SHA>"
 
-  solution_prefix  = "team-payments"
+  solution_prefix  = "payments-prod-eu-south-1"
   create_sns_topic = false
   existing_sns_topic_arn = "arn:aws:sns:eu-south-1:123456789012:topic-esistente"
 
@@ -170,4 +214,20 @@ module "backup_alerting" {
 └──────────────────────────┘     └───────────────────────────────┘
 ```
 
-Il modulo di alerting prende `kms_key_id` dall'output del modulo core per monitorare la specifica CMK di backup. Tutto il resto è indipendente.
+The alerting module accepts `kms_key_ids` from core outputs or from independent
+caller-managed keys. Its independent API does not create a separate Terraform
+state when composed beside core.
+
+When `create_sns_topic = false`, a non-empty `existing_sns_topic_arn` is required,
+even if all rules are disabled. Its policy remains caller-managed unless
+`manage_existing_topic_policy = true`; that opt-in replaces the existing policy.
+Endpoints are deduplicated by type.
+
+Primary-region rules do not monitor DR automatically. Deploy another instance
+with `providers = { aws = aws.dr }`, a distinct prefix, and the DR key ID when
+DR-region coverage is required. Confirm SNS subscriptions and test real alert
+delivery separately; mocked policy JSON is not IAM or delivery certification.
+
+CI runs the standalone module and [independent example](./examples/) through
+`make terraform-backup-check`. Native validation is pending CI during this
+implementation; no AWS credentials or real apply are used by the test workflow.

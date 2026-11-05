@@ -20,6 +20,13 @@ resource "aws_sns_topic_policy" "backup_alerts" {
 }
 
 data "aws_iam_policy_document" "sns_topic_policy" {
+  lifecycle {
+    precondition {
+      condition     = var.create_sns_topic || (var.existing_sns_topic_arn == null ? false : length(trimspace(var.existing_sns_topic_arn)) > 0)
+      error_message = "existing_sns_topic_arn must be non-empty when create_sns_topic is false."
+    }
+  }
+
   statement {
     sid    = "AllowEventBridgePublish"
     effect = "Allow"
@@ -82,7 +89,8 @@ resource "aws_cloudwatch_event_rule" "backup_failures" {
 }
 
 resource "aws_cloudwatch_event_target" "backup_failures_sns" {
-  count = var.enable_backup_failure_alerts ? 1 : 0
+  count      = var.enable_backup_failure_alerts ? 1 : 0
+  depends_on = [data.aws_iam_policy_document.sns_topic_policy]
 
   rule      = aws_cloudwatch_event_rule.backup_failures[0].name
   target_id = "send-to-sns"
@@ -120,7 +128,8 @@ resource "aws_cloudwatch_event_rule" "kms_deletion" {
 }
 
 resource "aws_cloudwatch_event_target" "kms_deletion_sns" {
-  count = var.enable_kms_deletion_alert ? 1 : 0
+  count      = var.enable_kms_deletion_alert ? 1 : 0
+  depends_on = [data.aws_iam_policy_document.sns_topic_policy]
 
   rule      = aws_cloudwatch_event_rule.kms_deletion[0].name
   target_id = "send-to-sns"
@@ -132,7 +141,8 @@ resource "aws_cloudwatch_event_target" "kms_deletion_sns" {
 ###############################################################################
 
 resource "aws_sns_topic_subscription" "email" {
-  for_each = toset(var.email_endpoints)
+  for_each   = toset(var.email_endpoints)
+  depends_on = [data.aws_iam_policy_document.sns_topic_policy]
 
   topic_arn = local.sns_topic_arn
   protocol  = "email"
@@ -144,7 +154,8 @@ resource "aws_sns_topic_subscription" "email" {
 ###############################################################################
 
 resource "aws_sns_topic_subscription" "webhook" {
-  for_each = toset(var.webhook_endpoints)
+  for_each   = toset(var.webhook_endpoints)
+  depends_on = [data.aws_iam_policy_document.sns_topic_policy]
 
   topic_arn = local.sns_topic_arn
   protocol  = "https"
@@ -156,7 +167,8 @@ resource "aws_sns_topic_subscription" "webhook" {
 ###############################################################################
 
 resource "aws_sns_topic_subscription" "sqs" {
-  for_each = toset(var.sqs_endpoints)
+  for_each   = toset(var.sqs_endpoints)
+  depends_on = [data.aws_iam_policy_document.sns_topic_policy]
 
   topic_arn = local.sns_topic_arn
   protocol  = "sqs"
@@ -168,7 +180,8 @@ resource "aws_sns_topic_subscription" "sqs" {
 ###############################################################################
 
 resource "aws_sns_topic_subscription" "lambda" {
-  for_each = toset(var.lambda_endpoints)
+  for_each   = toset(var.lambda_endpoints)
+  depends_on = [data.aws_iam_policy_document.sns_topic_policy]
 
   topic_arn = local.sns_topic_arn
   protocol  = "lambda"

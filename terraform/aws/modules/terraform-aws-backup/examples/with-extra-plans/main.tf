@@ -14,17 +14,18 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.30.0, < 6.0.0"
+      version = ">= 5.71.0, < 6.0.0"
     }
   }
 
-  backend "s3" {
-    # Configure your backend here
-  }
 }
 
 provider "aws" {
   region = "eu-south-1"
+}
+provider "aws" {
+  alias  = "dr"
+  region = "eu-central-1"
 }
 
 ###############################################################################
@@ -32,7 +33,11 @@ provider "aws" {
 ###############################################################################
 
 module "backup" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup?ref=v1.0.0"
+  source = "../.."
+  providers = {
+    aws    = aws
+    aws.dr = aws.dr
+  }
 
   aws_region  = "eu-south-1"
   environment = "prod"
@@ -40,7 +45,7 @@ module "backup" {
   solution_prefix = "team-payments-vault"
 
   selection_tags = {
-    "backup-policy" = "enabled"
+    "backup-workload" = "payments"
   }
 
   # Add an extra weekly rule to the default plan while keeping the same
@@ -70,7 +75,7 @@ module "backup" {
 ###############################################################################
 
 module "long_retention" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup/modules/presets/long-retention?ref=v1.0.0"
+  source = "../../modules/presets/long-retention"
 
   vault_name      = module.backup.vault_name
   backup_role_arn = module.backup.backup_role_arn
@@ -87,10 +92,12 @@ module "long_retention" {
 ###############################################################################
 
 module "hourly" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup/modules/presets/hourly-backup?ref=v1.0.0"
+  source = "../../modules/presets/hourly-backup"
 
   vault_name      = module.backup.vault_name
   backup_role_arn = module.backup.backup_role_arn
+
+  retention_days = 35
 
   selection_tags = {
     "backup-policy" = "hourly"
@@ -102,7 +109,7 @@ module "hourly" {
 ###############################################################################
 
 module "twice_daily" {
-  source = "git::https://github.com/pagopa/<repo-name>.git//modules/backup/modules/backup-plan?ref=v1.0.0"
+  source = "../../modules/backup-plan"
 
   plan_name    = "team-payments-twice-daily"
   iam_role_arn = module.backup.backup_role_arn

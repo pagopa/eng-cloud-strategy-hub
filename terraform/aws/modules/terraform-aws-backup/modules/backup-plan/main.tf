@@ -36,6 +36,37 @@ resource "aws_backup_plan" "this" {
   }
 
   tags = var.tags
+
+  lifecycle {
+    precondition {
+      condition     = length(distinct([for rule in var.rules : rule.rule_name])) == length(var.rules)
+      error_message = "Backup rule names must be unique."
+    }
+    precondition {
+      condition = alltrue([
+        for rule in var.rules : rule.delete_after >= 1 && floor(rule.delete_after) == rule.delete_after &&
+        rule.cold_storage_after >= 0 && floor(rule.cold_storage_after) == rule.cold_storage_after &&
+        (rule.cold_storage_after == 0 || rule.delete_after >= rule.cold_storage_after + 90)
+      ])
+      error_message = "Rules require positive whole-day retention and at least 90 days in cold storage when transition is enabled."
+    }
+    precondition {
+      condition = alltrue([
+        for rule in var.rules : !rule.enable_continuous_backup || (rule.delete_after <= 35 && rule.cold_storage_after == 0)
+      ])
+      error_message = "Continuous backup retention cannot exceed 35 days and cannot transition to cold storage."
+    }
+    precondition {
+      condition = alltrue(flatten([
+        for rule in var.rules : [
+          for copy in rule.copy_actions : copy.delete_after >= 1 && floor(copy.delete_after) == copy.delete_after &&
+          copy.cold_storage_after >= 0 && floor(copy.cold_storage_after) == copy.cold_storage_after &&
+          (copy.cold_storage_after == 0 || copy.delete_after >= copy.cold_storage_after + 90)
+        ]
+      ]))
+      error_message = "Copies require positive whole-day retention and at least 90 days after a cold-storage transition."
+    }
+  }
 }
 
 ###############################################################################
