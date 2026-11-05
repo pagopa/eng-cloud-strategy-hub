@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import io
-import os
 import sys
 import tempfile
 import unittest
@@ -76,6 +75,36 @@ class ValidateRepoLocallyTests(unittest.TestCase):
 
         self.assertEqual(
             ["actionlint", "copilot-entrypoints"],
+            [step.step_id for step in selected],
+        )
+
+    def test_default_step_selection_excludes_pre_commit(self) -> None:
+        selected = runner.select_steps(
+            runner.build_steps(),
+            only_values=[],
+            skip_values=[],
+        )
+
+        self.assertEqual(
+            [
+                "actionlint",
+                "shell-static-analysis",
+                "copilot-entrypoints",
+                "terraform-sh-tests",
+                "aws-s3-state-creator-tests",
+            ],
+            [step.step_id for step in selected],
+        )
+
+    def test_terraform_alias_includes_both_terraform_suites(self) -> None:
+        selected = runner.select_steps(
+            runner.build_steps(),
+            only_values=["terraform"],
+            skip_values=[],
+        )
+
+        self.assertEqual(
+            ["terraform-sh-tests", "aws-s3-state-creator-tests"],
             [step.step_id for step in selected],
         )
 
@@ -154,22 +183,6 @@ class ValidateRepoLocallyTests(unittest.TestCase):
             all(choice.checked for choice in captured["choices"])  # type: ignore[arg-type]
         )
 
-    def test_pre_commit_command_matches_workflow_contract(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_dir:
-            root = Path(temporary_dir)
-            cache_dir = root / "tmp/validate-repo-locally/pre-commit-cache"
-
-            command = runner.build_pre_commit_run_command(root, cache_dir)
-
-            self.assertEqual("docker", command[0])
-            self.assertIn(runner.PRE_COMMIT_IMAGE, command)
-            self.assertIn("PRE_COMMIT_HOME=/pre-commit-cache", command)
-            self.assertIn(f"{cache_dir}:/pre-commit-cache", command)
-            self.assertIn(f"{root}:/lint", command)
-            self.assertIn("--all-files", command)
-            self.assertIn("--show-diff-on-failure", command)
-            self.assertIn(f"USERID={os.getuid()}:{os.getgid()}", command)
-
     def test_directory_snapshot_restores_original_contents(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_dir:
             root = Path(temporary_dir)
@@ -186,6 +199,88 @@ class ValidateRepoLocallyTests(unittest.TestCase):
             self.assertEqual("before\n", (source / "aws.stdout").read_text())
             self.assertFalse((source / "new.log").exists())
             self.assertFalse(snapshot_path.exists())
+
+    def test_every_step_maps_to_an_existing_workflow(self) -> None:
+        for step in runner.build_steps():
+            with self.subTest(step=step.step_id):
+                self.assertTrue((ROOT / step.workflow).is_file(), step.workflow)
+
+
+class TerraformSuiteStepTests(unittest.TestCase):
+    PYTHON_SUITE = "tests/scripts/aws/terraform-sh"
+
+    def run_step(
+        self, step: object, failing_marker: str | None = None
+    ) -> tuple[int, list[list[str]]]:
+        calls: list[list[str]] = []
+
+        def fake_run_command(
+            _context: object, args: list[object], **_kwargs: object
+        ) -> int:
+            rendered = [str(arg) for arg in args]
+            calls.append(rendered)
+            if failing_marker and failing_marker in rendered:
+                return 3
+            return 0
+
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            context = runner.RunnerContext(
+                root=ROOT,
+                tmp_dir=Path(temporary_dir),
+                dry_run=True,
+                console=runner.Console(use_color=False),
+            )
+            with mock.patch.object(runner, "run_command", side_effect=fake_run_command):
+                status = step(context)  # type: ignore[operator]
+        return status, calls
+
+    def assert_each_target_syntax_checked(
+        self, calls: list[list[str]], targets: tuple[str, ...]
+    ) -> None:
+        syntax_calls = [call for call in calls if call[:2] == ["bash", "-n"]]
+        self.assertEqual(
+            [["bash", "-n", str(ROOT / target)] for target in targets],
+            syntax_calls,
+        )
+
+    def test_wrapper_step_checks_each_syntax_target(self) -> None:
+        status, calls = self.run_step(runner.run_terraform_wrapper_tests)
+
+        self.assertEqual(0, status)
+        self.assert_each_target_syntax_checked(calls, runner.TERRAFORM_WRAPPER_TARGETS)
+
+    def test_state_creator_step_checks_each_syntax_target(self) -> None:
+        status, calls = self.run_step(runner.run_aws_state_creator_tests)
+
+        self.assertEqual(0, status)
+        self.assert_each_target_syntax_checked(calls, runner.AWS_STATE_CREATOR_TARGETS)
+
+    def test_wrapper_step_fails_on_later_syntax_error(self) -> None:
+        last_target = str(ROOT / runner.TERRAFORM_WRAPPER_TARGETS[-1])
+
+        status, _calls = self.run_step(runner.run_terraform_wrapper_tests, last_target)
+
+        self.assertEqual(3, status)
+
+    def test_wrapper_step_runs_and_propagates_python_suite(self) -> None:
+        status, calls = self.run_step(
+            runner.run_terraform_wrapper_tests, self.PYTHON_SUITE
+        )
+
+        self.assertEqual(3, status)
+        self.assertIn(
+            [
+                sys.executable,
+                "-m",
+                "unittest",
+                "discover",
+                "-s",
+                self.PYTHON_SUITE,
+                "-p",
+                "test_*.py",
+            ],
+            calls,
+        )
 
 
 def write_file(path: Path, content: str) -> None:

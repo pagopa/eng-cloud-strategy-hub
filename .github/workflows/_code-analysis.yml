@@ -1,4 +1,5 @@
 name: "20 🔬 Code Analysis"
+run-name: "20 🔬 Code Analysis · ${{ github.event_name }}"
 
 on:
   pull_request:
@@ -12,9 +13,11 @@ on:
     paths:
       - ".github/workflows/**"
       - ".github/scripts/**"
+      - "actions/**"
+      - "Makefile"
       - "validate-repo-locally.sh"
       - "scripts/**"
-      - "tests/scripts/**"
+      - "tests/**"
       - "tools/**"
   push:
     branches:
@@ -22,9 +25,11 @@ on:
     paths:
       - ".github/workflows/**"
       - ".github/scripts/**"
+      - "actions/**"
+      - "Makefile"
       - "validate-repo-locally.sh"
       - "scripts/**"
-      - "tests/scripts/**"
+      - "tests/**"
       - "tools/**"
   workflow_dispatch:
 
@@ -35,14 +40,18 @@ concurrency:
   group: code-analysis-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# Every analysis lane is independent by design and can start immediately.
+defaults:
+  run:
+    shell: bash
+
 jobs:
+  # Static analysis: syntax and shell quality gates.
+  # These jobs intentionally have no `needs` relationship and run in parallel.
   workflow-static-analysis:
     name: Workflow Static Analysis
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    defaults:
-      run:
-        shell: bash
 
     steps:
       - name: 📥 Checkout repository
@@ -52,6 +61,8 @@ jobs:
 
       - name: 🔎 Run actionlint
         run: |
+          set -Eeuo pipefail
+
           if command -v actionlint >/dev/null 2>&1; then
             ACTIONLINT_BIN="$(command -v actionlint)"
           else
@@ -66,16 +77,35 @@ jobs:
             ACTIONLINT_BIN="${GOBIN}/actionlint"
           fi
 
+          mapfile -t workflow_files < <(
+            find .github/workflows -maxdepth 1 -type f \
+              \( -name '*.yml' -o -name '*.yaml' \) \
+              -print | sort
+          )
+
+          if (( ${#workflow_files[@]} == 0 )); then
+            echo "::error::No workflow files found in .github/workflows."
+            exit 1
+          fi
+
           "${ACTIONLINT_BIN}" -version
-          "${ACTIONLINT_BIN}" .github/workflows/*.yml
+          "${ACTIONLINT_BIN}" "${workflow_files[@]}"
+
+      - name: 📝 Publish job summary
+        if: ${{ always() }}
+        run: |
+          set -Eeuo pipefail
+          {
+            echo "## Workflow Static Analysis"
+            echo
+            echo "- Status: \`${{ job.status }}\`"
+            echo "- Scope: \`.github/workflows/*.yml\` and \`.yaml\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
   shell-static-analysis:
     name: Shell Static Analysis
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    defaults:
-      run:
-        shell: bash
 
     steps:
       - name: 📥 Checkout repository
@@ -85,6 +115,7 @@ jobs:
 
       - name: 📂 Collect shell targets
         run: |
+          set -Eeuo pipefail
           shell_targets=()
 
           while IFS= read -r -d '' candidate; do
@@ -98,44 +129,87 @@ jobs:
               -print0
           )
 
-          if [[ ${#shell_targets[@]} -eq 0 ]]; then
-            echo "ℹ️ No shell analysis targets found."
+          if (( ${#shell_targets[@]} == 0 )); then
+            echo "::error::No shell analysis targets found."
             exit 1
           fi
 
           printf '%s\n' "${shell_targets[@]}" | sort > "${RUNNER_TEMP}/shell-targets.txt"
           cat "${RUNNER_TEMP}/shell-targets.txt"
 
-      - name: 🧪 Run Bash syntax checks
-        run: |
-          mapfile -t shell_targets < "${RUNNER_TEMP}/shell-targets.txt"
-
-          for target in "${shell_targets[@]}"; do
-            bash -n "${target}"
-          done
-
       - name: 📦 Ensure ShellCheck is available
         run: |
-          if command -v shellcheck >/dev/null 2>&1; then
-            shellcheck --version
-            exit 0
+          set -Eeuo pipefail
+
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes shellcheck
           fi
 
-          sudo apt-get update
-          sudo apt-get install --yes shellcheck
+          shellcheck --version
 
-      - name: 🔎 Run ShellCheck
+      - name: 🧪 Run Bash syntax and ShellCheck checks in parallel
         run: |
+          set -Eeuo pipefail
           mapfile -t shell_targets < "${RUNNER_TEMP}/shell-targets.txt"
-          shellcheck -s bash -x "${shell_targets[@]}"
 
+          if (( ${#shell_targets[@]} == 0 )); then
+            echo "::error::Shell target list is empty."
+            exit 1
+          fi
+
+          # bash -n reads only its first operand as a script, so check each file.
+          (
+            syntax_status=0
+            for shell_target in "${shell_targets[@]}"; do
+              bash -n "${shell_target}" || syntax_status=1
+            done
+            exit "${syntax_status}"
+          ) > "${RUNNER_TEMP}/bash-syntax.log" 2>&1 &
+          bash_pid=$!
+
+          shellcheck -s bash -x "${shell_targets[@]}" \
+            > "${RUNNER_TEMP}/shellcheck.log" 2>&1 &
+          shellcheck_pid=$!
+
+          bash_status=0
+          shellcheck_status=0
+          wait "${bash_pid}" || bash_status=$?
+          wait "${shellcheck_pid}" || shellcheck_status=$?
+
+          echo "::group::Bash syntax output"
+          cat "${RUNNER_TEMP}/bash-syntax.log"
+          echo "::endgroup::"
+
+          echo "::group::ShellCheck output"
+          cat "${RUNNER_TEMP}/shellcheck.log"
+          echo "::endgroup::"
+
+          printf 'Bash syntax status: %d\n' "${bash_status}"
+          printf 'ShellCheck status: %d\n' "${shellcheck_status}"
+
+          if (( bash_status != 0 || shellcheck_status != 0 )); then
+            echo "::error::One or more shell quality checks failed."
+            exit 1
+          fi
+
+      - name: 📝 Publish job summary
+        if: ${{ always() }}
+        run: |
+          set -Eeuo pipefail
+          {
+            echo "## Shell Static Analysis"
+            echo
+            echo "- Status: \`${{ job.status }}\`"
+            echo "- Syntax: \`bash -n\`"
+            echo "- Linter: \`shellcheck -s bash -x\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  # Functional smoke checks run independently from static analysis.
   copilot-customization-entrypoints:
     name: Copilot Customization Entry Points
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    defaults:
-      run:
-        shell: bash
 
     steps:
       - name: 📥 Checkout repository
@@ -144,7 +218,96 @@ jobs:
           persist-credentials: false
 
       - name: 🔥 Smoke test bootstrap entry point
-        run: bash .github/scripts/bootstrap-copilot-config.sh --help
+        run: |
+          set -Eeuo pipefail
+          bash .github/scripts/bootstrap-copilot-config.sh --help
 
       - name: 🔥 Smoke test validation entry point
-        run: bash .github/scripts/validate-copilot-customizations.sh --help
+        run: |
+          set -Eeuo pipefail
+          bash .github/scripts/validate-copilot-customizations.sh --help
+
+      - name: 📝 Publish job summary
+        if: ${{ always() }}
+        run: |
+          set -Eeuo pipefail
+          {
+            echo "## Copilot Customization Entry Points"
+            echo
+            echo "- Status: \`${{ job.status }}\`"
+            echo "- Bootstrap CLI: \`--help\`"
+            echo "- Validation CLI: \`--help\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  # Component tests are kept as a separate lane so they do not wait for lint.
+  release-please-google-tests:
+    name: Release Please Google Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: 🧪 Run component tests
+        run: |
+          set -Eeuo pipefail
+          python3 -m unittest discover \
+            -s actions/global/release-please-google/tests \
+            -p 'test_*.py' \
+            -v
+
+      - name: 📝 Publish job summary
+        if: ${{ always() }}
+        run: |
+          set -Eeuo pipefail
+          {
+            echo "## Release Please Google Tests"
+            echo
+            echo "- Status: \`${{ job.status }}\`"
+            echo "- Runner: \`python3 -m unittest discover\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  repository-tests:
+    name: Repository Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      # Real Terraform with a local backend; no credentials or remote state are used.
+      - name: 🧰 Install Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # hashicorp/setup-terraform@v4.0.1 release: https://github.com/hashicorp/setup-terraform/releases/tag/v4.0.1
+        with:
+          terraform_version: 1.14.3
+          terraform_wrapper: false
+
+      - name: 🧪 Run Python test directories under tests/
+        run: make python-tests
+
+      - name: 🧪 Run cross-provider terraform.sh simulation suite
+        run: make terraform-wrapper-tests
+
+      - name: 🧪 Run AWS S3 state creator simulation suite
+        run: make aws-s3-state-creator-tests
+
+      - name: 🧪 Run AWS dynamic states simulation suite
+        run: make aws-dynamic-states-tests
+
+      - name: 📝 Publish job summary
+        if: ${{ always() }}
+        run: |
+          set -Eeuo pipefail
+          {
+            echo "## Repository Tests"
+            echo
+            echo "- Status: \`${{ job.status }}\`"
+            echo "- Python: \`make python-tests\` (every \`tests/**/test_*.py\` directory)"
+            echo "- Shell suites: \`make terraform-wrapper-tests aws-s3-state-creator-tests aws-dynamic-states-tests\`"
+          } >> "${GITHUB_STEP_SUMMARY}"

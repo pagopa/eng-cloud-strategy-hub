@@ -1,30 +1,22 @@
 ---
 description: Markdown standards for concise, maintainable documentation and explicit command/path formatting.
 applyTo: "**/*.md"
+excludeAgent: "cloud-agent"
 ---
 
-# Markdown Instructions
+# Markdown Review Checks
 
-## Scope
+This file is optimized for Copilot code review and should produce only evidenced findings on matching changed files.
 
-- Use this file for Markdown structure, style, and maintenance rules.
-- Repository-wide language defaults live in `AGENTS.md` and `.github/copilot-instructions.md`.
-
-## Structure
-
-- Use clear heading hierarchy.
-- Keep sections focused and short.
-- Prefer task-oriented sections over narrative blocks.
-
-## Style
-
-- Prefer concise bullets over long paragraphs.
-- Use backticks for commands, paths, and identifiers.
-- Keep links explicit and maintainable.
-- Write Markdown in English unless a narrower scoped instruction explicitly allows another language.
-
-## Maintenance
-
-- Update documentation when behavior or workflows change.
-- Do not modify `README.md` files unless explicitly requested by the user.
-- Avoid stale examples and mismatched file paths.
+- Use the bundle checker for high-confidence structural findings: MD011 for
+  reversed links, MD042 for empty links, MD051 for invalid fragments, MD052
+  for undefined references, and MD053 for duplicate or unused references.
+- Check fences, local links/fragments, paths, reference definitions, and
+  heading structure without treating a Markdown dialect as universal.
+- Record dialect awareness when CommonMark, GitHub Flavored Markdown, or a
+  tool-specific extension changes the interpretation.
+- Separately review technical claims, commands, paths, and examples against
+  repository evidence; report stale references, contradictory guidance, or
+  behavior presented as enforced without support from code, tests, or validators.
+- Report duplicated policy only when its canonical owner is evident. Leave
+  external targets, editorial judgment, and broader policy ownership to their owners.

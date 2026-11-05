@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.12.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/scripts-v1.11.1...scripts-v1.12.0) (2026-09-09)
+
+
+### Features
+
+* Improve AWS S3 Terraform State creator ([#61](https://github.com/pagopa/eng-cloud-strategy-hub/issues/61)) ([5d9ec6a](https://github.com/pagopa/eng-cloud-strategy-hub/commit/5d9ec6a453d6d3e288c9f4e8e460d2f3e0e3cbcc))
+* **scripts:** add AWS S3 state creator and tests ([#58](https://github.com/pagopa/eng-cloud-strategy-hub/issues/58)) ([22a2e73](https://github.com/pagopa/eng-cloud-strategy-hub/commit/22a2e73c660ac62986a338696eb8a353f4eecba2))
+
 ## [1.11.1](https://github.com/pagopa/eng-cloud-strategy-hub/compare/scripts-v1.11.0...scripts-v1.11.1) (2026-05-05)
 
 

@@ -2,6 +2,16 @@
 
 Validates pull request titles with Conventional Commit semantics through a local wrapper around `amannn/action-semantic-pull-request`.
 
+## Contents
+
+- [Self-Contained Contract](#self-contained-contract)
+- [Behavior](#behavior)
+- [Inputs](#inputs)
+- [Outputs](#outputs)
+- [Usage](#usage)
+- [Troubleshooting](#troubleshooting)
+- [Validation](#validation)
+
 ## Self-Contained Contract
 
 - This action validates only the pull request title contract.
@@ -108,3 +118,13 @@ steps:
 
 - Confirm the type is present in `types`.
 - Confirm the scope is present in `scopes` when `scopes` is not empty.
+
+## Validation
+
+Keep the input and output tables aligned with [`action.yml`](action.yml) and
+run the repository's `actionlint`/pre-commit checks against the caller
+workflow. The examples in [`examples/basic.yml`](examples/basic.yml) are the
+smallest checked-in usage surface.
+
+No diagram is provided because this action has one linear validation boundary
+between the pull-request event, the wrapper, and the upstream title validator.

@@ -1,0 +1,14 @@
+{
+  "Contents": [
+    {
+      "Key": "terraform/dev/tfstate.tflock",
+      "LastModified": "2026-09-09T10:00:00Z",
+      "Size": 123
+    },
+    {
+      "Key": "terraform/prod/tfstate.tflock",
+      "LastModified": "2026-09-09T11:00:00Z",
+      "Size": 456
+    }
+  ]
+}

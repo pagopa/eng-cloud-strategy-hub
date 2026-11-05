@@ -64,11 +64,10 @@ __pycache__/
 .coverage
 .coverage.*
 htmlcov/
-tests/scripts/terraform_wrappers/logs/
+tests/scripts/**/logs/
 .venv/
 venv/
 env/
-!tests/scripts/terraform_wrappers/fixtures/**/env/
-!tests/scripts/terraform_wrappers/fixtures/**/env/**
-.python-version
-/tmp/superpowers/
+!tests/scripts/**/fixtures/**/env/
+!tests/scripts/**/fixtures/**/env/**
+tmp/

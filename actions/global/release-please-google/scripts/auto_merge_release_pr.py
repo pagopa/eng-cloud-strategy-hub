@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 import sys
+import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,6 +42,7 @@ RELEASE_PLEASE_TITLE_PATTERN = re.compile(
     r"^\s*chore(?:\([^)\r\n]+\))?: release\b",
     re.IGNORECASE,
 )
+AUTORELEASE_PENDING_LABEL = "autorelease: pending"
 
 
 @dataclass(frozen=True)
@@ -79,7 +81,25 @@ def log_warn(message: str) -> None:
     print(f"⚠️  {message}")
 
 
+def write_failure_reason(message: str) -> None:
+    output_path = os.environ.get("GITHUB_OUTPUT", "")
+    if not output_path:
+        return
+
+    delimiter = f"RELEASE_FAILURE_REASON_{uuid.uuid4().hex}"
+    try:
+        with Path(output_path).open("a", encoding="utf-8") as output_file:
+            output_file.write(f"failure_reason<<{delimiter}\n")
+            output_file.write(f"{message}\n")
+            output_file.write(f"{delimiter}\n")
+    except OSError:
+        # Preserve the original action failure if diagnostic output cannot be
+        # written.
+        return
+
+
 def fail(message: str) -> int:
+    write_failure_reason(message)
     print(f"❌ {message}", file=sys.stderr)
     return 1
 
@@ -108,7 +128,9 @@ def is_release_please_title(title: str) -> bool:
 
 def is_release_please_author(author_login: str) -> bool:
     login = author_login.lower()
-    return "[bot]" in login or login.startswith("app/") or login == "github-actions"
+    return (
+        login.endswith("[bot]") or login.startswith("app/") or login == "github-actions"
+    )
 
 
 def pr_url(server_url: str, repository: str, number: int) -> str:
@@ -275,6 +297,85 @@ def discover_release_please_prs(target_branch: str) -> list[ReleasePullRequest]:
     return normalized
 
 
+def pending_merged_release_pr_from_gh_item(
+    item: Mapping[str, Any], target_branch: str
+) -> ReleasePullRequest | None:
+    labels = item.get("labels")
+    has_pending_label = isinstance(labels, list) and any(
+        isinstance(label, dict) and label.get("name") == AUTORELEASE_PENDING_LABEL
+        for label in labels
+    )
+    if not has_pending_label:
+        return None
+
+    head_branch = read_string(item, "headRefName")
+    base_branch = read_string(item, "baseRefName")
+    title = read_string(item, "title")
+    merged_at = read_string(item, "mergedAt")
+
+    if not head_branch.startswith("release-please--"):
+        return None
+    if base_branch != target_branch:
+        return None
+    if not is_release_please_title(title):
+        return None
+    if not merged_at:
+        return None
+    if item.get("isCrossRepository") is True:
+        return None
+
+    number = item.get("number")
+    if not isinstance(number, int):
+        return None
+
+    return ReleasePullRequest(
+        number=number,
+        url=read_string(item, "url") or str(number),
+        title=title,
+        head_branch_name=head_branch,
+        base_branch_name=base_branch,
+        source="pending-merged-release-please",
+    )
+
+
+def find_pending_merged_release_prs(
+    target_branch: str,
+) -> list[ReleasePullRequest]:
+    if not gh_available():
+        raise RuntimeError(
+            "gh CLI is required to verify merged release-please pull requests."
+        )
+
+    items = run_gh_json(
+        [
+            "pr",
+            "list",
+            "--state",
+            "merged",
+            "--base",
+            target_branch,
+            "--label",
+            AUTORELEASE_PENDING_LABEL,
+            "--limit",
+            "100",
+            "--json",
+            "number,title,url,headRefName,baseRefName,mergedAt,labels,isCrossRepository",
+        ]
+    )
+    if not isinstance(items, list):
+        raise RuntimeError("gh pr list returned an unexpected JSON payload.")
+
+    pending_release_prs: list[ReleasePullRequest] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        release_pr = pending_merged_release_pr_from_gh_item(item, target_branch)
+        if release_pr is not None:
+            pending_release_prs.append(release_pr)
+
+    return pending_release_prs
+
+
 def verify_release_please_prs(
     release_prs: list[ReleasePullRequest], target_branch: str
 ) -> list[ReleasePullRequest]:
@@ -322,6 +423,26 @@ def emit_pr_outputs(
     write_output(output_path, "pr", first_pr_url)
     write_output(output_path, "prs", output_json(release_prs))
     write_output(output_path, "auto_merge_enabled", auto_merge)
+
+
+def ensure_release_was_published(
+    target_branch: str, release_created: str, skip_github_release: str
+) -> None:
+    if release_created == "true" or skip_github_release == "true":
+        return
+
+    pending_release_prs = find_pending_merged_release_prs(target_branch)
+    if not pending_release_prs:
+        return
+
+    pending_numbers = ", ".join(
+        f"#{release_pr.number}" for release_pr in pending_release_prs
+    )
+    raise RuntimeError(
+        "release-please did not create a GitHub release or tag; "
+        f"merged release PRs are still pending: {pending_numbers}. "
+        "Recover the pending release before retrying."
+    )
 
 
 def classify_gh_merge_error(pr_number: int, error_output: str) -> str:
@@ -444,6 +565,7 @@ def resolve_release_prs(
 
 
 def main() -> int:
+    log_info("Starting release PR resolution and auto-merge evaluation...")
     environment = os.environ
 
     try:
@@ -453,8 +575,17 @@ def main() -> int:
         validate_bool_like(environment, "RP_DEBUG")
         merge_method = validate_merge_method(environment)
         release_created = environment.get("RP_RELEASE_CREATED", "false")
+        skip_github_release = validate_bool_like(
+            environment, "RP_SKIP_GITHUB_RELEASE"
+        )
         release_prs = resolve_release_prs(
             environment, allow_fallback=release_created != "true"
+        )
+
+        ensure_release_was_published(
+            target_branch=environment["RP_TARGET_BRANCH"],
+            release_created=release_created,
+            skip_github_release=skip_github_release,
         )
 
         emit_pr_outputs(output_path, release_prs, auto_merge)
@@ -464,26 +595,28 @@ def main() -> int:
                 log_success(
                     "release-please created a release; no open release PR is expected."
                 )
+                log_success("Release PR resolution finished successfully.")
                 return 0
-            if auto_merge == "true":
-                return fail(
-                    f"No open release-please pull request was found for target branch "
-                    f"'{environment['RP_TARGET_BRANCH']}'."
-                )
 
-            log_info("No release-please pull request was resolved.")
+            log_info(
+                f"No open release-please pull request was found for target branch "
+                f"'{environment['RP_TARGET_BRANCH']}'; nothing to merge."
+            )
+            log_success("Release PR resolution finished successfully.")
             return 0
 
         if auto_merge == "false":
             log_info(
                 "Auto-merge is disabled. Release PRs were resolved without merge operations."
             )
+            log_success("Release PR resolution finished successfully.")
             return 0
 
         enable_auto_merge(release_prs, merge_method)
     except (RuntimeError, ValueError) as error:
         return fail(str(error))
 
+    log_success("Release PR resolution and auto-merge completed successfully.")
     return 0
 
 

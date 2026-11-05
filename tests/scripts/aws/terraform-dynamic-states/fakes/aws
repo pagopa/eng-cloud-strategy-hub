@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+log_file="${FAKE_LOG_DIR:?}/aws.log"
+
+{
+  printf 'cwd=%s argv=' "$PWD"
+  printf '%q ' "$@"
+  printf '\n'
+} >> "${log_file}"
+
+case "${1:-}:${2:-}" in
+  configure:list-profiles)
+    printf 'fake-profile\n'
+    ;;
+  configure:get)
+    printf '\n'
+    ;;
+  sts:get-caller-identity)
+    printf '{"Account":"123456789012","Arn":"arn:aws:iam::123456789012:user/fake"}\n'
+    ;;
+  s3api:list-objects-v2)
+    cat "${FAKE_S3_LISTING_FILE:?}"
+    ;;
+  s3:cp)
+    source_uri="${3:-}"
+    case "${source_uri}" in
+      */dev/tfstate.tflock)
+        cat "${FAKE_LOCK_METADATA_DIR:?}/dev.json"
+        ;;
+      */prod/tfstate.tflock)
+        cat "${FAKE_LOCK_METADATA_DIR:?}/prod.json"
+        ;;
+      *)
+        printf 'unknown fake lock object: %s\n' "${source_uri}" >&2
+        exit 1
+        ;;
+    esac
+    ;;
+esac

@@ -1,37 +1,45 @@
-# .github Configuration
+# Copilot And Workflow Governance
 
-This folder contains global Copilot/Codex customization that can be reused across repositories.
+This directory is the repository-owned source for Copilot customization, GitHub workflow definitions, and the scripts that validate or bootstrap those assets.
 
-## Structure
-- `copilot-instructions.md`: global baseline rules
-- `copilot-commit-message-instructions.md`: commit message policy
-- `copilot-code-review-instructions.md`: review policy
-- `repo-profiles.yml`: reusable high-level profile catalog for different repo types
-- `security-baseline.md`: portable security baseline checklist
-- `DEPRECATION.md`: lifecycle policy for prompts/skills/instructions/agents
-- `instructions/`: path-specific auto-applied rules
-- `prompts/`: reusable slash prompts
-- `skills/`: reusable implementation capabilities
-- `agents/`: optional custom chat agents
-- `scripts/`: validation scripts
-- `workflows/`: CI validation workflows
-- `templates/`: reusable templates (for example `AGENTS.md`)
+## Contents
 
-## Agent routing
-- Read-only agents: `Planner`, `Reviewer`, `SecurityReviewer`, `WorkflowSupplyChain`, `TerraformGuardrails`, `IAMLeastPrivilege`
-- Write-capable agent: `Implementer`
+- [Purpose](#purpose)
+- [Included files](#included-files)
+- [Change path](#change-path)
+- [Validation](#validation)
 
-See `.github/agents/README.md` for details.
+## Purpose
 
-## Maintenance workflow
-1. Update files under `.github/`.
-2. Run `.github/scripts/validate-copilot-customizations.sh --scope root --mode strict`.
-3. Optional: generate a machine-readable summary with `.github/scripts/validate-copilot-customizations.sh --scope root --mode strict --report json --report-file /tmp/copilot-report.json`.
-4. Optional: bootstrap this configuration into another repository with `.github/scripts/bootstrap-copilot-config.sh --target <repo-path>` (default excludes apply; see `.github/.bootstrap-ignore`).
-5. Optionally run cross-repo assessment with `.github/scripts/validate-copilot-customizations.sh --scope all --mode legacy-compatible`.
-6. Ensure workflow checks pass.
-7. Update `.github/CHANGELOG.md` for notable changes.
+The `.github/` surface supplies repository instructions and automation entrypoints. It is configuration and policy source material consumed by GitHub Actions and by local validation; it is not an application runtime.
 
-## Notes
-- `repo-profiles.yml` is currently advisory (human-readable profile catalog).
-- Use `templates/copilot-quickstart.md` for a short onboarding flow.
+## Included files
+
+| Path | Responsibility |
+| --- | --- |
+| `copilot-instructions.md` | GitHub.com Copilot code-review guidance. |
+| `instructions/` | Path-scoped instructions for repository technologies and authoring tasks. |
+| `workflows/` | Pull request, pre-commit, release, code-analysis, and Terraform shell-test workflows. |
+| `scripts/bootstrap-copilot-config.sh` | Bootstrap entrypoint for copying Copilot configuration into a target repository. |
+| `scripts/validate-copilot-customizations.sh` | Validator for supported Copilot customization layouts and metadata. |
+| `PULL_REQUEST_TEMPLATE.md` | Pull request template used by GitHub. |
+
+## Change path
+
+1. Read the repository instructions that apply to the changed asset.
+2. Keep workflow and script changes within their existing ownership boundaries.
+3. Run the relevant local entrypoint or simulator before opening a pull request.
+4. Update [docs/architecture.md](../docs/architecture.md) when a deliberate structural boundary changes.
+
+No diagram is provided because the repository-wide governance-to-validation relationships are maintained in [docs/architecture.md](../docs/architecture.md#2-system-overview).
+
+## Validation
+
+The entrypoint smoke checks are safe and do not apply configuration:
+
+```bash
+bash .github/scripts/bootstrap-copilot-config.sh --help
+bash .github/scripts/validate-copilot-customizations.sh --help
+```
+
+Workflow syntax is checked by the `actionlint` job in `.github/workflows/_code-analysis.yml`; the local simulator exposes that job's relevant steps through `./validate-repo-locally.sh`.

@@ -19,30 +19,68 @@ jobs:
     name: pre-commit
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      PRE_COMMIT_IMAGE: ghcr.io/antonbabenko/pre-commit-terraform:v1.105.0@sha256:4ef4b8323b27fc263535ad88c9d2f20488fcb3b520258e5e7f0553ed5f6692b5 # pre-commit-terraform v1.105.0
+      PRE_COMMIT_CONFIG: .pre-commit-config.yaml
+      # Local-only validation: Terraform must not reach remote backends.
+      TF_INPUT: "0"
+      TF_IN_AUTOMATION: "1"
+    defaults:
+      run:
+        shell: bash
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # actions/checkout@v7.0.0 release: https://github.com/actions/checkout/releases/tag/v7.0.0
         with:
           persist-credentials: false
 
       - name: Restore pre-commit cache
         id: pre-commit-cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5 release: https://github.com/actions/cache/releases/tag/v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5.0.5 release: https://github.com/actions/cache/releases/tag/v5.0.5
         with:
           path: ${{ runner.temp }}/pre-commit-cache
           key: pre-commit-${{ runner.os }}-config-hash-${{ hashFiles('.pre-commit-config.yaml') }}
           restore-keys: |
             pre-commit-${{ runner.os }}-config-hash-
 
+      - name: Ensure pre-commit cache directory
+        env:
+          PRE_COMMIT_CACHE_DIR: ${{ runner.temp }}/pre-commit-cache
+        run: |
+          mkdir -p "${PRE_COMMIT_CACHE_DIR}"
+
+      - name: Pull pre-commit container image
+        run: |
+          docker pull "${PRE_COMMIT_IMAGE}"
+
+      - name: Show bundled tool versions
+        run: |
+          docker run --rm --entrypoint cat "${PRE_COMMIT_IMAGE}" /usr/bin/tools_versions_info
+
       - name: Run pre-commit in container
         id: pre-commit-run
-        uses: ./actions/global/pre-commit
-        with:
-          pre-commit-cache-dir: ${{ runner.temp }}/pre-commit-cache
+        env:
+          PRE_COMMIT_CACHE_DIR: ${{ runner.temp }}/pre-commit-cache
+        run: |
+          docker run --rm \
+            -e USERID="$(id -u):$(id -g)" \
+            -e PRE_COMMIT_HOME=/pre-commit-cache \
+            -e TF_INPUT \
+            -e TF_IN_AUTOMATION \
+            -v "${PRE_COMMIT_CACHE_DIR}:/pre-commit-cache" \
+            -v "${PWD}:/lint" \
+            -w /lint \
+            "${PRE_COMMIT_IMAGE}" run \
+            --all-files \
+            --config "${PRE_COMMIT_CONFIG}" \
+            --verbose \
+            --show-diff-on-failure \
+            --color always
 
       - name: Save pre-commit cache
         if: ${{ always() && steps.pre-commit-run.outcome != 'skipped' && steps.pre-commit-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5 release: https://github.com/actions/cache/releases/tag/v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5.0.5 release: https://github.com/actions/cache/releases/tag/v5.0.5
         with:
           path: ${{ runner.temp }}/pre-commit-cache
           key: pre-commit-${{ runner.os }}-config-hash-${{ hashFiles('.pre-commit-config.yaml') }}

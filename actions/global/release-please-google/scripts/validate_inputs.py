@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import sys
+import uuid
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Sequence
@@ -26,7 +27,25 @@ BOOLEAN_FIELDS = (
 MERGE_METHODS = {"merge", "squash", "rebase"}
 
 
+def write_failure_reason(message: str) -> None:
+    output_path = os.environ.get("GITHUB_OUTPUT", "")
+    if not output_path:
+        return
+
+    delimiter = f"RELEASE_FAILURE_REASON_{uuid.uuid4().hex}"
+    try:
+        with Path(output_path).open("a", encoding="utf-8") as output_file:
+            output_file.write(f"failure_reason<<{delimiter}\n")
+            output_file.write(f"{message}\n")
+            output_file.write(f"{delimiter}\n")
+    except OSError:
+        # Preserve the original validation failure if the diagnostic output
+        # cannot be written.
+        return
+
+
 def fail(message: str) -> int:
+    write_failure_reason(message)
     print(f"❌ {message}", file=sys.stderr)
     return 1
 
@@ -72,11 +91,14 @@ def validate_json_file(path: Path, label: str) -> None:
         raise ValueError(f"{label} file not found: {path}")
 
     try:
-        json.loads(path.read_text(encoding="utf-8"))
+        document = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
         raise ValueError(
             f"{label} file must be valid JSON: {path}: {error.msg}"
         ) from error
+
+    if not isinstance(document, dict):
+        raise ValueError(f"{label} file must contain a JSON object: {path}")
 
 
 def resolve_workspace_file(
@@ -129,6 +151,7 @@ def validate_consumer_files(environment: Mapping[str, str]) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
+    print(f"🏁 Starting release-please {args.phase} validation...")
 
     try:
         if args.phase == "wrapper":
@@ -138,7 +161,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as error:
         return fail(str(error))
 
-    print(f"✅ release-please {args.phase} inputs are valid.")
+    print(f"✅ release-please {args.phase} inputs are valid and verified.")
     return 0
 
 

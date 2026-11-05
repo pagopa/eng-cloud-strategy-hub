@@ -2,6 +2,20 @@
 
 Runs `cycjimmy/semantic-release-action` through a repository-owned composite action that generates `.releaserc.json` at runtime.
 
+## Contents
+
+- [Self-Contained Contract](#self-contained-contract)
+- [When To Use It](#when-to-use-it)
+- [Behavior](#behavior)
+- [Inputs](#inputs)
+- [Outputs](#outputs)
+- [Minimum Permissions](#minimum-permissions)
+- [Usage](#usage)
+- [Generated Configuration](#generated-configuration)
+- [Troubleshooting](#troubleshooting)
+- [Pinning Notes](#pinning-notes)
+- [Validation](#validation)
+
 ## Self-Contained Contract
 
 - This action owns one direct semantic-release workflow contract end to end.
@@ -228,3 +242,13 @@ The wrapper generates this config shape:
 
 - Third-party actions inside this wrapper are pinned to full commit SHAs.
 - Consumer workflows should pin this wrapper action with a full commit SHA before production usage.
+
+## Validation
+
+Keep the input and output tables aligned with [`action.yml`](action.yml) and
+run the repository's `actionlint` and pre-commit checks against caller
+workflows. The checked-in examples document the supported token and release
+configuration paths.
+
+No diagram is provided because this action owns one semantic-release boundary
+and its generated configuration is described more precisely above.

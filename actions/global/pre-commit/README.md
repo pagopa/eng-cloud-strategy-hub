@@ -2,6 +2,16 @@
 
 Runs repository `pre-commit` checks inside the pinned `pre-commit-terraform` container image.
 
+## Contents
+
+- [Self-Contained Contract](#self-contained-contract)
+- [Behavior](#behavior)
+- [Inputs](#inputs)
+- [Outputs](#outputs)
+- [Usage](#usage)
+- [Troubleshooting](#troubleshooting)
+- [Validation](#validation)
+
 ## Self-Contained Contract
 
 - This action only runs `pre-commit` in a container against the current workspace.
@@ -95,3 +105,13 @@ steps:
 
 - `pre-commit-image` must include `@sha256:<digest>`.
 - Keep the human-readable tag beside the digest for reviewability.
+
+## Validation
+
+Keep the input and output tables aligned with [`action.yml`](action.yml). Run
+the repository's `actionlint` and pre-commit checks against the caller
+workflow; the example in [`examples/basic.yml`](examples/basic.yml) documents
+the pinned-image invocation.
+
+No diagram is provided because this action executes one containerized
+pre-commit boundary and does not coordinate multiple repository components.

@@ -1,0 +1,590 @@
+from __future__ import annotations
+
+import importlib.util
+import json
+import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from types import ModuleType
+from unittest.mock import patch
+
+ACTION_ROOT = Path(__file__).resolve().parents[1]
+AUTO_MERGE_PATH = ACTION_ROOT / "scripts/auto_merge_release_pr.py"
+VALIDATOR_PATH = ACTION_ROOT / "scripts/validate_inputs.py"
+SUMMARY_PATH = ACTION_ROOT / "scripts/generate_summary.py"
+
+
+def load_module(path: Path, module_name: str) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load module from {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+auto_merge = load_module(AUTO_MERGE_PATH, "release_please_auto_merge")
+validate_inputs = load_module(VALIDATOR_PATH, "release_please_validate_inputs")
+generate_summary = load_module(SUMMARY_PATH, "release_please_generate_summary")
+
+
+class AutoMergeReleasePrTests(unittest.TestCase):
+    def test_fail_writes_failure_reason_to_github_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            output_path = Path(temporary_dir) / "github-output.txt"
+            with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_path)}):
+                result = auto_merge.fail("Permission denied when enabling auto-merge.")
+
+            self.assertEqual(1, result)
+            self.assertTrue(output_path.exists())
+            self.assertIn(
+                "Permission denied when enabling auto-merge.",
+                output_path.read_text(encoding="utf-8"),
+            )
+
+    def test_is_release_please_title_accepts_scoped_and_unscoped_titles(
+        self,
+    ) -> None:
+        accepted_titles = (
+            "chore: release main",
+            "chore(main): release foo-bar v1.2.3",
+            "chore(release-please): release v2.0.0",
+        )
+
+        for title in accepted_titles:
+            with self.subTest(title=title):
+                self.assertTrue(auto_merge.is_release_please_title(title))
+
+    def test_is_release_please_title_rejects_non_release_titles(self) -> None:
+        rejected_titles = (
+            "feat: release foo-bar v1.2.3",
+            "chore(main): update dependencies",
+            "docs: chore(main): release notes",
+        )
+
+        for title in rejected_titles:
+            with self.subTest(title=title):
+                self.assertFalse(auto_merge.is_release_please_title(title))
+
+    def test_is_release_please_author_rejects_bot_marker_inside_login(self) -> None:
+        self.assertTrue(auto_merge.is_release_please_author("release-please[bot]"))
+        self.assertFalse(
+            auto_merge.is_release_please_author("release[bot]-impersonator")
+        )
+
+    def test_normalize_release_please_outputs_filters_release_prs(self) -> None:
+        release_prs = auto_merge.normalize_release_please_outputs(
+            raw_pr=(
+                '{"number":42,"headBranchName":"release-please--branches--main",'
+                '"baseBranchName":"main",'
+                '"title":"chore(main): release foo-bar v1.2.3"}'
+            ),
+            raw_prs=(
+                "["
+                '{"number":42,"headBranchName":"release-please--branches--main",'
+                '"baseBranchName":"main",'
+                '"title":"chore(main): release foo-bar v1.2.3"},'
+                '{"number":99,"headBranchName":"feature/not-release",'
+                '"baseBranchName":"main","title":"feat: something"}'
+                "]"
+            ),
+            target_branch="main",
+            server_url="https://github.com",
+            repository="pagopa/eng-cloud-strategy-hub",
+        )
+
+        self.assertEqual(1, len(release_prs))
+        self.assertEqual(42, release_prs[0].number)
+        self.assertEqual(
+            "https://github.com/pagopa/eng-cloud-strategy-hub/pull/42",
+            release_prs[0].url,
+        )
+
+    def test_find_pending_merged_release_prs_filters_release_please_candidates(
+        self,
+    ) -> None:
+        with (
+            patch.object(auto_merge, "gh_available", return_value=True),
+            patch.object(
+                auto_merge,
+                "run_gh_json",
+                return_value=[
+                    {
+                        "number": 56,
+                        "url": "https://github.com/pagopa/eng-cloud-strategy-hub/pull/56",
+                        "title": "chore(release): release eng-cloud-strategy-hub 2.5.0 (main)",
+                        "headRefName": "release-please--branches--main",
+                        "baseRefName": "main",
+                        "mergedAt": "2026-05-05T17:46:32Z",
+                        "labels": [{"name": "autorelease: pending"}],
+                        "isCrossRepository": False,
+                    },
+                    {
+                        "number": 57,
+                        "url": "https://github.com/pagopa/eng-cloud-strategy-hub/pull/57",
+                        "title": "chore(release): release eng-cloud-strategy-hub 2.6.0 (main)",
+                        "headRefName": "release-please--branches--main",
+                        "baseRefName": "main",
+                        "mergedAt": "2026-05-06T17:46:32Z",
+                        "labels": [{"name": "autorelease: tagged"}],
+                        "isCrossRepository": False,
+                    },
+                ],
+            ) as run_gh_json,
+        ):
+            pending_release_prs = auto_merge.find_pending_merged_release_prs("main")
+
+        self.assertEqual([56], [release_pr.number for release_pr in pending_release_prs])
+        gh_args = run_gh_json.call_args.args[0]
+        self.assertIn("--state", gh_args)
+        self.assertIn("merged", gh_args)
+        self.assertIn("--label", gh_args)
+        self.assertIn("autorelease: pending", gh_args)
+
+    def test_ensure_release_was_published_fails_for_pending_merged_release(self) -> None:
+        pending_release = auto_merge.ReleasePullRequest(
+            number=56,
+            url="https://github.com/pagopa/eng-cloud-strategy-hub/pull/56",
+            title="chore(release): release eng-cloud-strategy-hub 2.5.0 (main)",
+            head_branch_name="release-please--branches--main",
+            base_branch_name="main",
+            source="pending-merged-release-please",
+        )
+
+        with patch.object(
+            auto_merge,
+            "find_pending_merged_release_prs",
+            return_value=[pending_release],
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError, "merged release PRs are still pending"
+            ):
+                auto_merge.ensure_release_was_published(
+                    target_branch="main",
+                    release_created="false",
+                    skip_github_release="false",
+                )
+
+    def test_emit_pr_outputs_writes_caller_contract(self) -> None:
+        release_pr = auto_merge.ReleasePullRequest(
+            number=42,
+            url="https://github.com/pagopa/eng-cloud-strategy-hub/pull/42",
+            title="chore: release main",
+            head_branch_name="release-please--branches--main",
+            base_branch_name="main",
+            source="release-please-output",
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            output_path = Path(temporary_dir) / "github-output.txt"
+            auto_merge.emit_pr_outputs(output_path, [release_pr], "false")
+            content = output_path.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "pr=https://github.com/pagopa/eng-cloud-strategy-hub/pull/42", content
+        )
+        self.assertIn("auto_merge_enabled=false", content)
+        self.assertIn('"source":"release-please-output"', content)
+
+    def test_resolve_release_prs_skips_missing_gh_when_auto_merge_is_disabled(
+        self,
+    ) -> None:
+        with patch.object(auto_merge, "gh_available", return_value=False):
+            release_prs = auto_merge.resolve_release_prs(
+                {
+                    "RP_TARGET_BRANCH": "main",
+                    "RP_AUTO_MERGE": "false",
+                    "RP_DEBUG": "false",
+                    "RP_PR": "",
+                    "RP_PRS": "",
+                },
+                allow_fallback=True,
+            )
+
+        self.assertEqual([], release_prs)
+
+    def test_validate_merge_method_rejects_unknown_value(self) -> None:
+        with self.assertRaisesRegex(ValueError, "RP_MERGE_METHOD must be one of"):
+            auto_merge.validate_merge_method({"RP_MERGE_METHOD": "invalid"})
+
+    def test_resolve_release_prs_filters_unverified_upstream_candidate(self) -> None:
+        with (
+            patch.object(auto_merge, "gh_available", return_value=True),
+            patch.object(
+                auto_merge,
+                "run_gh_json",
+                return_value={
+                    "number": 42,
+                    "url": "https://github.com/pagopa/eng-cloud-strategy-hub/pull/42",
+                    "title": "chore(main): release foo-bar v1.2.3",
+                    "headRefName": "release-please--branches--main",
+                    "baseRefName": "main",
+                    "author": {"login": "octocat"},
+                    "isCrossRepository": False,
+                    "state": "OPEN",
+                },
+            ),
+        ):
+            release_prs = auto_merge.resolve_release_prs(
+                {
+                    "RP_TARGET_BRANCH": "main",
+                    "RP_AUTO_MERGE": "true",
+                    "RP_DEBUG": "false",
+                    "RP_PR": (
+                        '{"number":42,"headBranchName":"release-please--branches--main",'
+                        '"baseBranchName":"main",'
+                        '"title":"chore(main): release foo-bar v1.2.3"}'
+                    ),
+                    "RP_PRS": "",
+                },
+                allow_fallback=False,
+            )
+
+        self.assertEqual([], release_prs)
+
+    def test_enable_auto_merge_skips_merge_conflicts_and_continues(self) -> None:
+        release_prs = [
+            auto_merge.ReleasePullRequest(
+                number=28,
+                url="https://github.com/pagopa/eng-cloud-strategy-hub/pull/28",
+                title="chore(main): release code 1.0.0",
+                head_branch_name="release-please--branches--main--components--code",
+                base_branch_name="main",
+                source="release-please-output",
+            ),
+            auto_merge.ReleasePullRequest(
+                number=29,
+                url="https://github.com/pagopa/eng-cloud-strategy-hub/pull/29",
+                title="chore(main): release scripts 1.1.0",
+                head_branch_name="release-please--branches--main--components--scripts",
+                base_branch_name="main",
+                source="release-please-output",
+            ),
+        ]
+
+        conflict = auto_merge.subprocess.CompletedProcess(
+            args=["gh", "pr", "merge"],
+            returncode=1,
+            stdout="",
+            stderr="GraphQL: Pull Request has merge conflicts (mergePullRequest)",
+        )
+        success = auto_merge.subprocess.CompletedProcess(
+            args=["gh", "pr", "merge"],
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
+
+        with (
+            patch.object(auto_merge, "gh_available", return_value=True),
+            patch.object(
+                auto_merge.subprocess, "run", side_effect=[conflict, success]
+            ) as run,
+        ):
+            auto_merge.enable_auto_merge(release_prs, "squash")
+
+        first_call_args = run.call_args_list[0].args[0]
+        second_call_args = run.call_args_list[1].args[0]
+        self.assertIn("--delete-branch", first_call_args)
+        self.assertIn("--delete-branch", second_call_args)
+
+    def test_enable_auto_merge_skips_unavailable_auto_merge_and_continues(
+        self,
+    ) -> None:
+        release_prs = [
+            auto_merge.ReleasePullRequest(
+                number=36,
+                url="https://github.com/pagopa/eng-cloud-strategy-hub/pull/36",
+                title="chore(main): release scripts 1.2.0",
+                head_branch_name=(
+                    "release-please--branches--main--components--scripts"
+                ),
+                base_branch_name="main",
+                source="release-please-output",
+            ),
+            auto_merge.ReleasePullRequest(
+                number=37,
+                url="https://github.com/pagopa/eng-cloud-strategy-hub/pull/37",
+                title="chore(main): release actions 1.1.0",
+                head_branch_name=(
+                    "release-please--branches--main--components--actions"
+                ),
+                base_branch_name="main",
+                source="release-please-output",
+            ),
+        ]
+
+        auto_merge_unavailable = auto_merge.subprocess.CompletedProcess(
+            args=["gh", "pr", "merge"],
+            returncode=1,
+            stdout="",
+            stderr=(
+                "GraphQL: Pull request Branch does not have required protected "
+                "branch rules (enablePullRequestAutoMerge)"
+            ),
+        )
+        success = auto_merge.subprocess.CompletedProcess(
+            args=["gh", "pr", "merge"],
+            returncode=0,
+            stdout="",
+            stderr="",
+        )
+
+        with (
+            patch.object(auto_merge, "gh_available", return_value=True),
+            patch.object(
+                auto_merge.subprocess,
+                "run",
+                side_effect=[auto_merge_unavailable, success],
+            ),
+        ):
+            auto_merge.enable_auto_merge(release_prs, "squash")
+
+    def test_enable_auto_merge_raises_for_permission_errors(self) -> None:
+        release_prs = [
+            auto_merge.ReleasePullRequest(
+                number=28,
+                url="https://github.com/pagopa/eng-cloud-strategy-hub/pull/28",
+                title="chore(main): release code 1.0.0",
+                head_branch_name="release-please--branches--main--components--code",
+                base_branch_name="main",
+                source="release-please-output",
+            )
+        ]
+
+        permission_error = auto_merge.subprocess.CompletedProcess(
+            args=["gh", "pr", "merge"],
+            returncode=1,
+            stdout="",
+            stderr="GraphQL: Resource not accessible by integration (mergePullRequest)",
+        )
+
+        with (
+            patch.object(auto_merge, "gh_available", return_value=True),
+            patch.object(auto_merge.subprocess, "run", return_value=permission_error),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError, "does not have enough permissions"
+            ):
+                auto_merge.enable_auto_merge(release_prs, "squash")
+
+
+class ReleasePleaseValidateInputsTests(unittest.TestCase):
+    def test_fail_writes_failure_reason_to_github_output(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            output_path = Path(temporary_dir) / "github-output.txt"
+            with patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_path)}):
+                result = validate_inputs.fail("release-please config file not found")
+
+            self.assertEqual(1, result)
+            self.assertTrue(output_path.exists())
+            self.assertIn(
+                "release-please config file not found",
+                output_path.read_text(encoding="utf-8"),
+            )
+
+    def test_validate_wrapper_inputs_accepts_defaults(self) -> None:
+        validate_inputs.validate_wrapper_inputs(
+            {
+                "GITHUB_TOKEN_INPUT": "token",
+                "CHECKOUT_INPUT": "true",
+                "TARGET_BRANCH_INPUT": "main",
+                "AUTO_MERGE_INPUT": "true",
+                "SKIP_GITHUB_RELEASE_INPUT": "false",
+                "MERGE_METHOD_INPUT": "squash",
+                "DEBUG_INPUT": "false",
+            }
+        )
+
+    def test_validate_consumer_files_rejects_invalid_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            config_file = root / "release-please-config.json"
+            manifest_file = root / ".release-please-manifest.json"
+            config_file.write_text("not-json", encoding="utf-8")
+            manifest_file.write_text("{}", encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ValueError, "release-please config file must be valid JSON"
+            ):
+                validate_inputs.validate_consumer_files(
+                    {
+                        "GITHUB_WORKSPACE": str(root),
+                        "CONFIG_FILE_INPUT": "release-please-config.json",
+                        "MANIFEST_FILE_INPUT": ".release-please-manifest.json",
+                        "DEBUG_INPUT": "false",
+                    }
+                )
+
+    def test_validate_consumer_files_rejects_non_object_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            (root / "release-please-config.json").write_text("[]", encoding="utf-8")
+            (root / ".release-please-manifest.json").write_text("{}", encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ValueError, "release-please config file must contain a JSON object"
+            ):
+                validate_inputs.validate_consumer_files(
+                    {
+                        "GITHUB_WORKSPACE": str(root),
+                        "CONFIG_FILE_INPUT": "release-please-config.json",
+                        "MANIFEST_FILE_INPUT": ".release-please-manifest.json",
+                        "DEBUG_INPUT": "false",
+                    }
+                )
+
+    def test_validate_consumer_files_rejects_paths_outside_workspace(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            root = Path(temporary_dir)
+            outside_root = root.parent / "outside.json"
+            outside_root.write_text("{}", encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ValueError, "must use a repository-relative path"
+            ):
+                validate_inputs.validate_consumer_files(
+                    {
+                        "GITHUB_WORKSPACE": str(root),
+                        "CONFIG_FILE_INPUT": str(outside_root),
+                        "MANIFEST_FILE_INPUT": ".release-please-manifest.json",
+                        "DEBUG_INPUT": "false",
+                    }
+                )
+
+
+class ReleasePleaseGenerateSummaryTests(unittest.TestCase):
+    def test_format_summary_reports_early_validation_failure(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_STEP_OUTCOME": "success",
+            "RP_VALIDATE_FILES_OUTCOME": "failure",
+            "RP_TARGET_BRANCH": "feature/release-test",
+            "RP_AUTO_MERGE": "true",
+        })
+        self.assertIn("🔴 **Failed / Action Required**", summary)
+
+    def test_format_summary_reports_cancelled_execution(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_STEP_OUTCOME": "success",
+            "RP_RELEASE_OUTCOME": "cancelled",
+            "RP_TARGET_BRANCH": "main",
+        })
+        self.assertIn("🟠 **Cancelled / Action Required**", summary)
+        self.assertIn(
+            "<summary>⚠️ <b>Failure Details</b></summary>",
+            summary,
+        )
+
+    def test_format_summary_reports_release_and_tag_publication_enabled(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_SKIP_GITHUB_RELEASE": "false",
+            "RP_TARGET_BRANCH": "feature/release-test",
+        })
+        self.assertIn(
+            "| **Release and Tag Publication** | `enabled` |",
+            summary,
+        )
+
+    def test_format_summary_no_changes(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_TARGET_BRANCH": "main",
+            "RP_AUTO_MERGE": "true",
+            "RP_MERGE_METHOD": "squash",
+        })
+        self.assertIn("💤 **No Changes**", summary)
+        self.assertIn("| **Target Branch** | `main` |", summary)
+        self.assertIn("💡 **Tip**", summary)
+
+    def test_format_summary_release_published(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_RELEASE_CREATED": "true",
+            "RP_TAG_NAME": "v2.6.0",
+            "RP_PATHS_RELEASED": '["actions", "scripts"]',
+            "RP_TARGET_BRANCH": "main",
+            "RP_AUTO_MERGE": "true",
+        })
+        self.assertIn("🚀 **Release Published**", summary)
+        self.assertIn("`v2.6.0`", summary)
+        self.assertIn("`actions`, `scripts`", summary)
+
+    def test_format_summary_lists_each_generated_release(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_RELEASES_CREATED": "true",
+            "RP_PATHS_RELEASED": json.dumps(["actions", "scripts"]),
+            "RP_RELEASE_OUTPUTS_JSON": json.dumps({
+                "actions--release_created": "true",
+                "actions--version": "1.4.0",
+                "actions--tag_name": "actions-v1.4.0",
+                "actions--html_url": (
+                    "https://github.com/pagopa/eng-cloud-strategy-hub/releases/"
+                    "tag/actions-v1.4.0"
+                ),
+                "scripts--release_created": "true",
+                "scripts--version": "2.1.0",
+                "scripts--tag_name": "scripts-v2.1.0",
+                "scripts--html_url": (
+                    "https://github.com/pagopa/eng-cloud-strategy-hub/releases/"
+                    "tag/scripts-v2.1.0"
+                ),
+            }),
+            "RP_TARGET_BRANCH": "main",
+        })
+
+        self.assertIn("### 📦 Releases generated (2)", summary)
+        self.assertIn(
+            "| `actions` | `1.4.0` | `actions-v1.4.0` | "
+            "[View release](https://github.com/pagopa/eng-cloud-strategy-hub/releases/tag/actions-v1.4.0) |",
+            summary,
+        )
+        self.assertIn(
+            "| `scripts` | `2.1.0` | `scripts-v2.1.0` | "
+            "[View release](https://github.com/pagopa/eng-cloud-strategy-hub/releases/tag/scripts-v2.1.0) |",
+            summary,
+        )
+
+    def test_format_summary_pr_ready(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_PR": "https://github.com/pagopa/eng-cloud-strategy-hub/pull/70",
+            "RP_TARGET_BRANCH": "main",
+            "RP_AUTO_MERGE": "true",
+            "RP_MERGE_METHOD": "squash",
+        })
+        self.assertIn("📝 **Release PR Ready**", summary)
+        self.assertIn("[70](https://github.com/pagopa/eng-cloud-strategy-hub/pull/70)", summary)
+        self.assertIn("(Auto-merge: `squash`)", summary)
+
+    def test_format_summary_failure(self) -> None:
+        summary = generate_summary.format_summary({
+            "RP_STEP_OUTCOME": "failure",
+            "RP_FAILURE_REASON": "Permission denied when enabling auto-merge.",
+            "RP_TARGET_BRANCH": "main",
+        })
+        self.assertIn("🔴 **Failed / Action Required**", summary)
+        self.assertIn("Permission denied when enabling auto-merge.", summary)
+
+    def test_format_summary_includes_redacted_failure_log(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_dir:
+            log_dir = Path(temporary_dir)
+            (log_dir / "auto-merge.log").write_text(
+                "❌ Permission denied\nAuthorization: Bearer ghp_secret-value\n",
+                encoding="utf-8",
+            )
+
+            summary = generate_summary.format_summary({
+                "RP_STEP_OUTCOME": "failure",
+                "RP_FAILURE_REASON": "Permission denied when enabling auto-merge.",
+                "RP_LOG_DIR": str(log_dir),
+                "RP_TARGET_BRANCH": "main",
+            })
+
+        self.assertIn("### auto-merge", summary)
+        self.assertIn("Permission denied", summary)
+        self.assertIn("[REDACTED]", summary)
+        self.assertNotIn("ghp_secret-value", summary)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -4,7 +4,6 @@
 Usage examples:
   python3 tools/validate_repo_locally/validate_repo_locally.py
   python3 tools/validate_repo_locally/validate_repo_locally.py --interactive
-  python3 tools/validate_repo_locally/validate_repo_locally.py --skip pre-commit
   python3 tools/validate_repo_locally/validate_repo_locally.py --only terraform-sh-tests
 
 Dependency decision note:
@@ -31,11 +30,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ACTIONLINT_PACKAGE = "github.com/rhysd/actionlint/cmd/actionlint@v1.7.12"
-PRE_COMMIT_CONFIG = ".pre-commit-config.yaml"
-PRE_COMMIT_IMAGE = (
-    "ghcr.io/antonbabenko/pre-commit-terraform:v1.105.0"
-    "@sha256:4ef4b8323b27fc263535ad88c9d2f20488fcb3b520258e5e7f0553ed5f6692b5"
-)
 DEFAULT_TMP_DIR = "tmp/validate-repo-locally"
 SHELL_TARGET_ROOTS = (
     ".github/scripts",
@@ -44,18 +38,27 @@ SHELL_TARGET_ROOTS = (
     "tools",
     "validate-repo-locally.sh",
 )
+TERRAFORM_WRAPPER_SUITE = "tests/scripts/cross-provider/terraform-sh"
+AWS_TERRAFORM_SH_TESTS = "tests/scripts/aws/terraform-sh"
+AWS_STATE_CREATOR_SUITE = "tests/scripts/aws/aws-terraform-s3-state-creator"
 TERRAFORM_WRAPPER_TARGETS = (
-    "scripts/aws/terraform.sh",
-    "scripts/azure/terraform.sh",
-    "scripts/gcp/terraform.sh",
-    "tests/scripts/terraform_wrappers/lib/assertions.sh",
-    "tests/scripts/terraform_wrappers/run.sh",
-    "tests/scripts/terraform_wrappers/fakes/terraform",
-    "tests/scripts/terraform_wrappers/fakes/tf-summarize",
-    "tests/scripts/terraform_wrappers/fakes/az",
-    "tests/scripts/terraform_wrappers/fakes/aws",
-    "tests/scripts/terraform_wrappers/fakes/gcloud",
-    "tests/scripts/terraform_wrappers/fakes/tflist",
+    "scripts/aws/terraform-sh/terraform.sh",
+    "scripts/azure/terraform-sh/terraform.sh",
+    "scripts/gcp/terraform-sh/terraform.sh",
+    f"{TERRAFORM_WRAPPER_SUITE}/lib/assertions.sh",
+    f"{TERRAFORM_WRAPPER_SUITE}/run.sh",
+    f"{TERRAFORM_WRAPPER_SUITE}/fakes/terraform",
+    f"{TERRAFORM_WRAPPER_SUITE}/fakes/tf-summarize",
+    f"{TERRAFORM_WRAPPER_SUITE}/fakes/az",
+    f"{TERRAFORM_WRAPPER_SUITE}/fakes/aws",
+    f"{TERRAFORM_WRAPPER_SUITE}/fakes/gcloud",
+    f"{TERRAFORM_WRAPPER_SUITE}/fakes/tflist",
+)
+AWS_STATE_CREATOR_TARGETS = (
+    "scripts/aws/aws-terraform-s3-state-creator/aws-terraform-s3-state-creator.sh",
+    f"{AWS_STATE_CREATOR_SUITE}/run.sh",
+    f"{AWS_STATE_CREATOR_SUITE}/fakes/aws",
+    f"{TERRAFORM_WRAPPER_SUITE}/lib/assertions.sh",
 )
 STEP_ALIASES = {
     "code-analysis": (
@@ -63,8 +66,10 @@ STEP_ALIASES = {
         "shell-static-analysis",
         "copilot-entrypoints",
     ),
-    "precommit": ("pre-commit",),
-    "terraform": ("terraform-sh-tests",),
+    "terraform": (
+        "terraform-sh-tests",
+        "aws-s3-state-creator-tests",
+    ),
     "terraform-wrapper-tests": ("terraform-sh-tests",),
 }
 INTERACTIVE_REQUIREMENTS = "tools/validate_repo_locally/requirements.txt"
@@ -179,16 +184,16 @@ def build_steps() -> list[Step]:
             run_copilot_entrypoints,
         ),
         Step(
-            "pre-commit",
-            ".github/workflows/_pre-commit.yml",
-            "Containerized pre-commit suite",
-            run_pre_commit,
-        ),
-        Step(
             "terraform-sh-tests",
-            ".github/workflows/terraform-sh-tests.yml",
+            ".github/workflows/_code-analysis.yml",
             "Terraform wrapper syntax, lint, and simulation suite",
             run_terraform_wrapper_tests,
+        ),
+        Step(
+            "aws-s3-state-creator-tests",
+            ".github/workflows/_code-analysis.yml",
+            "AWS state bucket creator syntax, lint, and simulation suite",
+            run_aws_state_creator_tests,
         ),
     ]
 
@@ -573,67 +578,12 @@ def run_copilot_entrypoints(context: RunnerContext) -> int:
     return 0
 
 
-def run_pre_commit(context: RunnerContext) -> int:
-    if not shutil.which("docker"):
-        context.console.error("Missing required binary: docker.")
-        return 1
-
-    cache_dir = context.tmp_dir / "pre-commit-cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    commands = (
-        ["docker", "pull", PRE_COMMIT_IMAGE],
-        [
-            "docker",
-            "run",
-            "--rm",
-            "--entrypoint",
-            "cat",
-            PRE_COMMIT_IMAGE,
-            "/usr/bin/tools_versions_info",
-        ],
-        build_pre_commit_run_command(context.root, cache_dir),
-    )
-    env = {"TF_INPUT": "0", "TF_IN_AUTOMATION": "1"}
-    for command in commands:
-        status = run_command(context, command, env=env)
+def run_syntax_checks(context: RunnerContext, targets: Sequence[Path]) -> int:
+    for target in targets:
+        status = run_command(context, ["bash", "-n", target])
         if status != 0:
             return status
     return 0
-
-
-def build_pre_commit_run_command(root: Path, cache_dir: Path) -> list[str]:
-    user_id = "1000:1000"
-    if hasattr(os, "getuid") and hasattr(os, "getgid"):
-        user_id = f"{os.getuid()}:{os.getgid()}"
-
-    return [
-        "docker",
-        "run",
-        "--rm",
-        "-e",
-        f"USERID={user_id}",
-        "-e",
-        "PRE_COMMIT_HOME=/pre-commit-cache",
-        "-e",
-        "TF_INPUT",
-        "-e",
-        "TF_IN_AUTOMATION",
-        "-v",
-        f"{cache_dir}:/pre-commit-cache",
-        "-v",
-        f"{root}:/lint",
-        "-w",
-        "/lint",
-        PRE_COMMIT_IMAGE,
-        "run",
-        "--all-files",
-        "--config",
-        PRE_COMMIT_CONFIG,
-        "--verbose",
-        "--show-diff-on-failure",
-        "--color",
-        "always",
-    ]
 
 
 def run_terraform_wrapper_tests(context: RunnerContext) -> int:
@@ -641,7 +591,7 @@ def run_terraform_wrapper_tests(context: RunnerContext) -> int:
     if targets is None:
         return 1
 
-    syntax_status = run_command(context, ["bash", "-n", *targets])
+    syntax_status = run_syntax_checks(context, targets)
     if syntax_status != 0:
         return syntax_status
 
@@ -655,7 +605,7 @@ def run_terraform_wrapper_tests(context: RunnerContext) -> int:
 
     original_modes = read_file_modes(targets)
     logs_snapshot = snapshot_directory(
-        context.root / "tests/scripts/terraform_wrappers/logs",
+        context.root / TERRAFORM_WRAPPER_SUITE / "logs",
         context.tmp_dir / "snapshots/terraform-wrapper-logs",
         context.dry_run,
     )
@@ -665,7 +615,61 @@ def run_terraform_wrapper_tests(context: RunnerContext) -> int:
         if chmod_status != 0:
             return chmod_status
         suite_status = run_command(
-            context, ["bash", "tests/scripts/terraform_wrappers/run.sh"]
+            context, ["bash", f"{TERRAFORM_WRAPPER_SUITE}/run.sh"]
+        )
+        if suite_status != 0:
+            return suite_status
+        suite_status = run_command(
+            context,
+            [
+                sys.executable,
+                "-m",
+                "unittest",
+                "discover",
+                "-s",
+                AWS_TERRAFORM_SH_TESTS,
+                "-p",
+                "test_*.py",
+            ],
+        )
+        return suite_status
+    finally:
+        restore_file_modes(original_modes, context.dry_run)
+        if suite_status == 0:
+            restore_directory_snapshot(logs_snapshot, context.dry_run)
+
+
+def run_aws_state_creator_tests(context: RunnerContext) -> int:
+    targets = resolve_paths(context.root, AWS_STATE_CREATOR_TARGETS)
+    if targets is None:
+        return 1
+
+    syntax_status = run_syntax_checks(context, targets)
+    if syntax_status != 0:
+        return syntax_status
+
+    shellcheck_status = run_shellcheck(
+        context,
+        targets,
+        include_external_sources=False,
+    )
+    if shellcheck_status != 0:
+        return shellcheck_status
+
+    original_modes = read_file_modes(targets)
+    logs_snapshot = snapshot_directory(
+        context.root / AWS_STATE_CREATOR_SUITE / "logs",
+        context.tmp_dir / "snapshots/aws-state-creator-logs",
+        context.dry_run,
+    )
+    suite_status = 1
+    try:
+        chmod_status = run_command(context, ["chmod", "+x", *targets])
+        if chmod_status != 0:
+            return chmod_status
+        suite_status = run_command(
+            context,
+            ["bash", f"{AWS_STATE_CREATOR_SUITE}/run.sh"],
         )
         return suite_status
     finally:
