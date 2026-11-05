@@ -20,7 +20,7 @@ provider "aws" {
 }
 
 module "backup_alerting" {
-  source = ".."
+  source = "./.."
 
   solution_prefix = "team-payments"
 
@@ -41,7 +41,7 @@ module "backup_alerting" {
 ###############################################################################
 
 module "backup_alerting_simple" {
-  source = ".."
+  source = "./.."
 
   solution_prefix = "team-identity"
 
@@ -65,7 +65,7 @@ module "backup_alerting_simple" {
 ###############################################################################
 
 module "backup_alerting_grafana" {
-  source = ".."
+  source = "./.."
 
   solution_prefix = "team-platform"
 

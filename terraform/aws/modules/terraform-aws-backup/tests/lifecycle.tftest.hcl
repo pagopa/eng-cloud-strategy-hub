@@ -19,7 +19,8 @@ variables {
   selection_tags  = { backup-workload = "orders" }
 }
 run "seven_day_product_override" {
-  command = apply
+  state_key = "production"
+  command   = apply
   variables { retention_days = 7 }
   assert {
     condition     = aws_backup_vault_lock_configuration.primary.min_retention_days == 7 && aws_backup_vault_lock_configuration.dr[0].min_retention_days == 7
@@ -193,7 +194,8 @@ run "pitr_below_explicit_minimum" {
 }
 
 run "nonproduction_copy_is_rejected" {
-  command = plan
+  state_key = "nonproduction"
+  command   = plan
   variables {
     environment = "nonprod"
     default_plan_additional_rules = [{

@@ -48,7 +48,7 @@ resource "aws_backup_restore_testing_selection" "this" {
   # Hours the restored resource is retained so optional validation can run.
   validation_window_hours = var.restore_testing_max_duration
 
-  protected_resource_arns = length(var.selection_tags) > 0 ? ["*"] : var.resource_arns
+  protected_resource_arns = length(var.selection_tags) > 0 ? null : var.resource_arns
 
   dynamic "protected_resource_conditions" {
     for_each = length(var.selection_tags) > 0 ? [1] : []

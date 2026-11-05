@@ -21,7 +21,8 @@ variables {
 }
 
 run "production_defaults" {
-  command = apply
+  state_key = "production"
+  command   = apply
   assert {
     condition     = aws_backup_vault_lock_configuration.primary.changeable_for_days == null && aws_backup_vault_lock_configuration.primary.min_retention_days == 35
     error_message = "Production must default to GOVERNANCE and 35-day retention."
@@ -37,7 +38,8 @@ run "production_defaults" {
 }
 
 run "nonproduction_defaults" {
-  command = apply
+  state_key = "nonproduction"
+  command   = apply
   variables { environment = "nonprod" }
   assert {
     condition     = aws_backup_vault_lock_configuration.primary.changeable_for_days == null && alltrue([for rule in module.default_plan.rules : rule.lifecycle[0].delete_after == 14 && length(rule.copy_action) == 0])

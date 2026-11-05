@@ -49,13 +49,13 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.71.0, < 6.0.0"
+      version = ">= 5.72.0, < 6.0.0"
     }
   }
 }
 ```
 
-Core requires AWS provider 5.71.0 because Terraform needs restore-testing schemas
+Core requires AWS provider 5.72.0 because Terraform needs restore-testing schemas
 even when those resources are disabled. Native mock tests require Terraform
 1.7 or later; the deployment compatibility floor remains 1.5.0.
 
@@ -383,7 +383,7 @@ do not imply independent state when composed in one root. See the
 
 Set `enable_restore_testing = true` to request scheduled restore tests in the
 primary vault. The default schedule is Saturday at 03:00 UTC. Selection supports
-one tag with a wildcard ARN, or up to 30 explicit ARNs without tags. Multi-tag
+one tag via a protected-resource condition, or up to 30 explicit ARNs without tags. Multi-tag
 OR, exclusions, mixed selectors, type-wide selection, and implicit all-resource
 fallback are rejected rather than silently broadening or narrowing scope.
 
@@ -432,7 +432,7 @@ core and presets reuse the same [backup-plan implementation](./modules/backup-pl
 The repository's [Terraform Backup workflow](../../../../.github/workflows/terraform-backup.yml)
 is designed to run formatting, backend-disabled initialization, caller-root
 validation, and native mock tests for all seven public modules and seven examples.
-It also checks failure propagation, AWS provider 5.71.0, Terraform 1.5.7
+It also checks failure propagation, AWS provider 5.72.0, Terraform 1.5.7
 compatibility, and workflow linting. Mock tests use Terraform 1.14.3.
 
 Candidate-bound native CI evidence is still pending. Local formatting or authored

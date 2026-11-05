@@ -19,8 +19,8 @@ variables {
 run "single_tag_restore_scope" {
   command = apply
   assert {
-    condition     = aws_backup_restore_testing_selection.this["DynamoDB"].protected_resource_arns == toset(["*"]) && aws_backup_restore_testing_selection.this["DynamoDB"].protected_resource_conditions[0].string_equals[0].key == "aws:ResourceTag/backup-workload"
-    error_message = "Restore testing must apply its tag condition to a wildcard selector."
+    condition     = length(aws_backup_restore_testing_selection.this["DynamoDB"].protected_resource_arns) == 0 && aws_backup_restore_testing_selection.this["DynamoDB"].protected_resource_conditions[0].string_equals[0].key == "aws:ResourceTag/backup-workload"
+    error_message = "Tag-based restore testing must use conditions without a wildcard ARN selector."
   }
 }
 run "explicit_arn_restore_scope" {
