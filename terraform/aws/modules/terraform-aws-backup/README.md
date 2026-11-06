@@ -452,3 +452,111 @@ Use the consumer's approved Terraform pipeline for deployment. The repository's
 mock workflow is not that deployment pipeline. On failure, stop promotion and
 review changes; do not use blanket destruction as rollback for protected keys
 or finalized COMPLIANCE vaults.
+
+<!-- BEGIN_TF_DOCS -->
+## Requirements
+
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.5.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.72.0, < 6.0.0 |
+
+## Providers
+
+| Name | Version |
+|------|---------|
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.72.0, < 6.0.0 |
+| <a name="provider_aws.dr"></a> [aws.dr](#provider\_aws.dr) | >= 5.72.0, < 6.0.0 |
+
+## Modules
+
+| Name | Source | Version |
+|------|--------|---------|
+| <a name="module_continuous_plan"></a> [continuous\_plan](#module\_continuous\_plan) | ./modules/backup-plan | n/a |
+| <a name="module_default_plan"></a> [default\_plan](#module\_default\_plan) | ./modules/backup-plan | n/a |
+
+## Resources
+
+| Name | Type |
+|------|------|
+| [aws_backup_restore_testing_plan.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/backup_restore_testing_plan) | resource |
+| [aws_backup_restore_testing_selection.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/backup_restore_testing_selection) | resource |
+| [aws_backup_vault.dr](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/backup_vault) | resource |
+| [aws_backup_vault.primary](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/backup_vault) | resource |
+| [aws_backup_vault_lock_configuration.dr](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/backup_vault_lock_configuration) | resource |
+| [aws_backup_vault_lock_configuration.primary](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/backup_vault_lock_configuration) | resource |
+| [aws_iam_role.backup](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
+| [aws_iam_role.restore](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
+| [aws_iam_role_policy.restore_kms](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
+| [aws_iam_role_policy_attachment.backup_s3](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_iam_role_policy_attachment.backup_service](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_iam_role_policy_attachment.restore_s3](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_iam_role_policy_attachment.restore_service](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_kms_alias.backup](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/kms_alias) | resource |
+| [aws_kms_alias.backup_dr](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/kms_alias) | resource |
+| [aws_kms_key.backup](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/kms_key) | resource |
+| [aws_kms_key.backup_dr](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/kms_key) | resource |
+| [aws_kms_key_policy.backup](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/kms_key_policy) | resource |
+| [aws_kms_key_policy.backup_dr](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/kms_key_policy) | resource |
+| [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
+| [aws_caller_identity.dr](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
+| [aws_iam_policy_document.kms_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_iam_policy_document.kms_policy_dr](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_region.dr](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
+| [aws_region.primary](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | Primary region where the workload lives. Must match the caller-supplied aws provider. | `string` | n/a | yes |
+| <a name="input_environment"></a> [environment](#input\_environment) | Environment type. Drives default behaviour for Vault Lock, cross-region copy, retention, etc. | `string` | n/a | yes |
+| <a name="input_backup_schedule"></a> [backup\_schedule](#input\_backup\_schedule) | Cron expression for the backup schedule. | `string` | `"cron(0 1 * * ? *)"` | no |
+| <a name="input_backup_window_minutes"></a> [backup\_window\_minutes](#input\_backup\_window\_minutes) | Duration of the backup window in minutes. | `number` | `480` | no |
+| <a name="input_cold_storage_after"></a> [cold\_storage\_after](#input\_cold\_storage\_after) | Number of days before transitioning recovery points to cold storage. 0 (default) disables the transition. When set, retention\_days must be at least cold\_storage\_after + 90 (AWS Backup requirement). | `number` | `null` | no |
+| <a name="input_continuous_backup_selection_tags"></a> [continuous\_backup\_selection\_tags](#input\_continuous\_backup\_selection\_tags) | Dedicated, non-empty tags required when continuous backup is enabled.<br/>Continuous backup always uses its own selection; it never falls back to<br/>snapshot tags. Tag matches use OR, so each tag must identify only supported<br/>S3 or RDS/Aurora resources. DynamoDB PITR is separate native configuration. | `map(string)` | `null` | no |
+| <a name="input_continuous_retention_days"></a> [continuous\_retention\_days](#input\_continuous\_retention\_days) | Independent AWS Backup PITR retention in whole days, from 1 to 35. | `number` | `35` | no |
+| <a name="input_copy_retention_days"></a> [copy\_retention\_days](#input\_copy\_retention\_days) | Retention period for cross-region copies. Defaults to the primary retention\_days. | `number` | `null` | no |
+| <a name="input_cross_region_copy"></a> [cross\_region\_copy](#input\_cross\_region\_copy) | Deprecated compatibility input. The module no longer uses this variable to<br/>decide whether DR copy is enabled.<br/><br/>Current behaviour:<br/>  - prod    : DR copy is enabled by default and requires dr\_region<br/>  - nonprod : DR copy is disabled | `string` | `"Default"` | no |
+| <a name="input_default_plan_additional_rules"></a> [default\_plan\_additional\_rules](#input\_default\_plan\_additional\_rules) | Optional scheduled rules appended to the default backup plan. Use this<br/>when the same selection of resources needs extra schedules or retention<br/>policies without creating a separate backup-plan module.<br/><br/>These rules reuse the core module's primary vault, default selection, and<br/>backup IAM role. For separate selections or fully custom plans, use the<br/>backup-plan sub-module or one of the preset wrappers instead. | <pre>list(object({<br/>    rule_name               = string<br/>    schedule                = string<br/>    start_window            = optional(number)<br/>    completion_window       = optional(number)<br/>    cold_storage_after      = optional(number, 0)<br/>    delete_after            = number<br/>    recovery_point_tags     = optional(map(string), {})<br/>    copy_to_dr              = optional(bool)<br/>    copy_cold_storage_after = optional(number)<br/>    copy_delete_after       = optional(number)<br/>  }))</pre> | `[]` | no |
+| <a name="input_dr_region"></a> [dr\_region](#input\_dr\_region) | Target region for production DR copy. Must differ from aws\_region, match the caller's aws.dr provider, and belong to the existing EU allow-list. | `string` | `null` | no |
+| <a name="input_enable_continuous_backup"></a> [enable\_continuous\_backup](#input\_enable\_continuous\_backup) | Enable dedicated AWS Backup continuous backup for supported S3 and RDS/Aurora resources. Disabled by default. DynamoDB PITR is configured natively by the caller. | `bool` | `null` | no |
+| <a name="input_enable_restore_testing"></a> [enable\_restore\_testing](#input\_enable\_restore\_testing) | Whether to create a Restore Testing Plan. | `bool` | `false` | no |
+| <a name="input_excluded_resource_arns"></a> [excluded\_resource\_arns](#input\_excluded\_resource\_arns) | Optional list of resource ARNs (or wildcard ARNs) to exclude from the default plan selection. Useful to drop ephemeral resources when selecting by service type. | `list(string)` | `[]` | no |
+| <a name="input_kms_deletion_window_in_days"></a> [kms\_deletion\_window\_in\_days](#input\_kms\_deletion\_window\_in\_days) | Waiting period in days before KMS key deletion. Between 7 and 30. | `number` | `30` | no |
+| <a name="input_kms_enable_key_rotation"></a> [kms\_enable\_key\_rotation](#input\_kms\_enable\_key\_rotation) | Enable automatic annual key rotation. | `bool` | `true` | no |
+| <a name="input_kms_multi_region"></a> [kms\_multi\_region](#input\_kms\_multi\_region) | Whether the backup CMKs are multi-region keys. Multi-region keys simplify cross-region DR restore (the same key material exists in the DR region). Cannot be changed after key creation. See decision §6.3 (KMS key protection). | `bool` | `false` | no |
+| <a name="input_resource_arns"></a> [resource\_arns](#input\_resource\_arns) | Optional list of explicit (or wildcard) resource ARNs to select, combined with resource\_types and selection\_tags. | `list(string)` | `[]` | no |
+| <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types) | Optional list of AWS service types to back up by selecting ALL of their<br/>resources via wildcard ARNs (e.g. ["DynamoDB", "S3", "RDS"]), as an<br/>alternative or complement to tag-based selection.<br/><br/>Supported types are defined by the resource\_type\_arns map in the backup-plan<br/>sub-module (currently: S3, DynamoDB, EC2, EBS, RDS, Aurora, EFS). Unsupported<br/>values are rejected with a clear error at plan time.<br/>Note: AWS Backup allows at most 30 wildcard ARNs per selection. | `list(string)` | `[]` | no |
+| <a name="input_restore_testing_max_duration"></a> [restore\_testing\_max\_duration](#input\_restore\_testing\_max\_duration) | Hours a restored test resource is retained so optional validation can run (validation\_window\_hours). Between 1 and 168. | `number` | `24` | no |
+| <a name="input_restore_testing_resource_types"></a> [restore\_testing\_resource\_types](#input\_restore\_testing\_resource\_types) | Protected resource types to include in the Restore Testing Plan selections (e.g., DynamoDB, EBS, RDS, S3, EFS, Redshift). One selection is created per type. | `list(string)` | <pre>[<br/>  "DynamoDB",<br/>  "EBS",<br/>  "RDS",<br/>  "S3",<br/>  "EFS"<br/>]</pre> | no |
+| <a name="input_restore_testing_schedule"></a> [restore\_testing\_schedule](#input\_restore\_testing\_schedule) | Cron expression for restore testing schedule. | `string` | `"cron(0 3 ? * SAT *)"` | no |
+| <a name="input_restore_testing_start_window"></a> [restore\_testing\_start\_window](#input\_restore\_testing\_start\_window) | Start window for restore testing in minutes. | `number` | `480` | no |
+| <a name="input_retention_days"></a> [retention\_days](#input\_retention\_days) | Number of days to retain recovery points. Defaults to 35 in prod and 14 in nonprod. Must be >= the Vault Lock minimum retention. | `number` | `null` | no |
+| <a name="input_selection_tags"></a> [selection\_tags](#input\_selection\_tags) | Map of tag key/value pairs used to select resources for the backup plan (default selection method, decision §8). Optional if resource\_types or resource\_arns are set. | `map(string)` | `{}` | no |
+| <a name="input_solution_prefix"></a> [solution\_prefix](#input\_solution\_prefix) | Prefix for resources created by this solution (vault, IAM roles, KMS aliases, plans). Caution: changing this value may break execution as different AWS resources have different naming limits (e.g. no underscore for IAM roles). | `string` | `"backup-solution"` | no |
+| <a name="input_tag_identifier_prefix"></a> [tag\_identifier\_prefix](#input\_tag\_identifier\_prefix) | Prefix for the Name tag applied to resources created by this solution. Defaults to solution\_prefix. | `string` | `null` | no |
+| <a name="input_tags"></a> [tags](#input\_tags) | Additional tags to apply to all resources created by the module. | `map(string)` | `{}` | no |
+| <a name="input_vault_lock_changeable_for_days"></a> [vault\_lock\_changeable\_for\_days](#input\_vault\_lock\_changeable\_for\_days) | Cooling-off period in days during which the Vault Lock can still be removed (Compliance mode only). Minimum 3. | `number` | `3` | no |
+| <a name="input_vault_lock_max_retention_days"></a> [vault\_lock\_max\_retention\_days](#input\_vault\_lock\_max\_retention\_days) | Maximum retention in days enforced by Vault Lock. Recovery points cannot have a retention longer than this. Backup jobs targeting the vault must set delete\_after within [vault\_lock\_min\_retention\_days, vault\_lock\_max\_retention\_days]; jobs outside this range are rejected by the vault. | `number` | `3650` | no |
+| <a name="input_vault_lock_min_retention_days"></a> [vault\_lock\_min\_retention\_days](#input\_vault\_lock\_min\_retention\_days) | Explicit minimum retention for both vaults. When null, each vault uses the lower of its environment minimum (35/7) and its shortest core-managed rule; external plans remain caller-owned. | `number` | `null` | no |
+| <a name="input_vault_lock_mode"></a> [vault\_lock\_mode](#input\_vault\_lock\_mode) | Vault Lock mode: GOVERNANCE (default in both environments) or explicit COMPLIANCE, which becomes immutable after its cooling-off period. | `string` | `null` | no |
+
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| <a name="output_backup_plan_arn"></a> [backup\_plan\_arn](#output\_backup\_plan\_arn) | ARN of the default backup plan. |
+| <a name="output_backup_plan_id"></a> [backup\_plan\_id](#output\_backup\_plan\_id) | ID of the default backup plan. |
+| <a name="output_backup_role_arn"></a> [backup\_role\_arn](#output\_backup\_role\_arn) | ARN of the IAM role used by AWS Backup for backup operations. |
+| <a name="output_continuous_plan_id"></a> [continuous\_plan\_id](#output\_continuous\_plan\_id) | ID of the dedicated continuous-backup plan. Null unless enable\_continuous\_backup is true with non-empty dedicated tags. |
+| <a name="output_dr_kms_key_arn"></a> [dr\_kms\_key\_arn](#output\_dr\_kms\_key\_arn) | ARN of the KMS key encrypting the DR vault. Null if cross-region copy is disabled. |
+| <a name="output_dr_kms_key_id"></a> [dr\_kms\_key\_id](#output\_dr\_kms\_key\_id) | ID of the KMS key encrypting the DR vault. Null if cross-region copy is disabled. Pass to the alerting module to monitor the DR key for deletion. |
+| <a name="output_dr_vault_arn"></a> [dr\_vault\_arn](#output\_dr\_vault\_arn) | ARN of the DR backup vault. Null if cross-region copy is disabled. |
+| <a name="output_kms_key_arn"></a> [kms\_key\_arn](#output\_kms\_key\_arn) | ARN of the KMS key encrypting the primary vault. |
+| <a name="output_kms_key_id"></a> [kms\_key\_id](#output\_kms\_key\_id) | ID of the KMS key encrypting the primary vault. |
+| <a name="output_restore_role_arn"></a> [restore\_role\_arn](#output\_restore\_role\_arn) | ARN of the IAM role used by AWS Backup for restore operations. |
+| <a name="output_restore_testing_plan_arn"></a> [restore\_testing\_plan\_arn](#output\_restore\_testing\_plan\_arn) | ARN of the Restore Testing Plan. Null if restore testing is disabled. |
+| <a name="output_vault_arn"></a> [vault\_arn](#output\_vault\_arn) | ARN of the primary backup vault. |
+| <a name="output_vault_name"></a> [vault\_name](#output\_vault\_name) | Name of the primary backup vault. |
+<!-- END_TF_DOCS -->

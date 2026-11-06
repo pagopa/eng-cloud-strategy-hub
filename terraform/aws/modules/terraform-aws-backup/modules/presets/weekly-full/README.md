@@ -31,3 +31,43 @@ vault, IAM role, and compatibility with external vault lock bounds. The schedule
 does not guarantee a successful recovery point or a service-specific full
 backup; verify job and restore evidence separately. Native [tests](./tests/)
 run in CI through `make terraform-backup-check`.
+
+<!-- BEGIN_TF_DOCS -->
+## Requirements
+
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.5.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.30.0, < 6.0.0 |
+
+## Providers
+
+No providers.
+
+## Modules
+
+| Name | Source | Version |
+|------|--------|---------|
+| <a name="module_plan"></a> [plan](#module\_plan) | ../../backup-plan | n/a |
+
+## Resources
+
+No resources.
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| <a name="input_backup_role_arn"></a> [backup\_role\_arn](#input\_backup\_role\_arn) | ARN of the backup IAM role (from the core module output). | `string` | n/a | yes |
+| <a name="input_selection_tags"></a> [selection\_tags](#input\_selection\_tags) | Tags to select resources for weekly full backup. | `map(string)` | n/a | yes |
+| <a name="input_vault_name"></a> [vault\_name](#input\_vault\_name) | Name of the existing backup vault (from the core module). | `string` | n/a | yes |
+| <a name="input_retention_days"></a> [retention\_days](#input\_retention\_days) | Retention for weekly recovery points. | `number` | `90` | no |
+| <a name="input_schedule"></a> [schedule](#input\_schedule) | Cron expression for the weekly backup (default: Sunday 02:00 UTC). | `string` | `"cron(0 2 ? * SUN *)"` | no |
+| <a name="input_tags"></a> [tags](#input\_tags) | Additional tags. | `map(string)` | `{}` | no |
+
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| <a name="output_plan_id"></a> [plan\_id](#output\_plan\_id) | n/a |
+<!-- END_TF_DOCS -->

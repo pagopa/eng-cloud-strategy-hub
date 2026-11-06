@@ -231,3 +231,74 @@ delivery separately; mocked policy JSON is not IAM or delivery certification.
 CI runs the standalone module and [independent example](./examples/) through
 `make terraform-backup-check`. Native validation is pending CI during this
 implementation; no AWS credentials or real apply are used by the test workflow.
+
+<!-- BEGIN_TF_DOCS -->
+## Requirements
+
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.5.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.30.0, < 6.0.0 |
+
+## Providers
+
+| Name | Version |
+|------|---------|
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.30.0, < 6.0.0 |
+
+## Modules
+
+No modules.
+
+## Resources
+
+| Name | Type |
+|------|------|
+| [aws_cloudwatch_event_rule.backup_failures](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule) | resource |
+| [aws_cloudwatch_event_rule.kms_deletion](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule) | resource |
+| [aws_cloudwatch_event_target.backup_failures_sns](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
+| [aws_cloudwatch_event_target.kms_deletion_sns](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
+| [aws_kms_alias.sns](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/kms_alias) | resource |
+| [aws_kms_key.sns](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/kms_key) | resource |
+| [aws_sns_topic.backup_alerts](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic) | resource |
+| [aws_sns_topic_policy.backup_alerts](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_policy) | resource |
+| [aws_sns_topic_subscription.email](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_subscription) | resource |
+| [aws_sns_topic_subscription.lambda](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_subscription) | resource |
+| [aws_sns_topic_subscription.sqs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_subscription) | resource |
+| [aws_sns_topic_subscription.webhook](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_subscription) | resource |
+| [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
+| [aws_iam_policy_document.sns_kms](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_iam_policy_document.sns_topic_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| <a name="input_backup_failure_event_states"></a> [backup\_failure\_event\_states](#input\_backup\_failure\_event\_states) | Backup job states that trigger an alert. | `list(string)` | <pre>[<br/>  "FAILED",<br/>  "EXPIRED",<br/>  "ABORTED"<br/>]</pre> | no |
+| <a name="input_create_sns_topic"></a> [create\_sns\_topic](#input\_create\_sns\_topic) | Whether to create a new SNS topic. Set to false if you want to use an existing topic. | `bool` | `true` | no |
+| <a name="input_email_endpoints"></a> [email\_endpoints](#input\_email\_endpoints) | List of email addresses to subscribe to backup alerts. | `list(string)` | `[]` | no |
+| <a name="input_enable_backup_failure_alerts"></a> [enable\_backup\_failure\_alerts](#input\_enable\_backup\_failure\_alerts) | Whether to create the EventBridge rule for backup/copy/restore failures. | `bool` | `true` | no |
+| <a name="input_enable_kms_deletion_alert"></a> [enable\_kms\_deletion\_alert](#input\_enable\_kms\_deletion\_alert) | Whether to alert when a KMS key is scheduled for deletion. | `bool` | `true` | no |
+| <a name="input_existing_sns_topic_arn"></a> [existing\_sns\_topic\_arn](#input\_existing\_sns\_topic\_arn) | ARN of an existing SNS topic to use. Required when create\_sns\_topic is false. | `string` | `null` | no |
+| <a name="input_kms_deletion_window_in_days"></a> [kms\_deletion\_window\_in\_days](#input\_kms\_deletion\_window\_in\_days) | Waiting period in days before deletion of the SNS CMK created by this module. Between 7 and 30. | `number` | `30` | no |
+| <a name="input_kms_key_ids"></a> [kms\_key\_ids](#input\_kms\_key\_ids) | List of KMS key IDs to monitor for deletion. If empty and enable\_kms\_deletion\_alert is true, monitors all ScheduleKeyDeletion events in the account. | `list(string)` | `[]` | no |
+| <a name="input_lambda_endpoints"></a> [lambda\_endpoints](#input\_lambda\_endpoints) | List of Lambda function ARNs to subscribe. | `list(string)` | `[]` | no |
+| <a name="input_manage_existing_topic_policy"></a> [manage\_existing\_topic\_policy](#input\_manage\_existing\_topic\_policy) | When using an existing SNS topic (create\_sns\_topic = false), also manage its access policy so EventBridge can publish. Leave false if the topic policy is managed elsewhere. WARNING: enabling this overwrites the existing topic's policy. | `bool` | `false` | no |
+| <a name="input_monitored_event_types"></a> [monitored\_event\_types](#input\_monitored\_event\_types) | List of AWS Backup event detail-types to capture. | `list(string)` | <pre>[<br/>  "Backup Job State Change",<br/>  "Copy Job State Change",<br/>  "Restore Job State Change"<br/>]</pre> | no |
+| <a name="input_sns_kms_key_arn"></a> [sns\_kms\_key\_arn](#input\_sns\_kms\_key\_arn) | ARN of an existing customer-managed KMS key to encrypt the SNS topic. If null (default), the module creates a dedicated CMK. AWS-managed keys (e.g. alias/aws/sns) are intentionally not supported — the key policy must allow events.amazonaws.com to call kms:GenerateDataKey* and kms:Decrypt. | `string` | `null` | no |
+| <a name="input_solution_prefix"></a> [solution\_prefix](#input\_solution\_prefix) | Prefix for alerting resources created by this solution (EventBridge rules, SNS topic, KMS alias). Caution: changing this value may break execution as different AWS resources have different naming limits. | `string` | `"backup-solution"` | no |
+| <a name="input_sqs_endpoints"></a> [sqs\_endpoints](#input\_sqs\_endpoints) | List of SQS queue ARNs to subscribe. | `list(string)` | `[]` | no |
+| <a name="input_tag_identifier_prefix"></a> [tag\_identifier\_prefix](#input\_tag\_identifier\_prefix) | Prefix for the Name tag applied to resources created by this solution. Defaults to solution\_prefix. | `string` | `null` | no |
+| <a name="input_tags"></a> [tags](#input\_tags) | Additional tags to apply to all resources. | `map(string)` | `{}` | no |
+| <a name="input_webhook_endpoints"></a> [webhook\_endpoints](#input\_webhook\_endpoints) | List of HTTPS webhook URLs to subscribe (e.g., Grafana, PagerDuty). | `list(string)` | `[]` | no |
+
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| <a name="output_eventbridge_rule_arn"></a> [eventbridge\_rule\_arn](#output\_eventbridge\_rule\_arn) | ARN of the EventBridge rule for backup failures. |
+| <a name="output_kms_deletion_rule_arn"></a> [kms\_deletion\_rule\_arn](#output\_kms\_deletion\_rule\_arn) | ARN of the EventBridge rule for KMS key deletion alerts. |
+| <a name="output_sns_kms_key_arn"></a> [sns\_kms\_key\_arn](#output\_sns\_kms\_key\_arn) | ARN of the customer-managed KMS key encrypting the SNS topic (the one created by this module, or the one passed in via sns\_kms\_key\_arn). Null if no topic is created. |
+| <a name="output_sns_topic_arn"></a> [sns\_topic\_arn](#output\_sns\_topic\_arn) | ARN of the SNS topic for backup alerts. |
+| <a name="output_sns_topic_name"></a> [sns\_topic\_name](#output\_sns\_topic\_name) | Name of the SNS topic. Null if using an existing topic. |
+<!-- END_TF_DOCS -->

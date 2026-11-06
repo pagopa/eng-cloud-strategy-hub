@@ -80,3 +80,53 @@ External vault minima/maxima and service-specific cold/copy availability are
 caller-owned: this module cannot infer an external vault's lock settings.
 
 Native [tests](./tests/) run in CI through `make terraform-backup-check`.
+
+<!-- BEGIN_TF_DOCS -->
+## Requirements
+
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.5.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.30.0, < 6.0.0 |
+
+## Providers
+
+| Name | Version |
+|------|---------|
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.30.0, < 6.0.0 |
+
+## Modules
+
+No modules.
+
+## Resources
+
+| Name | Type |
+|------|------|
+| [aws_backup_plan.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/backup_plan) | resource |
+| [aws_backup_selection.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/backup_selection) | resource |
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| <a name="input_iam_role_arn"></a> [iam\_role\_arn](#input\_iam\_role\_arn) | ARN of the IAM role AWS Backup assumes to run the plan (usually the backup role from the core module). | `string` | n/a | yes |
+| <a name="input_plan_name"></a> [plan\_name](#input\_plan\_name) | Name of the backup plan. Also used as a prefix for the selection name. | `string` | n/a | yes |
+| <a name="input_rules"></a> [rules](#input\_rules) | List of backup rules for the plan. Each rule supports lifecycle, continuous<br/>backup and cross-region copy actions. Optional attributes fall back to<br/>sensible defaults. | <pre>list(object({<br/>    rule_name                = string<br/>    target_vault_name        = string<br/>    schedule                 = string<br/>    start_window             = optional(number, 480)<br/>    completion_window        = optional(number, 960)<br/>    enable_continuous_backup = optional(bool, false)<br/>    cold_storage_after       = optional(number, 0)<br/>    delete_after             = number<br/>    recovery_point_tags      = optional(map(string), {})<br/>    copy_actions = optional(list(object({<br/>      destination_vault_arn = string<br/>      cold_storage_after    = optional(number, 0)<br/>      delete_after          = number<br/>    })), [])<br/>  }))</pre> | n/a | yes |
+| <a name="input_excluded_resource_arns"></a> [excluded\_resource\_arns](#input\_excluded\_resource\_arns) | Optional list of resource ARNs (or wildcard ARNs) to exclude from selection (not\_resources). Useful to exclude ephemeral resources when selecting by service type. | `list(string)` | `[]` | no |
+| <a name="input_resource_arns"></a> [resource\_arns](#input\_resource\_arns) | Optional list of explicit resource ARNs (or wildcard ARNs) to select. Combined (OR) with resource\_types and selection\_tags. | `list(string)` | `[]` | no |
+| <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types) | Optional list of AWS service types to select ALL of their resources via<br/>wildcard ARNs (e.g. ["DynamoDB", "S3", "RDS"]). An alternative to tag-based<br/>selection.<br/><br/>The set of supported types is defined by the resource\_type\_arns map in<br/>locals.tf (currently: S3, DynamoDB, EC2, EBS, RDS, Aurora, EFS). To add a<br/>new type, add a single entry to that map.<br/>Note: AWS Backup allows at most 30 wildcard ARNs per selection. | `list(string)` | `[]` | no |
+| <a name="input_selection_name"></a> [selection\_name](#input\_selection\_name) | Name of the backup selection. Defaults to "<plan\_name>-selection". | `string` | `null` | no |
+| <a name="input_selection_tags"></a> [selection\_tags](#input\_selection\_tags) | Tag key/value pairs used to select resources for this plan. Combined (OR) with resource\_types and resource\_arns when those are set. | `map(string)` | `{}` | no |
+| <a name="input_tags"></a> [tags](#input\_tags) | Tags applied to the backup plan. | `map(string)` | `{}` | no |
+
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| <a name="output_plan_arn"></a> [plan\_arn](#output\_plan\_arn) | ARN of the backup plan. |
+| <a name="output_plan_id"></a> [plan\_id](#output\_plan\_id) | ID of the backup plan. |
+| <a name="output_rules"></a> [rules](#output\_rules) | Effective native rule set, including lifecycle and copy actions. External vault lock compatibility remains caller-owned. |
+| <a name="output_selection_id"></a> [selection\_id](#output\_selection\_id) | ID of the backup selection. |
+| <a name="output_selection_tags"></a> [selection\_tags](#output\_selection\_tags) | Effective native ListOfTags selection set. Multiple entries use OR, not Conditions/AND. |
+<!-- END_TF_DOCS -->

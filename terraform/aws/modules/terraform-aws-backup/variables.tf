@@ -106,6 +106,8 @@ variable "cold_storage_after" {
 # Cross-Region Copy
 ###############################################################################
 
+# Retained as a deprecated compatibility input for existing callers.
+# tflint-ignore: terraform_unused_declarations
 variable "cross_region_copy" {
   description = <<-EOT
     Deprecated compatibility input. The module no longer uses this variable to
