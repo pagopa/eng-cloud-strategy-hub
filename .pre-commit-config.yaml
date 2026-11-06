@@ -103,7 +103,7 @@ repos:
           - --hook-config=--parallelism-limit=1
           - --hook-config=--retry-once-with-cleanup=true
           - --init-args=-backend=false
-          - --init-args=-lockfile=readonly
+          # Validation roots have no committed lockfiles, so init must resolve providers.
           # Avoid raw JSON diagnostics: the hook already switches to JSON internally
           # only when it needs structured retry/error matching.
           - --args=-no-color
