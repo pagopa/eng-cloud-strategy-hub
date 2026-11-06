@@ -1,0 +1,1 @@
+# Callers supply aws and aws.dr. Non-production may map both to its primary provider.

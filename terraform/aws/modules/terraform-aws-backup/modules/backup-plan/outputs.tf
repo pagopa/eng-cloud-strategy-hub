@@ -1,0 +1,24 @@
+output "plan_id" {
+  description = "ID of the backup plan."
+  value       = aws_backup_plan.this.id
+}
+
+output "plan_arn" {
+  description = "ARN of the backup plan."
+  value       = aws_backup_plan.this.arn
+}
+
+output "selection_id" {
+  description = "ID of the backup selection."
+  value       = aws_backup_selection.this.id
+}
+
+output "rules" {
+  description = "Effective native rule set, including lifecycle and copy actions. External vault lock compatibility remains caller-owned."
+  value       = aws_backup_plan.this.rule
+}
+
+output "selection_tags" {
+  description = "Effective native ListOfTags selection set. Multiple entries use OR, not Conditions/AND."
+  value       = aws_backup_selection.this.selection_tag
+}

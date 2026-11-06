@@ -98,12 +98,14 @@ repos:
           - --args=--sort-by=required
       - id: terraform_validate # Validate Terraform configuration without remote backends.
         verbose: true
+        # This module requires callers to provide aws.dr; validate it via consumer fixtures.
+        exclude: '^terraform/aws/modules/terraform-aws-backup/[^/]+\.tf$'
         args:
           # Keep logs deterministic and readable when validate fails in CI.
           - --hook-config=--parallelism-limit=1
           - --hook-config=--retry-once-with-cleanup=true
           - --init-args=-backend=false
-          - --init-args=-lockfile=readonly
+          # Validation roots have no committed lockfiles, so init must resolve providers.
           # Avoid raw JSON diagnostics: the hook already switches to JSON internally
           # only when it needs structured retry/error matching.
           - --args=-no-color
