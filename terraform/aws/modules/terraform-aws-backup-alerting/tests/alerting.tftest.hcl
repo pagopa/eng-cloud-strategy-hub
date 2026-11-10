@@ -147,7 +147,7 @@ run "kms_identifiers_match_ids_and_arns" {
 run "maximum_solution_prefix" {
   command = plan
   variables {
-    solution_prefix = strrep("a", 45)
+    solution_prefix = join("", [for _ in range(45) : "a"])
   }
   assert {
     condition     = length(aws_cloudwatch_event_rule.kms_deletion[0].name) == 64 && length(aws_cloudwatch_event_rule.backup_failures[0].name) <= 64
@@ -158,7 +158,7 @@ run "maximum_solution_prefix" {
 run "oversized_solution_prefix" {
   command = plan
   variables {
-    solution_prefix = strrep("a", 46)
+    solution_prefix = join("", [for _ in range(46) : "a"])
   }
   expect_failures = [var.solution_prefix]
 }

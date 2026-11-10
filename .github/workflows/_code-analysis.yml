@@ -59,7 +59,15 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up Go for actionlint
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # actions/setup-go@v6.0.0 release: https://github.com/actions/setup-go/releases/tag/v6.0.0
+        with:
+          go-version: "1.25.x"
+          cache: false
+
       - name: 🔎 Run actionlint
+        env:
+          GOTOOLCHAIN: local
         run: |
           set -Eeuo pipefail
 
