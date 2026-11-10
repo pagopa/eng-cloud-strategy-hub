@@ -29,7 +29,7 @@ locals {
 
   vault_lock_mode = coalesce(
     var.vault_lock_mode,
-    "GOVERNANCE"
+    local.is_prod ? "COMPLIANCE" : "GOVERNANCE"
   )
 
   primary_retention_days = concat(
@@ -47,11 +47,11 @@ locals {
 
   vault_lock_min_retention_days = coalesce(
     var.vault_lock_min_retention_days,
-    min(local.is_prod ? 35 : 7, min(local.primary_retention_days...))
+    local.is_prod ? 30 : 7
   )
   dr_vault_lock_min_retention_days = coalesce(
     var.vault_lock_min_retention_days,
-    min(local.is_prod ? 35 : 7, min(local.dr_retention_days...))
+    local.is_prod ? 30 : 7
   )
 
   copy_retention_days = coalesce(

@@ -32,6 +32,11 @@ vault, and IAM role. The isolated preset defaults to 7 days; it does not infer
 external vault lock bounds. Every override must fit those bounds. Native
 [tests](./tests/) run in CI through `make terraform-backup-check`.
 
+Optional `plan_name` and `selection_name` inputs preserve the current defaults.
+The final selection name must fit 50 characters. Without overrides, `vault_name`
+must fit 28 characters. For a longer existing vault name, pass a shorter
+`selection_name`; do not rename the vault or truncate existing names.
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -64,6 +69,8 @@ No resources.
 | <a name="input_retention_days"></a> [retention\_days](#input\_retention\_days) | Retention for hourly recovery points. | `number` | `7` | no |
 | <a name="input_schedule"></a> [schedule](#input\_schedule) | Cron expression for hourly backup. | `string` | `"cron(0 * * * ? *)"` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Additional tags. | `map(string)` | `{}` | no |
+| <a name="input_plan_name"></a> [plan\_name](#input\_plan\_name) | Optional explicit plan name. Defaults to <vault\_name>-hourly-plan. | `string` | `null` | no |
+| <a name="input_selection_name"></a> [selection\_name](#input\_selection\_name) | Optional explicit selection name. Defaults to <plan\_name>-selection; the final name must use 1-50 letters, digits, underscores, periods or hyphens. | `string` | `null` | no |
 
 ## Outputs
 

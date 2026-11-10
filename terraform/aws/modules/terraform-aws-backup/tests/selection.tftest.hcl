@@ -98,3 +98,124 @@ run "restore_exact_arn_limit" {
     error_message = "The 30-ARN boundary must retain the exact resource scope."
   }
 }
+
+run "reject_restore_without_resource_types" {
+  command = plan
+  variables { restore_testing_resource_types = [] }
+  expect_failures = [aws_backup_restore_testing_plan.this]
+}
+
+run "reject_unsupported_restore_type" {
+  command = plan
+  variables { restore_testing_resource_types = ["Unsupported"] }
+  expect_failures = [var.restore_testing_resource_types]
+}
+
+run "restore_metadata_is_scoped_by_resource_type" {
+  command = apply
+  variables {
+    restore_testing_resource_types = ["RDS", "DynamoDB"]
+    restore_testing_metadata_overrides = {
+      RDS = {
+        DBSubnetGroupName   = "restore-test-subnets"
+        VpcSecurityGroupIds = "[\"sg-0123456789abcdef0\"]"
+      }
+    }
+  }
+  assert {
+    condition     = try(aws_backup_restore_testing_selection.this["RDS"].restore_metadata_overrides["DBSubnetGroupName"] == "restore-test-subnets" && aws_backup_restore_testing_selection.this["RDS"].restore_metadata_overrides["VpcSecurityGroupIds"] == "[\"sg-0123456789abcdef0\"]", false)
+    error_message = "RDS restore parameters must reach its selection unchanged."
+  }
+  assert {
+    condition     = !contains(keys(aws_backup_restore_testing_selection.this["DynamoDB"].restore_metadata_overrides), "DBSubnetGroupName")
+    error_message = "RDS overrides must not leak into another resource type."
+  }
+}
+
+run "explicit_names_preserve_long_prefix" {
+  command = apply
+  variables {
+    solution_prefix                  = "payments-production-backup-eu-south-1-long"
+    default_selection_name           = "payments-snapshot"
+    enable_continuous_backup         = true
+    continuous_backup_selection_tags = { backup-pitr = "orders" }
+    continuous_selection_name        = "payments-continuous"
+    restore_testing_plan_name        = "payments_restore_test"
+    restore_testing_selection_names  = { DynamoDB = "payments_dynamodb" }
+  }
+  assert {
+    condition     = aws_backup_vault.primary.name == "payments-production-backup-eu-south-1-long" && aws_backup_restore_testing_plan.this[0].name == "payments_restore_test" && aws_backup_restore_testing_selection.this["DynamoDB"].name == "payments_dynamodb"
+    error_message = "Name overrides must preserve the physical vault name and reach restore resources."
+  }
+}
+
+run "reject_unused_restore_metadata_type" {
+  command = plan
+  variables { restore_testing_metadata_overrides = { RDS = { DBSubnetGroupName = "restore-subnets" } } }
+  expect_failures = [aws_backup_restore_testing_plan.this]
+}
+
+run "restore_name_boundary" {
+  command = apply
+  variables { solution_prefix = join("", [for index in range(37) : "a"]) }
+  assert {
+    condition     = length(aws_backup_restore_testing_plan.this[0].name) == 50
+    error_message = "A generated restore plan name of exactly 50 characters must remain valid."
+  }
+}
+
+run "reject_long_restore_plan_name" {
+  command = plan
+  variables { solution_prefix = join("", [for index in range(38) : "a"]) }
+  expect_failures = [aws_backup_restore_testing_plan.this]
+}
+
+run "restore_selection_name_boundary" {
+  command = apply
+  variables {
+    solution_prefix           = join("", [for index in range(41) : "a"])
+    default_selection_name    = "snapshot-selection"
+    restore_testing_plan_name = "restore_test"
+  }
+  assert {
+    condition     = length(aws_backup_restore_testing_selection.this["DynamoDB"].name) == 50
+    error_message = "A generated restore selection name of exactly 50 characters must remain valid."
+  }
+}
+
+run "reject_long_restore_selection_name" {
+  command = plan
+  variables {
+    solution_prefix           = join("", [for index in range(42) : "a"])
+    default_selection_name    = "snapshot-selection"
+    restore_testing_plan_name = "restore_test"
+  }
+  expect_failures = [aws_backup_restore_testing_selection.this]
+}
+
+run "reject_duplicate_restore_names" {
+  command = plan
+  variables {
+    restore_testing_resource_types  = ["RDS", "DynamoDB"]
+    restore_testing_selection_names = { RDS = "same_selection", DynamoDB = "same_selection" }
+  }
+  expect_failures = [aws_backup_restore_testing_plan.this]
+}
+
+run "reject_fractional_restore_window" {
+  command = plan
+  variables { restore_testing_start_window = 90 }
+  expect_failures = [var.restore_testing_start_window]
+}
+
+run "reject_restore_window_above_limit" {
+  command = plan
+  variables { restore_testing_start_window = 10140 }
+  expect_failures = [var.restore_testing_start_window]
+}
+
+run "reject_fractional_restore_duration" {
+  command = plan
+  variables { restore_testing_max_duration = 1.5 }
+  expect_failures = [var.restore_testing_max_duration]
+}

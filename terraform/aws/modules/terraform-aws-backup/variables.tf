@@ -33,6 +33,24 @@ variable "tag_identifier_prefix" {
   default     = null
 }
 
+variable "default_selection_name" {
+  description = "Explicit snapshot selection name. Defaults to <solution_prefix>-selection; the final name must fit the AWS 50-character limit. Changing an existing name may replace the selection."
+  type        = string
+  default     = null
+}
+
+variable "continuous_selection_name" {
+  description = "Explicit PITR selection name. Defaults to <solution_prefix>-continuous-selection; the final name must fit the AWS 50-character limit."
+  type        = string
+  default     = null
+}
+
+variable "dr_vault_name" {
+  description = "Explicit DR vault name. Defaults to <solution_prefix>-dr. Changing an existing name replaces the vault."
+  type        = string
+  default     = null
+}
+
 ###############################################################################
 # Resource Selection
 #
@@ -59,6 +77,9 @@ variable "resource_types" {
     sub-module (currently: S3, DynamoDB, EC2, EBS, RDS, Aurora, EFS). Unsupported
     values are rejected with a clear error at plan time.
     Note: AWS Backup allows at most 30 wildcard ARNs per selection.
+    Aurora uses the broad RDS cluster ARN pattern, not an engine filter. For
+    Aurora-only scope, omit resource_types and use exact cluster resource_arns
+    or a dedicated selection tag; selectors combine as a union, not AND.
   EOT
   type        = list(string)
   default     = []
@@ -183,7 +204,7 @@ variable "continuous_retention_days" {
 ###############################################################################
 
 variable "vault_lock_mode" {
-  description = "Vault Lock mode: GOVERNANCE (default in both environments) or explicit COMPLIANCE, which becomes immutable after its cooling-off period."
+  description = "Vault Lock mode: defaults to COMPLIANCE in prod and GOVERNANCE in nonprod. Either mode may be explicitly selected in either environment. COMPLIANCE becomes immutable after its cooling-off period."
   type        = string
   default     = null
 
@@ -194,7 +215,7 @@ variable "vault_lock_mode" {
 }
 
 variable "vault_lock_min_retention_days" {
-  description = "Explicit minimum retention for both vaults. When null, each vault uses the lower of its environment minimum (35/7) and its shortest core-managed rule; external plans remain caller-owned."
+  description = "Explicit minimum retention for both vaults. When null, the fixed minimum is 30 days in prod and 7 in nonprod; shorter plan retention never lowers it automatically. External plans remain caller-owned."
   type        = number
   default     = null
   validation {
@@ -239,6 +260,11 @@ variable "backup_window_minutes" {
   description = "Duration of the backup window in minutes."
   type        = number
   default     = 480
+
+  validation {
+    condition     = var.backup_window_minutes >= 60 && floor(var.backup_window_minutes) == var.backup_window_minutes
+    error_message = "backup_window_minutes must be at least 60 whole minutes."
+  }
 }
 
 variable "default_plan_additional_rules" {
@@ -301,6 +327,11 @@ variable "restore_testing_start_window" {
   description = "Start window for restore testing in minutes."
   type        = number
   default     = 480
+
+  validation {
+    condition     = var.restore_testing_start_window >= 60 && var.restore_testing_start_window <= 10080 && var.restore_testing_start_window % 60 == 0
+    error_message = "restore_testing_start_window must be a whole number of hours expressed in minutes, from 60 to 10080 (1-168 hours)."
+  }
 }
 
 variable "restore_testing_max_duration" {
@@ -309,8 +340,8 @@ variable "restore_testing_max_duration" {
   default     = 24
 
   validation {
-    condition     = var.restore_testing_max_duration >= 1 && var.restore_testing_max_duration <= 168
-    error_message = "restore_testing_max_duration must be between 1 and 168 hours."
+    condition     = var.restore_testing_max_duration >= 1 && var.restore_testing_max_duration <= 168 && floor(var.restore_testing_max_duration) == var.restore_testing_max_duration
+    error_message = "restore_testing_max_duration must be a whole number between 1 and 168 hours."
   }
 }
 
@@ -318,6 +349,29 @@ variable "restore_testing_resource_types" {
   description = "Protected resource types to include in the Restore Testing Plan selections (e.g., DynamoDB, EBS, RDS, S3, EFS, Redshift). One selection is created per type."
   type        = list(string)
   default     = ["DynamoDB", "EBS", "RDS", "S3", "EFS"]
+
+  validation {
+    condition     = alltrue([for resource_type in var.restore_testing_resource_types : contains(["Aurora", "DocumentDB", "DynamoDB", "EBS", "EC2", "EFS", "FSx", "Neptune", "RDS", "Redshift", "S3"], resource_type)])
+    error_message = "restore_testing_resource_types supports Aurora, DocumentDB, DynamoDB, EBS, EC2, EFS, FSx, Neptune, RDS, Redshift and S3."
+  }
+}
+
+variable "restore_testing_plan_name" {
+  description = "Explicit restore testing plan name. Defaults to <solution_prefix with hyphens replaced by underscores>_restore_test. Names must use 1-50 letters, digits or underscores."
+  type        = string
+  default     = null
+}
+
+variable "restore_testing_selection_names" {
+  description = "Optional restore selection names keyed by protected resource type. Unspecified types retain <normalized solution_prefix>_<lowercase type>. Names must use 1-50 letters, digits or underscores."
+  type        = map(string)
+  default     = {}
+}
+
+variable "restore_testing_metadata_overrides" {
+  description = "Restore metadata string maps keyed by selected resource type, for example RDS = { DBSubnetGroupName = \"restore-subnets\" }. Values replace AWS-inferred metadata only for that selection. Encode structured values with jsonencode when required by AWS."
+  type        = map(map(string))
+  default     = {}
 }
 
 ###############################################################################

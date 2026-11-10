@@ -23,3 +23,16 @@ run "product_override" {
     error_message = "Long-retention product overrides must reach the native plan."
   }
 }
+
+run "explicit_names_with_long_vault" {
+  command = apply
+  variables {
+    vault_name     = "payments-prod-eu-south-1"
+    plan_name      = "payments-long-retention"
+    selection_name = "payments-long-retention-selection"
+  }
+  assert {
+    condition     = alltrue([for rule in module.plan.rules : rule.target_vault_name == "payments-prod-eu-south-1"])
+    error_message = "Explicit names must preserve the existing vault name."
+  }
+}

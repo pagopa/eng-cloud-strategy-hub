@@ -23,3 +23,16 @@ run "product_override" {
     error_message = "Archival product overrides must reach the native plan."
   }
 }
+
+run "explicit_names_with_long_vault" {
+  command = apply
+  variables {
+    vault_name     = "payments-production-backup-eu-south-1"
+    plan_name      = "payments-archival"
+    selection_name = "payments-archival-selection"
+  }
+  assert {
+    condition     = alltrue([for rule in module.plan.rules : rule.target_vault_name == "payments-production-backup-eu-south-1"])
+    error_message = "Explicit names must preserve the existing vault name."
+  }
+}

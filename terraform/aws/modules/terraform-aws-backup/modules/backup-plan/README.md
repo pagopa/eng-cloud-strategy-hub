@@ -81,6 +81,21 @@ caller-owned: this module cannot infer an external vault's lock settings.
 
 Native [tests](./tests/) run in CI through `make terraform-backup-check`.
 
+The final selection name must use 1-50 letters, digits, hyphens, underscores,
+or periods. Set `selection_name` explicitly if `<plan_name>-selection` is too
+long. Existing valid names are preserved; the module never truncates them.
+
+Each inclusion or exclusion list supports up to 500 distinct ARNs, including
+at most 30 wildcard ARNs. Service-derived patterns count toward the inclusion
+limit. `selection_tags` supports at most 30 entries. Start windows must be at
+least 60 whole minutes; completion windows must be positive whole minutes.
+
+`Aurora` expands to `arn:aws:rds:*:*:cluster:*`, which is not an engine filter
+and can also match DocumentDB or Neptune clusters, subject to service opt-in.
+For Aurora-only scope, omit `resource_types` and use exact, caller-verified
+Aurora cluster `resource_arns` with no additional OR tags, or use only a
+dedicated selection tag. Adding a tag does not narrow a type-wide wildcard.
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
