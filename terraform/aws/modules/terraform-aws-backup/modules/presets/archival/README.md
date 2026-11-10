@@ -69,11 +69,11 @@ No resources.
 | <a name="input_selection_tags"></a> [selection\_tags](#input\_selection\_tags) | Tags to select resources for archival backup. | `map(string)` | n/a | yes |
 | <a name="input_vault_name"></a> [vault\_name](#input\_vault\_name) | Name of the existing backup vault (from the core module). | `string` | n/a | yes |
 | <a name="input_cold_storage_after"></a> [cold\_storage\_after](#input\_cold\_storage\_after) | Days before transitioning to cold storage. | `number` | `30` | no |
+| <a name="input_plan_name"></a> [plan\_name](#input\_plan\_name) | Optional explicit plan name. Defaults to <vault\_name>-archival-plan. | `string` | `null` | no |
 | <a name="input_retention_days"></a> [retention\_days](#input\_retention\_days) | Retention period in days. Defaults to 10 years. | `number` | `3650` | no |
 | <a name="input_schedule"></a> [schedule](#input\_schedule) | Cron expression for the backup schedule. | `string` | `"cron(0 3 * * ? *)"` | no |
-| <a name="input_tags"></a> [tags](#input\_tags) | Additional tags. | `map(string)` | `{}` | no |
-| <a name="input_plan_name"></a> [plan\_name](#input\_plan\_name) | Optional explicit plan name. Defaults to <vault\_name>-archival-plan. | `string` | `null` | no |
 | <a name="input_selection_name"></a> [selection\_name](#input\_selection\_name) | Optional explicit selection name. Defaults to <plan\_name>-selection; the final name must use 1-50 letters, digits, underscores, periods or hyphens. | `string` | `null` | no |
+| <a name="input_tags"></a> [tags](#input\_tags) | Additional tags. | `map(string)` | `{}` | no |
 
 ## Outputs
 
