@@ -58,14 +58,11 @@ run "missing_supplied_topic_with_subscriptions" {
 run "deduplicated_endpoints" {
   command = apply
   variables {
-    email_endpoints   = ["alerts@example.com", "alerts@example.com"]
-    webhook_endpoints = ["https://alerts.example.com/webhook", "https://alerts.example.com/webhook"]
-    sqs_endpoints     = ["arn:aws:sqs:eu-south-1:123456789012:test-alerts", "arn:aws:sqs:eu-south-1:123456789012:test-alerts"]
-    lambda_endpoints  = ["arn:aws:lambda:eu-south-1:123456789012:function:test-alerts", "arn:aws:lambda:eu-south-1:123456789012:function:test-alerts"]
+    email_endpoints = ["alerts@example.com", "alerts@example.com"]
   }
   assert {
-    condition     = length(aws_sns_topic_subscription.email) == 1 && length(aws_sns_topic_subscription.webhook) == 1 && length(aws_sns_topic_subscription.sqs) == 1 && length(aws_sns_topic_subscription.lambda) == 1
-    error_message = "Every endpoint collection must deduplicate subscriptions."
+    condition     = length(aws_sns_topic_subscription.email) == 1 && aws_sns_topic_subscription.email["alerts@example.com"].protocol == "email"
+    error_message = "Email endpoints must create deduplicated email subscriptions."
   }
 }
 run "disabled_rules" {
@@ -92,7 +89,76 @@ run "supplied_key_and_event_filters" {
     error_message = "A supplied encryption key must not create another key."
   }
   assert {
-    condition     = jsondecode(aws_cloudwatch_event_rule.backup_failures[0].event_pattern).detail.state == ["FAILED"] && jsondecode(aws_cloudwatch_event_rule.backup_failures[0].event_pattern)["detail-type"] == ["Copy Job State Change"] && jsondecode(aws_cloudwatch_event_rule.kms_deletion[0].event_pattern).detail.requestParameters.keyId == ["test-key"]
+    condition = (
+      jsonencode(jsondecode(aws_cloudwatch_event_rule.backup_failures[0].event_pattern).detail) == jsonencode({
+        "$or" = [
+          { state = ["FAILED"] },
+          { status = ["FAILED"] },
+        ]
+      }) &&
+      jsondecode(aws_cloudwatch_event_rule.backup_failures[0].event_pattern)["detail-type"] == ["Copy Job State Change"] &&
+      jsonencode(jsondecode(aws_cloudwatch_event_rule.kms_deletion[0].event_pattern).detail.requestParameters.keyId) == jsonencode(["test-key", { suffix = "/test-key" }])
+    )
     error_message = "EventBridge must preserve configured state, event-type, and KMS-key filters."
   }
+}
+
+run "backup_copy_and_restore_failure_fields" {
+  command = plan
+  assert {
+    condition = jsonencode(jsondecode(aws_cloudwatch_event_rule.backup_failures[0].event_pattern)) == jsonencode({
+      source      = ["aws.backup"]
+      detail-type = ["Backup Job State Change", "Copy Job State Change", "Restore Job State Change"]
+      detail = {
+        "$or" = [
+          { state = ["FAILED", "EXPIRED", "ABORTED"] },
+          { status = ["FAILED", "EXPIRED", "ABORTED"] },
+        ]
+      }
+    })
+    error_message = "Backup/copy state and restore status must independently match failure states, without also requiring the other field."
+  }
+}
+
+run "kms_identifiers_match_ids_and_arns" {
+  command = plan
+  variables {
+    kms_key_ids = [
+      "00000000-0000-0000-0000-000000000001",
+      "arn:aws:kms:eu-south-1:123456789012:key/mrk-00000000000000000000000000000002",
+    ]
+  }
+  assert {
+    condition = jsonencode(jsondecode(aws_cloudwatch_event_rule.kms_deletion[0].event_pattern).detail) == jsonencode({
+      eventName = ["ScheduleKeyDeletion", "DisableKey"]
+      requestParameters = {
+        keyId = [
+          "00000000-0000-0000-0000-000000000001",
+          "mrk-00000000000000000000000000000002",
+          { suffix = "/00000000-0000-0000-0000-000000000001" },
+          { suffix = "/mrk-00000000000000000000000000000002" },
+        ]
+      }
+    })
+    error_message = "Both KMS operations must match key-ID and key-ARN requests for configured IDs or ARNs, including multi-Region keys."
+  }
+}
+
+run "maximum_solution_prefix" {
+  command = plan
+  variables {
+    solution_prefix = strrep("a", 45)
+  }
+  assert {
+    condition     = length(aws_cloudwatch_event_rule.kms_deletion[0].name) == 64 && length(aws_cloudwatch_event_rule.backup_failures[0].name) <= 64
+    error_message = "The maximum accepted prefix must keep every EventBridge rule name within 64 characters."
+  }
+}
+
+run "oversized_solution_prefix" {
+  command = plan
+  variables {
+    solution_prefix = strrep("a", 46)
+  }
+  expect_failures = [var.solution_prefix]
 }

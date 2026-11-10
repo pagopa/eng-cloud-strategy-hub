@@ -59,21 +59,3 @@ module "backup_alerting_simple" {
     "backup-owner" = "team-identity"
   }
 }
-
-###############################################################################
-# Example: Alerting with Grafana webhook
-###############################################################################
-
-module "backup_alerting_grafana" {
-  source = "./.."
-
-  solution_prefix = "team-platform"
-
-  webhook_endpoints = ["https://alerts.example.com/webhook"]
-
-  email_endpoints = ["team-platform-oncall@pagopa.it"]
-
-  tags = {
-    "backup-owner" = "team-platform"
-  }
-}
