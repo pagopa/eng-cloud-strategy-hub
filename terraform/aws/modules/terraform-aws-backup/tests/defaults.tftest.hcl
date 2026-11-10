@@ -67,7 +67,8 @@ run "reject_production_retention_below_default_minimum" {
 }
 
 run "reject_nonproduction_retention_below_default_minimum" {
-  command = plan
+  state_key = "nonproduction"
+  command   = plan
   variables {
     environment    = "nonprod"
     retention_days = 6
@@ -147,7 +148,8 @@ run "independent_pitr_retention" {
 }
 
 run "explicit_compliance" {
-  command = apply
+  state_key = "nonproduction"
+  command   = apply
   variables {
     environment     = "nonprod"
     vault_lock_mode = "COMPLIANCE"
