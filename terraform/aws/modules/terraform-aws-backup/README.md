@@ -143,7 +143,9 @@ module "backup" {
 
 This configures daily snapshots retained for **35 days**, primary and DR
 encrypted vaults, copies of the daily snapshots retained for **35 days**, and
-GOVERNANCE lock on both vaults. PITR and automated restore testing remain off.
+COMPLIANCE lock with a **30-day minimum** on both vaults. PITR and automated
+restore testing remain off. Set `vault_lock_mode = "GOVERNANCE"` explicitly to
+defer COMPLIANCE; production does not require that mode.
 
 Production DR is mandatory. The deprecated `cross_region_copy` input does not
 disable it. `dr_region` must match `aws.dr`, differ from `aws_region`, and be one
@@ -177,6 +179,27 @@ installation in the same account. IAM role names are account-global, not
 region-local. Use 2-50 characters: letters, digits, hyphens, or underscores.
 Changing the prefix after deployment may replace resources or conflict with
 destruction protections. It does not select which workload resources to back up.
+
+The final generated names are validated separately. Without name overrides,
+the effective prefix limits are 40 characters for the snapshot selection,
+29 for PITR, 47 for the DR vault, and 37 for the restore testing plan.
+Restore selection limits also depend on the resource type suffix.
+
+For a long existing prefix, set only the names that exceed their limit:
+
+```hcl
+default_selection_name    = "payments-snapshot"
+continuous_selection_name = "payments-continuous"
+dr_vault_name             = "payments-backup-dr"
+restore_testing_plan_name = "payments_restore_test"
+restore_testing_selection_names = {
+  DynamoDB = "payments_dynamodb"
+}
+```
+
+These inputs are optional; existing valid names do not change. No name is
+silently truncated. Preserve deployed names: changing an override can replace
+the corresponding resource. Review the consumer plan before applying.
 
 ### `selection_tags`: choose existing workload resources
 
@@ -218,6 +241,30 @@ Supply at least one inclusion selector. Tags, types, and ARNs combine as a
 union, not an intersection. Type-wide selection can include unrelated workloads;
 use it deliberately. See [by-service-type](./examples/by-service-type/) and the
 [backup-plan module](./modules/backup-plan/) for selector details.
+
+`resource_types = ["Aurora"]` expands to `arn:aws:rds:*:*:cluster:*`.
+This is an RDS cluster ARN pattern, not an Aurora engine filter; it can also
+match DocumentDB or Neptune clusters, subject to AWS Backup service opt-in.
+For Aurora-only scope, use known Aurora cluster ARNs without the broad type
+selector or additional OR tags:
+
+```hcl
+resource_types = []
+selection_tags = {}
+resource_arns = [
+  "arn:aws:rds:eu-south-1:123456789012:cluster:payments-aurora"
+]
+```
+
+Alternatively, use only a dedicated tag applied to the intended Aurora
+clusters. Verify the selected inventory in the workload account. A tag does
+not narrow an existing type-wide wildcard because selectors use OR.
+
+The module rejects more than 30 selection tags, more than 500 distinct ARNs
+in an inclusion or exclusion list, and more than 30 wildcard ARNs in either
+list. Type-derived patterns count toward the inclusion limit. Backup start
+windows must be at least 60 whole minutes; completion windows must be positive
+whole minutes. Additional rules and presets use the same checks.
 
 ## Scheduled snapshots versus continuous PITR
 
@@ -290,15 +337,16 @@ or the retention of every backup.
 | --- | --- | --- |
 | Snapshot retention | 35 days | 14 days |
 | Snapshot copy retention | Same as primary retention unless overridden | No copy |
-| Lock mode | GOVERNANCE | GOVERNANCE |
-| Automatic minimum | Lower of 35 days and the shortest core-managed retention in that vault | Lower of 7 days and the shortest core-managed retention |
+| Lock mode | COMPLIANCE, overridable to GOVERNANCE | GOVERNANCE, overridable to COMPLIANCE |
+| Default minimum | Fixed 30 days on primary and DR vaults | Fixed 7 days |
 | Maximum retention | 3650 days | 3650 days |
 | PITR and cold storage | Explicit opt-in | Explicit opt-in |
 
-The primary minimum includes primary snapshot rules and enabled PITR retention.
-DR has its own derived minimum based only on actual copied rules. An explicit
-`vault_lock_min_retention_days` applies to both vaults. Every managed retention
-must fit the relevant minimum and `vault_lock_max_retention_days`.
+Dev and UAT both use `environment = "nonprod"`. Adding a shorter snapshot, copy,
+or PITR rule never lowers the default minimum automatically. Incompatible
+retention fails validation. An explicit `vault_lock_min_retention_days` overrides
+the default for both vaults. Every managed retention must fit the relevant
+minimum and `vault_lock_max_retention_days`.
 
 Retention must be positive whole days. Cold transition must be non-negative
 whole days, with zero disabling it. A transition after 30 days requires at least
@@ -307,7 +355,14 @@ must also satisfy this rule and the destination lock bounds.
 
 **GOVERNANCE is not permanent immutability:** sufficiently privileged users can
 remove its lock. **COMPLIANCE becomes irreversible after its cooling-off period**
-in either environment. It is not enabled just because `environment = "prod"`.
+in either environment. Production defaults to COMPLIANCE with a three-day
+cooling-off period, but callers may explicitly select GOVERNANCE.
+
+**Upgrade warning:** an existing production caller that leaves `vault_lock_mode`
+unset will now plan COMPLIANCE. To defer that transition, set
+`vault_lock_mode = "GOVERNANCE"` before upgrading. Review existing lock settings
+and a consumer plan before applying; finalized COMPLIANCE settings cannot be
+changed or rolled back by reverting the module version.
 
 The [nonprod-compliance-optin example](./examples/nonprod-compliance-optin/)
 explicitly chooses COMPLIANCE, 35-day retention, a 35-day lock minimum, and a
@@ -354,6 +409,13 @@ module "hourly" {
 See [with-extra-plans](./examples/with-extra-plans/). A frequent schedule is not
 proof of an achieved RPO; observe successful recovery points and test restores.
 
+Every preset accepts optional `plan_name` and `selection_name` inputs. Defaults
+remain unchanged. The final selection name must fit 50 characters. Without
+overrides, the maximum `vault_name` length is 28 for hourly, 23 for weekly-full,
+20 for long-retention, and 26 for archival. For example, preserve a long vault
+name and pass `selection_name = "payments-weekly-selection"` to weekly-full
+instead of renaming the vault.
+
 ## Alerts and restore testing
 
 The core does not create notification resources. Add the alerting module beside
@@ -387,6 +449,35 @@ one tag via a protected-resource condition, or up to 30 explicit ARNs without ta
 OR, exclusions, mixed selectors, type-wide selection, and implicit all-resource
 fallback are rejected rather than silently broadening or narrowing scope.
 
+When testing is enabled, `restore_testing_resource_types` must not be empty.
+Allowed types are Aurora, DocumentDB, DynamoDB, EBS, EC2, EFS, FSx, Neptune,
+RDS, Redshift, and S3. Regional availability and service prerequisites remain
+caller-owned. `restore_testing_start_window` must be a whole number of hours
+expressed in minutes, from 60 to 10080. The validation duration must be a whole
+number of hours from 1 to 168.
+
+Use `restore_testing_metadata_overrides` to replace AWS-inferred settings for
+a selected resource type, for example when RDS must use an existing subnet
+group and security groups rather than the default VPC:
+
+```hcl
+enable_restore_testing         = true
+restore_testing_resource_types = ["RDS"]
+restore_testing_metadata_overrides = {
+  RDS = {
+    DBSubnetGroupName   = "restore-test-subnets"
+    VpcSecurityGroupIds = jsonencode(["sg-0123456789abcdef0"])
+  }
+}
+```
+
+Override values are strings and apply only to that type's selection. Replace
+the example identifiers with caller-owned resources. Unspecified types retain
+AWS-inferred settings. Keys must match selected resource types; metadata keys
+and values must be valid for the service and environment. The module does not
+create a VPC, subnet group, security group, or additional IAM permissions.
+See [AWS restore metadata](https://docs.aws.amazon.com/aws-backup/latest/devguide/restore-testing-inferred-metadata.html).
+
 Restore job completion is not proof of application data integrity or RTO.
 The consumer must supply service prerequisites and its own recovery validation.
 
@@ -400,17 +491,20 @@ The complete contract is in [variables.tf](./variables.tf) and
 | `environment` | Required: `prod` or `nonprod`; controls defaults and DR resources |
 | `aws_region`, `dr_region` | Observed provider regions must match; DR region is required in production |
 | `solution_prefix` | Stable installation name; default `backup-solution`, but use a unique explicit value |
+| `default_selection_name`, `continuous_selection_name`, `dr_vault_name` | Optional name overrides; existing valid defaults are preserved |
 | `selection_tags`, `resource_types`, `resource_arns` | At least one inclusion selector is required |
 | `excluded_resource_arns` | Exclude resources from the default selection |
 | `retention_days`, `copy_retention_days` | Primary snapshot and copy retention |
 | `enable_continuous_backup` | Opt into a separate continuous plan |
 | `continuous_backup_selection_tags`, `continuous_retention_days` | Dedicated PITR scope and independent 1-35-day retention |
 | `cold_storage_after` | Optional snapshot cold transition; service-specific support required |
-| `vault_lock_mode` | GOVERNANCE default or explicit COMPLIANCE |
+| `vault_lock_mode` | COMPLIANCE default in prod; GOVERNANCE in nonprod; either may be explicitly selected |
 | `vault_lock_min_retention_days`, `vault_lock_max_retention_days` | Explicit lock bounds; maximum defaults to 3650 |
 | `vault_lock_changeable_for_days` | COMPLIANCE cooling-off period; default three days |
 | `default_plan_additional_rules` | Extra schedules on the default selection |
 | `enable_restore_testing` | Opt into automated restore testing |
+| `restore_testing_plan_name`, `restore_testing_selection_names` | Optional plan name and selection names keyed by selected resource type |
+| `restore_testing_metadata_overrides` | Service-specific restore metadata maps keyed by selected resource type |
 | `tags` | Labels created infrastructure, not workload selection |
 
 | Output | Consumer use |
@@ -516,10 +610,13 @@ or finalized COMPLIANCE vaults.
 | <a name="input_cold_storage_after"></a> [cold\_storage\_after](#input\_cold\_storage\_after) | Number of days before transitioning recovery points to cold storage. 0 (default) disables the transition. When set, retention\_days must be at least cold\_storage\_after + 90 (AWS Backup requirement). | `number` | `null` | no |
 | <a name="input_continuous_backup_selection_tags"></a> [continuous\_backup\_selection\_tags](#input\_continuous\_backup\_selection\_tags) | Dedicated, non-empty tags required when continuous backup is enabled.<br/>Continuous backup always uses its own selection; it never falls back to<br/>snapshot tags. Tag matches use OR, so each tag must identify only supported<br/>S3 or RDS/Aurora resources. DynamoDB PITR is separate native configuration. | `map(string)` | `null` | no |
 | <a name="input_continuous_retention_days"></a> [continuous\_retention\_days](#input\_continuous\_retention\_days) | Independent AWS Backup PITR retention in whole days, from 1 to 35. | `number` | `35` | no |
+| <a name="input_continuous_selection_name"></a> [continuous\_selection\_name](#input\_continuous\_selection\_name) | Explicit PITR selection name. Defaults to <solution\_prefix>-continuous-selection; the final name must fit the AWS 50-character limit. | `string` | `null` | no |
 | <a name="input_copy_retention_days"></a> [copy\_retention\_days](#input\_copy\_retention\_days) | Retention period for cross-region copies. Defaults to the primary retention\_days. | `number` | `null` | no |
 | <a name="input_cross_region_copy"></a> [cross\_region\_copy](#input\_cross\_region\_copy) | Deprecated compatibility input. The module no longer uses this variable to<br/>decide whether DR copy is enabled.<br/><br/>Current behaviour:<br/>  - prod    : DR copy is enabled by default and requires dr\_region<br/>  - nonprod : DR copy is disabled | `string` | `"Default"` | no |
 | <a name="input_default_plan_additional_rules"></a> [default\_plan\_additional\_rules](#input\_default\_plan\_additional\_rules) | Optional scheduled rules appended to the default backup plan. Use this<br/>when the same selection of resources needs extra schedules or retention<br/>policies without creating a separate backup-plan module.<br/><br/>These rules reuse the core module's primary vault, default selection, and<br/>backup IAM role. For separate selections or fully custom plans, use the<br/>backup-plan sub-module or one of the preset wrappers instead. | <pre>list(object({<br/>    rule_name               = string<br/>    schedule                = string<br/>    start_window            = optional(number)<br/>    completion_window       = optional(number)<br/>    cold_storage_after      = optional(number, 0)<br/>    delete_after            = number<br/>    recovery_point_tags     = optional(map(string), {})<br/>    copy_to_dr              = optional(bool)<br/>    copy_cold_storage_after = optional(number)<br/>    copy_delete_after       = optional(number)<br/>  }))</pre> | `[]` | no |
+| <a name="input_default_selection_name"></a> [default\_selection\_name](#input\_default\_selection\_name) | Explicit snapshot selection name. Defaults to <solution\_prefix>-selection; the final name must fit the AWS 50-character limit. Changing an existing name may replace the selection. | `string` | `null` | no |
 | <a name="input_dr_region"></a> [dr\_region](#input\_dr\_region) | Target region for production DR copy. Must differ from aws\_region, match the caller's aws.dr provider, and belong to the existing EU allow-list. | `string` | `null` | no |
+| <a name="input_dr_vault_name"></a> [dr\_vault\_name](#input\_dr\_vault\_name) | Explicit DR vault name. Defaults to <solution\_prefix>-dr. Changing an existing name replaces the vault. | `string` | `null` | no |
 | <a name="input_enable_continuous_backup"></a> [enable\_continuous\_backup](#input\_enable\_continuous\_backup) | Enable dedicated AWS Backup continuous backup for supported S3 and RDS/Aurora resources. Disabled by default. DynamoDB PITR is configured natively by the caller. | `bool` | `null` | no |
 | <a name="input_enable_restore_testing"></a> [enable\_restore\_testing](#input\_enable\_restore\_testing) | Whether to create a Restore Testing Plan. | `bool` | `false` | no |
 | <a name="input_excluded_resource_arns"></a> [excluded\_resource\_arns](#input\_excluded\_resource\_arns) | Optional list of resource ARNs (or wildcard ARNs) to exclude from the default plan selection. Useful to drop ephemeral resources when selecting by service type. | `list(string)` | `[]` | no |
@@ -527,10 +624,13 @@ or finalized COMPLIANCE vaults.
 | <a name="input_kms_enable_key_rotation"></a> [kms\_enable\_key\_rotation](#input\_kms\_enable\_key\_rotation) | Enable automatic annual key rotation. | `bool` | `true` | no |
 | <a name="input_kms_multi_region"></a> [kms\_multi\_region](#input\_kms\_multi\_region) | Whether the backup CMKs are multi-region keys. Multi-region keys simplify cross-region DR restore (the same key material exists in the DR region). Cannot be changed after key creation. See decision §6.3 (KMS key protection). | `bool` | `false` | no |
 | <a name="input_resource_arns"></a> [resource\_arns](#input\_resource\_arns) | Optional list of explicit (or wildcard) resource ARNs to select, combined with resource\_types and selection\_tags. | `list(string)` | `[]` | no |
-| <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types) | Optional list of AWS service types to back up by selecting ALL of their<br/>resources via wildcard ARNs (e.g. ["DynamoDB", "S3", "RDS"]), as an<br/>alternative or complement to tag-based selection.<br/><br/>Supported types are defined by the resource\_type\_arns map in the backup-plan<br/>sub-module (currently: S3, DynamoDB, EC2, EBS, RDS, Aurora, EFS). Unsupported<br/>values are rejected with a clear error at plan time.<br/>Note: AWS Backup allows at most 30 wildcard ARNs per selection. | `list(string)` | `[]` | no |
+| <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types) | Optional list of AWS service types to back up by selecting ALL of their<br/>resources via wildcard ARNs (e.g. ["DynamoDB", "S3", "RDS"]), as an<br/>alternative or complement to tag-based selection.<br/><br/>Supported types are defined by the resource\_type\_arns map in the backup-plan<br/>sub-module (currently: S3, DynamoDB, EC2, EBS, RDS, Aurora, EFS). Unsupported<br/>values are rejected with a clear error at plan time.<br/>Note: AWS Backup allows at most 30 wildcard ARNs per selection.<br/>Aurora uses the broad RDS cluster ARN pattern, not an engine filter. For<br/>Aurora-only scope, omit resource\_types and use exact cluster resource\_arns<br/>or a dedicated selection tag; selectors combine as a union, not AND. | `list(string)` | `[]` | no |
 | <a name="input_restore_testing_max_duration"></a> [restore\_testing\_max\_duration](#input\_restore\_testing\_max\_duration) | Hours a restored test resource is retained so optional validation can run (validation\_window\_hours). Between 1 and 168. | `number` | `24` | no |
+| <a name="input_restore_testing_metadata_overrides"></a> [restore\_testing\_metadata\_overrides](#input\_restore\_testing\_metadata\_overrides) | Restore metadata string maps keyed by selected resource type, for example RDS = { DBSubnetGroupName = "restore-subnets" }. Values replace AWS-inferred metadata only for that selection. Encode structured values with jsonencode when required by AWS. | `map(map(string))` | `{}` | no |
+| <a name="input_restore_testing_plan_name"></a> [restore\_testing\_plan\_name](#input\_restore\_testing\_plan\_name) | Explicit restore testing plan name. Defaults to <solution\_prefix with hyphens replaced by underscores>\_restore\_test. Names must use 1-50 letters, digits or underscores. | `string` | `null` | no |
 | <a name="input_restore_testing_resource_types"></a> [restore\_testing\_resource\_types](#input\_restore\_testing\_resource\_types) | Protected resource types to include in the Restore Testing Plan selections (e.g., DynamoDB, EBS, RDS, S3, EFS, Redshift). One selection is created per type. | `list(string)` | <pre>[<br/>  "DynamoDB",<br/>  "EBS",<br/>  "RDS",<br/>  "S3",<br/>  "EFS"<br/>]</pre> | no |
 | <a name="input_restore_testing_schedule"></a> [restore\_testing\_schedule](#input\_restore\_testing\_schedule) | Cron expression for restore testing schedule. | `string` | `"cron(0 3 ? * SAT *)"` | no |
+| <a name="input_restore_testing_selection_names"></a> [restore\_testing\_selection\_names](#input\_restore\_testing\_selection\_names) | Optional restore selection names keyed by protected resource type. Unspecified types retain <normalized solution\_prefix>\_<lowercase type>. Names must use 1-50 letters, digits or underscores. | `map(string)` | `{}` | no |
 | <a name="input_restore_testing_start_window"></a> [restore\_testing\_start\_window](#input\_restore\_testing\_start\_window) | Start window for restore testing in minutes. | `number` | `480` | no |
 | <a name="input_retention_days"></a> [retention\_days](#input\_retention\_days) | Number of days to retain recovery points. Defaults to 35 in prod and 14 in nonprod. Must be >= the Vault Lock minimum retention. | `number` | `null` | no |
 | <a name="input_selection_tags"></a> [selection\_tags](#input\_selection\_tags) | Map of tag key/value pairs used to select resources for the backup plan (default selection method, decision §8). Optional if resource\_types or resource\_arns are set. | `map(string)` | `{}` | no |
@@ -539,8 +639,8 @@ or finalized COMPLIANCE vaults.
 | <a name="input_tags"></a> [tags](#input\_tags) | Additional tags to apply to all resources created by the module. | `map(string)` | `{}` | no |
 | <a name="input_vault_lock_changeable_for_days"></a> [vault\_lock\_changeable\_for\_days](#input\_vault\_lock\_changeable\_for\_days) | Cooling-off period in days during which the Vault Lock can still be removed (Compliance mode only). Minimum 3. | `number` | `3` | no |
 | <a name="input_vault_lock_max_retention_days"></a> [vault\_lock\_max\_retention\_days](#input\_vault\_lock\_max\_retention\_days) | Maximum retention in days enforced by Vault Lock. Recovery points cannot have a retention longer than this. Backup jobs targeting the vault must set delete\_after within [vault\_lock\_min\_retention\_days, vault\_lock\_max\_retention\_days]; jobs outside this range are rejected by the vault. | `number` | `3650` | no |
-| <a name="input_vault_lock_min_retention_days"></a> [vault\_lock\_min\_retention\_days](#input\_vault\_lock\_min\_retention\_days) | Explicit minimum retention for both vaults. When null, each vault uses the lower of its environment minimum (35/7) and its shortest core-managed rule; external plans remain caller-owned. | `number` | `null` | no |
-| <a name="input_vault_lock_mode"></a> [vault\_lock\_mode](#input\_vault\_lock\_mode) | Vault Lock mode: GOVERNANCE (default in both environments) or explicit COMPLIANCE, which becomes immutable after its cooling-off period. | `string` | `null` | no |
+| <a name="input_vault_lock_min_retention_days"></a> [vault\_lock\_min\_retention\_days](#input\_vault\_lock\_min\_retention\_days) | Explicit minimum retention for both vaults. When null, the fixed minimum is 30 days in prod and 7 in nonprod; shorter plan retention never lowers it automatically. External plans remain caller-owned. | `number` | `null` | no |
+| <a name="input_vault_lock_mode"></a> [vault\_lock\_mode](#input\_vault\_lock\_mode) | Vault Lock mode: defaults to COMPLIANCE in prod and GOVERNANCE in nonprod. Either mode may be explicitly selected in either environment. COMPLIANCE becomes immutable after its cooling-off period. | `string` | `null` | no |
 
 ## Outputs
 

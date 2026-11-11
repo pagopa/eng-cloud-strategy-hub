@@ -25,7 +25,7 @@ provider "aws" {
 ###############################################################################
 # Core Backup Module
 ###############################################################################
-# GOVERNANCE is the default; COMPLIANCE requires explicit opt-in.
+# COMPLIANCE is the default; set vault_lock_mode = "GOVERNANCE" to defer it.
 module "backup" {
   source = "../.."
   providers = {

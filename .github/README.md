@@ -43,3 +43,8 @@ bash .github/scripts/validate-copilot-customizations.sh --help
 ```
 
 Workflow syntax is checked by the `actionlint` job in `.github/workflows/_code-analysis.yml`; the local simulator exposes that job's relevant steps through `./validate-repo-locally.sh`.
+
+Both CI workflow-lint jobs set up Go 1.25.x explicitly for actionlint 1.7.12.
+They use `GOTOOLCHAIN=local` during installation to prevent implicit toolchain
+switching. Local validation requires an installed actionlint binary or Go
+1.25 or newer to build it.

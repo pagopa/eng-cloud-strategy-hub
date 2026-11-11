@@ -18,13 +18,13 @@ variables {
   solution_prefix = "test-lifecycle"
   selection_tags  = { backup-workload = "orders" }
 }
-run "seven_day_product_override" {
+run "thirty_day_production_boundary" {
   state_key = "production"
   command   = apply
-  variables { retention_days = 7 }
+  variables { retention_days = 30 }
   assert {
-    condition     = aws_backup_vault_lock_configuration.primary.min_retention_days == 7 && aws_backup_vault_lock_configuration.dr[0].min_retention_days == 7
-    error_message = "Automatic lock minima must allow the actual product retention."
+    condition     = aws_backup_vault_lock_configuration.primary.min_retention_days == 30 && aws_backup_vault_lock_configuration.dr[0].min_retention_days == 30
+    error_message = "Production must accept retention at the fixed 30-day minimum."
   }
 }
 run "zero_retention" {
@@ -125,22 +125,48 @@ run "copy_lifecycle_without_copy" {
   }
   expect_failures = [aws_backup_vault_lock_configuration.primary]
 }
-run "distinct_vault_minima" {
-  command = apply
+run "primary_only_rule_cannot_lower_default_minimum" {
+  command = plan
   variables {
     retention_days      = 365
     copy_retention_days = 90
     default_plan_additional_rules = [{
       rule_name    = "short-primary"
       schedule     = "cron(0 5 * * ? *)"
-      delete_after = 7
+      delete_after = 29
       copy_to_dr   = false
     }]
   }
-  assert {
-    condition     = aws_backup_vault_lock_configuration.primary.min_retention_days == 7 && aws_backup_vault_lock_configuration.dr[0].min_retention_days == 35
-    error_message = "DR minima must use copy rules only, not primary-only rules."
+  expect_failures = [aws_backup_vault_lock_configuration.primary]
+}
+
+run "copy_cannot_lower_default_minimum" {
+  command = plan
+  variables { copy_retention_days = 29 }
+  expect_failures = [aws_backup_vault_lock_configuration.dr]
+}
+
+run "pitr_cannot_lower_default_minimum" {
+  command = plan
+  variables {
+    enable_continuous_backup         = true
+    continuous_backup_selection_tags = { backup-pitr = "orders" }
+    continuous_retention_days        = 29
   }
+  expect_failures = [aws_backup_vault_lock_configuration.primary]
+}
+
+run "nonproduction_short_rule_cannot_lower_default_minimum" {
+  command = plan
+  variables {
+    environment = "nonprod"
+    default_plan_additional_rules = [{
+      rule_name    = "short-primary"
+      schedule     = "cron(0 5 * * ? *)"
+      delete_after = 6
+    }]
+  }
+  expect_failures = [aws_backup_vault_lock_configuration.primary]
 }
 
 run "negative_additional_retention" {

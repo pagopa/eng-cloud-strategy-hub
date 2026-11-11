@@ -13,6 +13,18 @@ variable "vault_name" {
   type        = string
 }
 
+variable "plan_name" {
+  description = "Optional explicit plan name. Defaults to <vault_name>-archival-plan."
+  type        = string
+  default     = null
+}
+
+variable "selection_name" {
+  description = "Optional explicit selection name. Defaults to <plan_name>-selection; the final name must use 1-50 letters, digits, underscores, periods or hyphens."
+  type        = string
+  default     = null
+}
+
 variable "backup_role_arn" {
   description = "ARN of the backup IAM role (from the core module output)."
   type        = string
@@ -50,7 +62,8 @@ variable "tags" {
 module "plan" {
   source = "../../backup-plan"
 
-  plan_name      = "${var.vault_name}-archival-plan"
+  plan_name      = coalesce(var.plan_name, "${var.vault_name}-archival-plan")
+  selection_name = var.selection_name
   iam_role_arn   = var.backup_role_arn
   selection_tags = var.selection_tags
   tags           = var.tags

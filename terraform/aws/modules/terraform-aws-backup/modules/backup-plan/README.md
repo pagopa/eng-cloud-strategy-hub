@@ -81,6 +81,21 @@ caller-owned: this module cannot infer an external vault's lock settings.
 
 Native [tests](./tests/) run in CI through `make terraform-backup-check`.
 
+The final selection name must use 1-50 letters, digits, hyphens, underscores,
+or periods. Set `selection_name` explicitly if `<plan_name>-selection` is too
+long. Existing valid names are preserved; the module never truncates them.
+
+Each inclusion or exclusion list supports up to 500 distinct ARNs, including
+at most 30 wildcard ARNs. Service-derived patterns count toward the inclusion
+limit. `selection_tags` supports at most 30 entries. Start windows must be at
+least 60 whole minutes; completion windows must be positive whole minutes.
+
+`Aurora` expands to `arn:aws:rds:*:*:cluster:*`, which is not an engine filter
+and can also match DocumentDB or Neptune clusters, subject to service opt-in.
+For Aurora-only scope, omit `resource_types` and use exact, caller-verified
+Aurora cluster `resource_arns` with no additional OR tags, or use only a
+dedicated selection tag. Adding a tag does not narrow a type-wide wildcard.
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -115,7 +130,7 @@ No modules.
 | <a name="input_rules"></a> [rules](#input\_rules) | List of backup rules for the plan. Each rule supports lifecycle, continuous<br/>backup and cross-region copy actions. Optional attributes fall back to<br/>sensible defaults. | <pre>list(object({<br/>    rule_name                = string<br/>    target_vault_name        = string<br/>    schedule                 = string<br/>    start_window             = optional(number, 480)<br/>    completion_window        = optional(number, 960)<br/>    enable_continuous_backup = optional(bool, false)<br/>    cold_storage_after       = optional(number, 0)<br/>    delete_after             = number<br/>    recovery_point_tags      = optional(map(string), {})<br/>    copy_actions = optional(list(object({<br/>      destination_vault_arn = string<br/>      cold_storage_after    = optional(number, 0)<br/>      delete_after          = number<br/>    })), [])<br/>  }))</pre> | n/a | yes |
 | <a name="input_excluded_resource_arns"></a> [excluded\_resource\_arns](#input\_excluded\_resource\_arns) | Optional list of resource ARNs (or wildcard ARNs) to exclude from selection (not\_resources). Useful to exclude ephemeral resources when selecting by service type. | `list(string)` | `[]` | no |
 | <a name="input_resource_arns"></a> [resource\_arns](#input\_resource\_arns) | Optional list of explicit resource ARNs (or wildcard ARNs) to select. Combined (OR) with resource\_types and selection\_tags. | `list(string)` | `[]` | no |
-| <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types) | Optional list of AWS service types to select ALL of their resources via<br/>wildcard ARNs (e.g. ["DynamoDB", "S3", "RDS"]). An alternative to tag-based<br/>selection.<br/><br/>The set of supported types is defined by the resource\_type\_arns map in<br/>locals.tf (currently: S3, DynamoDB, EC2, EBS, RDS, Aurora, EFS). To add a<br/>new type, add a single entry to that map.<br/>Note: AWS Backup allows at most 30 wildcard ARNs per selection. | `list(string)` | `[]` | no |
+| <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types) | Optional list of AWS service types to select ALL of their resources via<br/>wildcard ARNs (e.g. ["DynamoDB", "S3", "RDS"]). An alternative to tag-based<br/>selection.<br/><br/>The set of supported types is defined by the resource\_type\_arns map in<br/>locals.tf (currently: S3, DynamoDB, EC2, EBS, RDS, Aurora, EFS). To add a<br/>new type, add a single entry to that map.<br/>Note: AWS Backup allows at most 30 wildcard ARNs per selection.<br/>Aurora uses the broad RDS cluster ARN pattern, not an engine filter. For<br/>Aurora-only scope, omit resource\_types and use exact cluster resource\_arns<br/>or a dedicated selection tag; selectors combine as a union, not AND. | `list(string)` | `[]` | no |
 | <a name="input_selection_name"></a> [selection\_name](#input\_selection\_name) | Name of the backup selection. Defaults to "<plan\_name>-selection". | `string` | `null` | no |
 | <a name="input_selection_tags"></a> [selection\_tags](#input\_selection\_tags) | Tag key/value pairs used to select resources for this plan. Combined (OR) with resource\_types and resource\_arns when those are set. | `map(string)` | `{}` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags applied to the backup plan. | `map(string)` | `{}` | no |

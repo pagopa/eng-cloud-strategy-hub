@@ -22,3 +22,16 @@ run "product_override" {
     error_message = "Hourly product retention and schedule overrides must reach the native plan."
   }
 }
+
+run "explicit_names_with_long_vault" {
+  command = apply
+  variables {
+    vault_name     = "payments-production-backup-eu-south-1"
+    plan_name      = "payments-hourly"
+    selection_name = "payments-hourly-selection"
+  }
+  assert {
+    condition     = alltrue([for rule in module.plan.rules : rule.target_vault_name == "payments-production-backup-eu-south-1"])
+    error_message = "Explicit names must preserve the existing vault name."
+  }
+}

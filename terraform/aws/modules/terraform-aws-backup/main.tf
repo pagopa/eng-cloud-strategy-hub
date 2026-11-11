@@ -88,11 +88,18 @@ resource "aws_backup_vault" "dr" {
 
   provider = aws.dr
 
-  name        = "${var.solution_prefix}-dr"
+  name        = coalesce(var.dr_vault_name, "${var.solution_prefix}-dr")
   kms_key_arn = aws_kms_key.backup_dr[0].arn
   tags = merge(local.common_tags, {
     Name = "${local.tag_prefix}-dr-vault"
   })
+
+  lifecycle {
+    precondition {
+      condition     = can(regex("^[a-zA-Z0-9_-]{2,50}$", coalesce(var.dr_vault_name, "${var.solution_prefix}-dr")))
+      error_message = "The final DR vault name must use 2-50 letters, digits, hyphens or underscores. Set dr_vault_name explicitly when the generated name is too long."
+    }
+  }
 }
 
 resource "aws_backup_vault_lock_configuration" "dr" {
@@ -130,7 +137,7 @@ module "default_plan" {
   depends_on = [aws_backup_vault_lock_configuration.primary, aws_backup_vault_lock_configuration.dr]
 
   plan_name      = "${var.solution_prefix}-default-plan"
-  selection_name = "${var.solution_prefix}-selection"
+  selection_name = coalesce(var.default_selection_name, "${var.solution_prefix}-selection")
   iam_role_arn   = aws_iam_role.backup.arn
   selection_tags = var.selection_tags
   tags           = local.common_tags
@@ -154,7 +161,7 @@ module "continuous_plan" {
   depends_on = [aws_backup_vault_lock_configuration.primary]
 
   plan_name      = "${var.solution_prefix}-continuous-plan"
-  selection_name = "${var.solution_prefix}-continuous-selection"
+  selection_name = coalesce(var.continuous_selection_name, "${var.solution_prefix}-continuous-selection")
   iam_role_arn   = aws_iam_role.backup.arn
   selection_tags = var.continuous_backup_selection_tags == null ? {} : var.continuous_backup_selection_tags
   tags           = local.common_tags

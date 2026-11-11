@@ -3,13 +3,13 @@
 ###############################################################################
 
 variable "solution_prefix" {
-  description = "Prefix for alerting resources created by this solution (EventBridge rules, SNS topic, KMS alias). Caution: changing this value may break execution as different AWS resources have different naming limits."
+  description = "Prefix for alerting resources created by this solution (EventBridge rules, SNS topic, KMS alias). Must be 2-45 characters so EventBridge rule names stay within 64 characters."
   type        = string
   default     = "backup-solution"
 
   validation {
-    condition     = can(regex("^[a-zA-Z0-9_-]{2,50}$", var.solution_prefix))
-    error_message = "solution_prefix must be 2-50 characters, alphanumeric plus hyphen and underscore only."
+    condition     = can(regex("^[a-zA-Z0-9_-]{2,45}$", var.solution_prefix))
+    error_message = "solution_prefix must be 2-45 characters, alphanumeric plus hyphen and underscore only."
   }
 }
 
@@ -30,7 +30,7 @@ variable "enable_backup_failure_alerts" {
 }
 
 variable "backup_failure_event_states" {
-  description = "Backup job states that trigger an alert."
+  description = "Failure states that trigger an alert through backup/copy detail.state or restore detail.status."
   type        = list(string)
   default     = ["FAILED", "EXPIRED", "ABORTED"]
 }
@@ -56,7 +56,7 @@ variable "enable_kms_deletion_alert" {
 }
 
 variable "kms_key_ids" {
-  description = "List of KMS key IDs to monitor for deletion. If empty and enable_kms_deletion_alert is true, monitors all ScheduleKeyDeletion events in the account."
+  description = "List of KMS key IDs or key ARNs to monitor for ScheduleKeyDeletion and DisableKey. Matches requests using either ID or ARN in the provider's account and Region. If empty, monitors all keys."
   type        = list(string)
   default     = []
 }
@@ -106,24 +106,6 @@ variable "kms_deletion_window_in_days" {
 
 variable "email_endpoints" {
   description = "List of email addresses to subscribe to backup alerts."
-  type        = list(string)
-  default     = []
-}
-
-variable "webhook_endpoints" {
-  description = "List of HTTPS webhook URLs to subscribe (e.g., Grafana, PagerDuty)."
-  type        = list(string)
-  default     = []
-}
-
-variable "sqs_endpoints" {
-  description = "List of SQS queue ARNs to subscribe."
-  type        = list(string)
-  default     = []
-}
-
-variable "lambda_endpoints" {
-  description = "List of Lambda function ARNs to subscribe."
   type        = list(string)
   default     = []
 }

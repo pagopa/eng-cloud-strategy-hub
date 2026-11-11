@@ -3,6 +3,10 @@ locals {
 
   tag_prefix = coalesce(var.tag_identifier_prefix, var.solution_prefix)
 
+  monitored_kms_key_ids = distinct([
+    for key_id in var.kms_key_ids : reverse(split("/", key_id))[0]
+  ])
+
   # Create a dedicated CMK only when we own the topic and no existing CMK is supplied.
   create_sns_kms_key = var.create_sns_topic && var.sns_kms_key_arn == null
 

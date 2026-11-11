@@ -81,7 +81,10 @@ resource "aws_cloudwatch_event_rule" "backup_failures" {
     source      = ["aws.backup"]
     detail-type = var.monitored_event_types
     detail = {
-      state = var.backup_failure_event_states
+      "$or" = [
+        { state = var.backup_failure_event_states },
+        { status = var.backup_failure_event_states },
+      ]
     }
   })
 
@@ -113,7 +116,10 @@ resource "aws_cloudwatch_event_rule" "kms_deletion" {
     detail = {
       eventName = ["ScheduleKeyDeletion", "DisableKey"]
       requestParameters = {
-        keyId = var.kms_key_ids
+        keyId = concat(
+          local.monitored_kms_key_ids,
+          [for key_id in local.monitored_kms_key_ids : { suffix = "/${key_id}" }],
+        )
       }
     }
     }) : jsonencode({
@@ -146,44 +152,5 @@ resource "aws_sns_topic_subscription" "email" {
 
   topic_arn = local.sns_topic_arn
   protocol  = "email"
-  endpoint  = each.value
-}
-
-###############################################################################
-# SNS Subscriptions — HTTPS Webhook
-###############################################################################
-
-resource "aws_sns_topic_subscription" "webhook" {
-  for_each   = toset(var.webhook_endpoints)
-  depends_on = [data.aws_iam_policy_document.sns_topic_policy]
-
-  topic_arn = local.sns_topic_arn
-  protocol  = "https"
-  endpoint  = each.value
-}
-
-###############################################################################
-# SNS Subscriptions — SQS
-###############################################################################
-
-resource "aws_sns_topic_subscription" "sqs" {
-  for_each   = toset(var.sqs_endpoints)
-  depends_on = [data.aws_iam_policy_document.sns_topic_policy]
-
-  topic_arn = local.sns_topic_arn
-  protocol  = "sqs"
-  endpoint  = each.value
-}
-
-###############################################################################
-# SNS Subscriptions — Lambda
-###############################################################################
-
-resource "aws_sns_topic_subscription" "lambda" {
-  for_each   = toset(var.lambda_endpoints)
-  depends_on = [data.aws_iam_policy_document.sns_topic_policy]
-
-  topic_arn = local.sns_topic_arn
-  protocol  = "lambda"
   endpoint  = each.value
 }

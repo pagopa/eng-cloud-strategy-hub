@@ -28,6 +28,11 @@ variable "selection_tags" {
   description = "Tag key/value pairs used to select resources for this plan. Combined (OR) with resource_types and resource_arns when those are set."
   type        = map(string)
   default     = {}
+
+  validation {
+    condition     = length(var.selection_tags) <= 30
+    error_message = "selection_tags supports at most 30 tag conditions per selection."
+  }
 }
 
 variable "resource_types" {
@@ -40,6 +45,9 @@ variable "resource_types" {
     locals.tf (currently: S3, DynamoDB, EC2, EBS, RDS, Aurora, EFS). To add a
     new type, add a single entry to that map.
     Note: AWS Backup allows at most 30 wildcard ARNs per selection.
+    Aurora uses the broad RDS cluster ARN pattern, not an engine filter. For
+    Aurora-only scope, omit resource_types and use exact cluster resource_arns
+    or a dedicated selection tag; selectors combine as a union, not AND.
   EOT
   type        = list(string)
   default     = []
@@ -83,6 +91,11 @@ variable "rules" {
   validation {
     condition     = length(var.rules) > 0
     error_message = "At least one rule must be provided."
+  }
+
+  validation {
+    condition     = alltrue([for rule in var.rules : rule.start_window >= 60 && floor(rule.start_window) == rule.start_window && rule.completion_window >= 1 && floor(rule.completion_window) == rule.completion_window])
+    error_message = "Rules require start_window of at least 60 whole minutes and a positive whole-minute completion_window."
   }
 }
 
