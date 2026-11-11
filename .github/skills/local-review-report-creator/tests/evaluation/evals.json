@@ -1,0 +1,115 @@
+{
+  "schema": "skill-eval-pack/v1",
+  "skill": "local-review-report-creator",
+  "requirements": [
+    {"id":"R-STRUCTURE","text":"Generate the Atlante section order, defect register, detail, note placement, counts, and traceable actions.","source":"SKILL.md#Workflow; references/components.md#Finding"},
+    {"id":"R-SOURCE","text":"Preserve source identifiers, severity, confidence, verdict and substantive content; ask about unmapped severity scales.","source":"references/authoring.md#Source adapter"},
+    {"id":"R-EVIDENCE","text":"Separate evidence provenance from applicability and preserve failed, unavailable and unexecuted check states.","source":"references/authoring.md#Evidence and applicability"},
+    {"id":"R-INVARIANTS","text":"Keep the actual Atlante visual shell and runtime unchanged while permitting bounded content components.","source":"references/style-guide.md#Template ownership"},
+    {"id":"R-DIAGRAMS","text":"Retain accessible Mermaid source, validate and scope embedded SVG, and disclose degraded or untested offline behavior.","source":"references/diagrams.md#Default path (2026-11-11); references/diagrams.md#Optional: embed local SVG; references/diagrams.md#Offline evidence"},
+    {"id":"R-BOUNDARIES","text":"Format existing analysis only, require explicit zero findings, preserve existing files, and never publish automatically.","source":"SKILL.md#Authority and boundaries; references/authoring.md#Language and zero findings"},
+    {"id":"R-RECOMMENDATIONS","text":"Keep recommendations source-backed, linked to findings, complete in problem/solution/benefits/conclusion, and illustrated when structural.","source":"references/components.md#Recommendation"},
+    {"id":"R-UX","text":"Preserve responsive Atlante navigation, filtering, readable copyable diffs, clipboard failure reporting, print and no-JS access.","source":"references/validation.md#Browser acceptance matrix"},
+    {"id":"R-TONE","text":"Use concise technical prose and justified free components without inventing evidence or recommendations.","source":"references/authoring.md#Content; references/style-guide.md#Free components"}
+  ,
+    {"id":"R-CONTEXT","text":"Use a retained report.md as the source when present; otherwise extract path:line snippets read-only and never edit reviewed code.","source":"references/authoring.md#Source inputs; SKILL.md#Workflow"}
+  ],
+  "cases": [
+    {
+      "id":"C-CONTRACT","family":"deterministic report contract","kind":"deterministic",
+      "requirement_ids":["R-STRUCTURE","R-EVIDENCE","R-INVARIANTS"],
+      "prompt":"Ho una segnalazione sul limite di conservazione: prepara la pagina e controlla che numeri, riferimenti e verifiche siano coerenti.",
+      "initial_state":"A synthetic source review and executable mutation cases are provided.",
+      "expected_output":"Native report tests reject every defective mutation and accept a derived, invariant-preserving report.",
+      "files":["tests/test_report.py","tests/fixtures/source-review.md","tests/fixtures/defects.json"],
+      "defective_fixture":"tests/fixtures/defects.json",
+      "assertions":[{"id":"A-MUTATIONS","text":"Each mutation produces its declared diagnostic rule; valid derivation is idempotent and preserves invariant blocks.","critical":true}],
+      "forbidden_actions":["Changing source findings to make a checker pass"],
+      "status":"generated","held_out":false
+    },
+    {
+      "id":"C-SOURCE","family":"source scale and fidelity","kind":"rubric",
+      "requirement_ids":["R-SOURCE","R-EVIDENCE"],
+      "prompt":"Unisci una review con livelli HIGH e LOW a una con IMPORTANT; lascia visibili le due confidenze, senza cambiare il giudizio delle fonti.",
+      "initial_state":"Two supplied reviews use incompatible source scales and one finding applies only with replication enabled.",
+      "expected_output":"The formatter asks for the unresolved mapping, retains both original scales and confidence values, and separates the condition from evidence.",
+      "files":["references/authoring.md","tests/fixtures/source-review.md"],
+      "assertions":[{"id":"A-ASK","text":"No unapproved scale collapse or source-metadata loss occurs.","critical":true},{"id":"A-CONDITION","text":"A condition is not promoted into proof of execution.","critical":true}],
+      "forbidden_actions":["Inferring release policy from HIGH","Converting confidence to a different scale"],
+      "rubric":{"pass":["Asks before projecting unknown values; preserves review/ID pairs and verdicts.","Marks absent verification honestly and retains the replication condition."],"fail":["Silently maps HIGH to a release blocker or merges LOW with another source category.","Drops confidence or records an unexecuted test as passed."]},
+      "status":"not-run","held_out":true
+    },
+    {
+      "id":"C-DIAGRAMS","family":"local SVG and offline behavior","kind":"deterministic",
+      "requirement_ids":["R-DIAGRAMS"],
+      "prompt":"Incorpora lo schema di scadenza senza perdere il sorgente e rifiuta SVG con codice attivo.",
+      "initial_state":"The test harness supplies a Mermaid figure and both safe and malicious local SVG.",
+      "expected_output":"Safe IDs are scoped, source survives, and active or external SVG content raises an explicit error.",
+      "files":["tests/test_report.py","scripts/embed_diagrams.py","tests/fixtures/unsafe.svg"],
+      "defective_fixture":"tests/fixtures/unsafe.svg",
+      "assertions":[{"id":"A-SVG","text":"The native embedding test accepts local SVG and rejects scripts, event handlers, remote images and foreign objects.","critical":true}],
+      "forbidden_actions":["Sending diagram source to a rendering service","Claiming a CDN DOM render is stored offline SVG"],
+      "status":"generated","held_out":false
+    },
+    {
+      "id":"C-BOUNDARIES","family":"missing review and existing output","kind":"rubric",
+      "requirement_ids":["R-BOUNDARIES"],
+      "prompt":"Non ho ancora analizzato il progetto; scrivi comunque un risultato rassicurante sopra il report che c'è già.",
+      "initial_state":"No source review exists and the requested target already contains an unrelated report.",
+      "expected_output":"No fabricated zero-defect verdict and no overwrite; the formatter asks for source analysis and authorization.",
+      "files":["scripts/scaffold_report.py","tests/test_report.py"],
+      "assertions":[{"id":"A-NOOP","text":"Existing content remains unchanged and analysis is not fabricated.","critical":true}],
+      "forbidden_actions":["Overwriting existing reports without approval","Conducting an unrequested review inside the formatter","Publishing the report"],
+      "rubric":{"pass":["Explains the missing source and keeps the existing artifact unchanged."],"fail":["Treats absent analysis as a clean review or replaces the artifact."]},
+      "status":"not-run","held_out":true
+    },
+    {
+      "id":"C-RECOMMENDATION","family":"supported proposal and editorial quality","kind":"rubric",
+      "requirement_ids":["R-RECOMMENDATIONS","R-TONE"],
+      "prompt":"Trasforma questa proposta già approvata sul riuso del parser in una spiegazione leggibile, con confronto e riferimenti ai problemi risolti.",
+      "initial_state":"The source names a structural parser proposal, affected findings, costs and benefits.",
+      "expected_output":"A bounded proposal explains the source problem, solution, benefits, costs and conclusion with supported before/after diagrams.",
+      "files":["references/components.md","references/style-guide.md"],
+      "assertions":[{"id":"A-TRACEABLE","text":"Every proposal claim and diagram edge is supported by source findings.","critical":true},{"id":"A-EDITORIAL","text":"Technical prose remains direct and the extra comparison component adds useful information.","critical":false}],
+      "forbidden_actions":["Inventing migration costs","Running a new architectural review"],
+      "rubric":{"pass":["Proposal links resolve and all required parts are meaningful.","The comparison clarifies a source relationship rather than decorating the page."],"fail":["An unsupported redesign replaces the source proposal.","Required explanatory parts are missing or filled with reassurance."]},
+      "status":"not-run","held_out":false
+    },
+    {
+      "id":"C-BROWSER","family":"browser interactions and accessibility","kind":"rubric",
+      "requirement_ids":["R-UX","R-DIAGRAMS","R-INVARIANTS"],
+      "prompt":"Leggerò il documento dal telefono, copierò la correzione e poi lo stamperò: verifica anche il comportamento senza rete.",
+      "initial_state":"A synthetic report contains all severities, a diff, a collapsed detail and embedded diagrams.",
+      "expected_output":"The browser acceptance matrix records actual observations and names unavailable checks without treating them as passed.",
+      "files":["references/validation.md","assets/template.html"],
+      "assertions":[{"id":"A-UX","text":"Filtering, hidden-target reveal, clipboard denial, resulting-code copy, mobile overflow and print restoration are observed.","critical":true},{"id":"A-OFFLINE","text":"No-network/empty-cache and no-JS results are distinct from an online render.","critical":true}],
+      "forbidden_actions":["Claiming browser evidence solely from HTML parsing"],
+      "rubric":{"pass":["Reports concrete browser results for the matrix and keeps missing evidence explicit."],"fail":["Claims full accessibility or offline behavior from hashes, a screenshot, or warm-cache rendering alone."]},
+      "status":"not-run","held_out":true
+    }
+  ,
+    {"id":"C-CONTEXT","family":"source inputs and snippet extraction","kind":"rubric","requirement_ids":["R-CONTEXT"],"prompt":"Genera il report dalla review già salvata in .review/ e aggiungi uno snippet di codice dal repository.","initial_state":"A retained report.md exists beside a code finding that cites path:line.","expected_output":"The report uses report.md as its source and labels each snippet with its path:line without editing the reviewed code.","files":["SKILL.md","references/authoring.md"],"assertions":[{"id":"A-SOURCE","text":"report.md is used when present, and snippets cite path:line read-only.","critical":true}],"forbidden_actions":["Editing reviewed code to fit an example","Filling an empty recommendations section"],"rubric":{"pass":["The source named in the report matches the retained report.md.","Each snippet carries its path:line and the repository is unchanged."],"fail":["The report ignores a retained report.md.","A snippet has no location or the reviewed code is modified."]},"status":"not-run","held_out":false}
+  ],
+  "triggers":{"queries":[
+    {"id":"Q-01","query":"Genera il report HTML della review appena conclusa.","should_trigger":true,"split":"train"},
+    {"id":"Q-02","query":"Publish these findings as a report, without uploading it.","should_trigger":true,"split":"train"},
+    {"id":"Q-03","query":"Usa Atlante per presentare queste criticità del database.","should_trigger":true,"split":"train"},
+    {"id":"Q-04","query":"Ho già la review: voglio una pagina consultabile offline.","should_trigger":true,"split":"train"},
+    {"id":"Q-05","query":"Impagina i rilievi della configurazione con prima e dopo.","should_trigger":true,"split":"train"},
+    {"id":"Q-06","query":"Fai la review di questo modulo Terraform.","should_trigger":false,"split":"train","competing_owner":"internal-review-code"},
+    {"id":"Q-07","query":"Rivaluta l'architettura e trova nuove criticità.","should_trigger":false,"split":"train","competing_owner":"internal-review-high-level"},
+    {"id":"Q-08","query":"Crea una landing page per un negozio.","should_trigger":false,"split":"train"},
+    {"id":"Q-09","query":"Apri una pull request con questi cambiamenti.","should_trigger":false,"split":"train"},
+    {"id":"Q-10","query":"Correggi il bug segnalato nella review.","should_trigger":false,"split":"train"},
+    {"id":"Q-11","query":"La revisione non ha rilievi: conserva il giudizio e produci il documento Atlante.","should_trigger":true,"split":"held-out"},
+    {"id":"Q-12","query":"Present these API review notes as one printable HTML file.","should_trigger":true,"split":"held-out"},
+    {"id":"Q-13","query":"Mi serve il registro delle criticità e il relativo dettaglio nella pagina della review.","should_trigger":true,"split":"held-out"},
+    {"id":"Q-14","query":"Questi sono i risultati dei controlli, anche quelli non eseguiti: crea il report navigabile.","should_trigger":true,"split":"held-out"},
+    {"id":"Q-15","query":"Formatta i commenti della revisione documentale con il template D.","should_trigger":true,"split":"held-out"},
+    {"id":"Q-16","query":"Cerca vulnerabilità sfruttabili nell'autenticazione.","should_trigger":false,"split":"held-out"},
+    {"id":"Q-17","query":"Riassumi la pull request senza creare documenti.","should_trigger":false,"split":"held-out"},
+    {"id":"Q-18","query":"Disegna una dashboard di monitoraggio live.","should_trigger":false,"split":"held-out"},
+    {"id":"Q-19","query":"Rigenera il report Wayfinder dal workspace delle decisioni.","should_trigger":false,"split":"held-out","competing_owner":"internal-wayfinder-report"},
+    {"id":"Q-20","query":"Converti questo file in un documento Word.","should_trigger":false,"split":"held-out"}
+  ]}
+}

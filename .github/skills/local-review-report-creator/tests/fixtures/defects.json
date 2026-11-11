@@ -1,0 +1,15 @@
+[
+  {"rule":"finding-part","needle":"data-part=\"problem\"","replacement":"data-part=\"missing\""},
+  {"rule":"severity","needle":"data-severity=\"blocker\"","replacement":"data-severity=\"critical\""},
+  {"rule":"evidence-state","needle":"data-evidence=\"documented\"","replacement":"data-evidence=\"unknown\""},
+  {"rule":"source-metadata","needle":"data-source-id=\"A-17\"","replacement":"data-source-id=\"\""},
+  {"rule":"count","needle":"data-count=\"blocker\"","replacement":"data-count=\"unknown\""},
+  {"rule":"template-version","needle":"data-template-version=\"1\"","replacement":"data-template-version=\"999\""},
+  {"rule":"accent","needle":"data-accent=\"blue\"","replacement":"data-accent=\"pink\""},
+  {"rule":"check-status","needle":"data-status=\"not-run\"","replacement":"data-status=\"success\""},
+  {"rule":"check-part","needle":"data-part=\"check-result\"","replacement":"data-part=\"missing\""},
+  {"rule":"index-severity","needle":"data-row=\"blocker\"","replacement":"data-row=\"important\""},
+  {"rule":"index-action","needle":"data-part=\"action\">Configure expiry.","replacement":"data-part=\"action\">"},
+  {"rule":"invariant","needle":"data-invariant=\"css\"","replacement":"data-invariant=\"missing\""},
+  {"rule":"density","needle":"data-density=\"comfortable\"","replacement":"data-density=\"tiny\""}
+]
