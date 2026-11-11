@@ -1,8 +1,10 @@
 # Spec: `local-review-report-creator`
 
-Status: revised design, not implemented. Corrections from counter-validation
-are incorporated; unresolved decisions in section 16 block design freeze.
-Date: 2026-11-10.
+Status: implementation authorized after the 2026-11-11 design interview.
+The approved contract in section 17 supersedes conflicting historical
+design choices and open gates in sections 1–16.
+Template direction: D · Atlante · Tratto leggero.
+Date: 2026-11-11.
 Origin: grill session that produced
 `.review/20261110-review-terraform-aws-backup/report.html`.
 
@@ -24,6 +26,7 @@ Origin: grill session that produced
 14. [Implementation plan](#14-implementation-plan)
 15. [Parked items and open risks](#15-parked-items-and-open-risks)
 16. [Counter-validation](#16-counter-validation)
+17. [Approved implementation contract](#17-approved-implementation-contract)
 
 ## 1. Goal and scope
 
@@ -52,9 +55,10 @@ case-specific content and stylistic choices inside declared limits.
   during template design.
 - Deciding whether `.review/` is ignored by Git.
 
-This revision changes only this specification. It does not authorize skill
-implementation, validator or sync changes, paid model runs, report migration,
-or Git index changes. The document stays at the explicitly requested path.
+The 2026-11-11 request authorizes skill implementation and the narrowly scoped
+validator/bootstrap changes in section 17. It does not authorize paid model
+runs, report migration, publication, or Git index changes.
+The document stays at the explicitly requested path.
 
 ## 2. Decision log
 
@@ -78,6 +82,13 @@ or Git index changes. The document stays at the explicitly requested path.
 | Q16 | Run `impeccable detect --json` with telemetry disabled as a warning-only check when the binary exists; absence is `not-run`. |
 | Q17 | Every finding declares an evidence state. |
 | Q18 | Embed SVG from `mmdc` or a controlled browser when available; otherwise keep the pinned CDN. Do not inline the Mermaid library. |
+| Q19 | Adopt proposal C, "Tabella e dettaglio", as the basis of `assets/template.html`. Prototype: [`c-tabella.html`](local-review-report-creator/templates/c-tabella.html); iteration notes in its [README](local-review-report-creator/templates/README.md). Proposals A and B are archived references. |
+| Q20 | Action list first: a findings index (severity, title, one-line action) follows the summary and precedes the recommendations. Finding detail follows the recommendations. See §5. |
+| Q21 | Recommendations and findings explain problem, solution, and benefit. Brief is acceptable; a single sentence per part is not, when the source supplies more. See §5. |
+| Q22 | Light theme only, warm paper surface, `terracotta` default accent. Automatic dark mode is withdrawn. See §7, §8 g. |
+| Q23 | Emoji are allowed only as hidden decorative markers in four fixed part labels. They never replace the severity SVG shapes. See §7. |
+| Q24 | Browser surfaces must keep code readable: accent-tinted selection on prose, inverted selection inside code, and a target highlight that never fills the finding. See §7, §8 b. |
+| Q25 | Code samples use a diff figure with a file caption, a non-selectable marker gutter, preserved indentation, and a copy button for the resulting code. See §7, §8 h. |
 
 ## 3. North stars
 
@@ -85,12 +96,14 @@ These rules are non-negotiable. The checker enforces the testable parts; the
 eval rubric covers the rest.
 
 1. **Verdict in 30 seconds.** The header and summary state the outcome,
-   counts per severity, and the direction.
-2. **Each finding stands alone.** Severity, problem, concrete example, fix,
-   and sources, in short and direct sentences.
-3. **Recommendations have visible boundaries.** Each has a clear start, a
-   closing conclusion, and a before/after comparison when structure or flow
-   changes.
+   counts per severity, and the direction. The findings index then shows
+   what to do before any long explanation.
+2. **Each finding stands alone.** Severity, problem with its impact,
+   concrete example, fix, benefit when supported, and sources, in short and
+   direct sentences.
+3. **Recommendations have visible boundaries.** Each has a clear start,
+   explicit problem, solution, and benefits, a closing conclusion, and a
+   before/after comparison when structure or flow changes.
 4. **Evidence is honest.** Verified fact, conditional risk, correct behavior,
    and missing verification stay distinct. `not-run` never means passed.
 5. **Technical review, not conversation.** No colleague framing, reassurance,
@@ -120,14 +133,28 @@ using the existing tokens.
 
 | Order | Section | Status |
 |---|---|---|
-| 1 | Header: title, scope, verdict, severity counts, analysis disclaimer | Mandatory |
+| 1 | Header: title, scope, verdict, severity tally, analysis disclaimer | Mandatory |
 | 2 | Summary (`Sintesi`) | Mandatory |
-| 3 | Recommendations (`Raccomandazioni`) | Optional; only for structural proposals |
-| 4 | Free sections | Optional |
-| 5 | Findings by severity (`Criticità`) | Mandatory |
-| 6 | Notes and limits (`Note e limiti`) | Mandatory when any `note` finding exists |
-| 7 | Evidence and limits of the analysis (`Evidenze`) | Mandatory |
-| 8 | Order of work (`Ordine degli interventi`) | Optional; required when any `blocker` or `important` exists |
+| 3 | Findings index (`Criticità`): severity filters and one row per defect | Mandatory when any non-note finding exists |
+| 4 | Recommendations (`Raccomandazioni`) | Optional; only for structural proposals |
+| 5 | Free sections | Optional |
+| 6 | Finding detail (`Dettaglio delle criticità`) | Mandatory |
+| 7 | Notes and limits (`Note e limiti`) | Mandatory when any `note` finding exists |
+| 8 | Evidence and limits of the analysis (`Evidenze`) | Mandatory |
+| 9 | Order of work (`Ordine degli interventi`) | Optional; required when any `blocker` or `important` exists |
+
+The reader must see what to do before reading why. The index comes before
+the recommendations; the detail comes after them. A sticky section bar lists
+the sections in this order.
+
+**Header tally**: total of points to review, a severity bar, and one count
+per severity that links to the first finding of that severity. Notes are
+counted separately from defects. On narrow screens the tally comes first.
+
+**Findings index row**: severity badge, finding title linking to the detail
+anchor, a one-line action (`data-part="action"`) taken from the source fix,
+evidence state, and source ID. The whole row is clickable. The action is a
+short imperative summary of the source fix, not a new recommendation.
 
 **Severity scale** (fixed):
 
@@ -158,9 +185,21 @@ The separation of `conditional` from evidence provenance is pending C15.
 Until resolved, retain the source's condition explicitly in the finding
 limits. Do not infer `verified` from a severe finding or a proposed test.
 
-**Finding anatomy**: badge row (severity and evidence state), title, problem,
-example, fix, limits (optional), sources, optional expandable detail.
-A `note` uses `indication` instead of `fix`; its example is optional.
+**Finding anatomy**: badge row (severity and evidence state), title, source
+metadata line, then a labelled grid: problem, example, fix, benefit
+(optional), limits (optional), sources, optional expandable detail. A `note`
+uses `indication` instead of `fix`; its example is optional.
+
+- **Problem** states what is wrong and why it matters: the impact on data,
+  security, cost, or operations. One sentence is acceptable only when the
+  source supplies nothing more.
+- **Example** shows the failure concretely: a request, a value table, a
+  calculation, a timeline, or a flow with the failing step highlighted.
+- **Fix** states the change and includes a code diff when the source has one.
+- **Benefit** (`Vantaggio`) states what the fix guarantees once applied. Use
+  it when the source states or directly implies the outcome; omit it rather
+  than invent one.
+
 All required parts must contain meaningful text, not template placeholders.
 Missing substantive input goes back to the review owner; the formatter must
 not fabricate it.
@@ -171,13 +210,26 @@ rewritten to make anchors. Scope source IDs by source review when several
 reviews use the same ID. Defects appear only in `findings`; notes appear only
 in `notes`. Each finding is counted once across both sections.
 
-**Recommendation anatomy**: header (ID, title, one-sentence proposal), body
-(before/after, why, how, examples, expandable detail), footer conclusion
-(benefit, cost, and what stays valid today). Each recommendation references
-at least one finding through `data-refs`, a space-separated list of finding
-anchor IDs. Reuse source proposals; do not perform a new design review.
-Before/after is required when the proposal changes structure or flow, not
-when a diagram would merely decorate the text.
+**Recommendation anatomy**: the reader must understand the problem, the
+solution, and its benefits without opening the findings.
+
+| Part | Marker | Content | Status |
+|---|---|---|---|
+| Header | `<header>` | ID and title, a one- or two-sentence proposal, and chips for the resolved findings with severity shape | Mandatory |
+| Problem | `data-part="why"` | Current state in two or three sentences, then a list of consequences that link to findings | Mandatory |
+| Before/after | `data-part="before-after"` | Two diagrams; the weak and the resolved element are highlighted | Mandatory when structure or flow changes |
+| Solution | `data-part="how"` | What to build, numbered steps, and a code sample when the source has one | Mandatory |
+| Benefits | `data-part="benefits"` | Two to four items; each has a short bold lead and one explanatory sentence, linked to the finding it resolves | Mandatory |
+| Costs | `data-part="tradeoffs"` | Migration, compatibility, and release impact | Mandatory when the source names a cost |
+| Plan | `<details>` | Migration steps and code | Optional |
+| Conclusion | `data-part="conclusion"` | Three cells: benefit, cost, what stays valid today | Mandatory |
+
+Problem, solution, and benefits share the labelled grid of findings. Each
+recommendation references at least one finding through `data-refs`, a
+space-separated list of finding anchor IDs. Reuse source proposals; do not
+perform a new design review. Before/after is required when the proposal
+changes structure or flow, not when a diagram would merely decorate the
+text.
 
 ## 6. HTML contract
 
@@ -185,7 +237,7 @@ The checker relies on these markers. Names are stable API.
 
 ```html
 <html lang="it" data-report="review" data-template-version="1"
-      data-accent="blue" data-density="comfortable">
+      data-accent="terracotta" data-density="comfortable">
 <header data-slot="header">
   <p data-slot="verdict">…</p>
   <p data-slot="analysis-disclaimer">…</p>
@@ -197,13 +249,24 @@ The checker relies on these markers. Names are stable API.
   </ul>
 </header>
 <section data-section="summary" id="sintesi">…</section>
+<section data-section="findings-index" id="elenco">
+  <table>
+    <tr data-row="blocker">
+      <td><a href="#blocker-1">…</a><span data-part="action">…</span></td>
+    </tr>
+  </table>
+</section>
 <section data-section="recommendations" id="raccomandazioni">
   <article data-recommendation id="r1" data-refs="blocker-1">
     <header>…</header>
+    <dd data-part="why">…</dd>
     <div data-part="before-after">
       <figure data-diagram data-side="before">…</figure>
       <figure data-diagram data-side="after">…</figure>
     </div>
+    <dd data-part="how">…</dd>
+    <dd data-part="benefits">…</dd>
+    <dd data-part="tradeoffs">…</dd>
     <footer data-part="conclusion">…</footer>
   </article>
 </section>
@@ -213,10 +276,11 @@ The checker relies on these markers. Names are stable API.
            data-source-review="review-1" data-source-id="BLOCKER-1"
            data-source-severity="BLOCKER"
            data-severity="blocker" data-evidence="reproduced">
-    <p data-part="problem">…</p>
-    <p data-part="example">…</p>
-    <p data-part="fix">…</p>
-    <p data-part="sources">…</p>
+    <dd data-part="problem">…</dd>
+    <dd data-part="example">…</dd>
+    <dd data-part="fix">…</dd>
+    <dd data-part="benefit">…</dd>
+    <dd data-part="sources">…</dd>
   </article>
 </section>
 <section data-section="notes" id="note">…</section>
@@ -233,7 +297,14 @@ The checker relies on these markers. Names are stable API.
 
 The excerpt shows markers, not a complete valid fixture; its sample counts
 do not describe the single example finding. The source severity example is
-illustrative, not a resolved adapter contract.
+illustrative, not a resolved adapter contract. In the template each part is
+a `<dd>` inside a `<dl class="parts">` row with a visible `<dt>` label; the
+checker reads the `data-part` markers, not the element names.
+
+Every non-note finding has exactly one findings-index row that links to its
+anchor, with a `data-row` equal to its `data-severity` and a non-empty
+`action`. Notes have no index row. Copy-as-issue includes `benefit` when
+present.
 
 `data-confidence` is optional and must preserve the supplied source value
 without inferring a score or converting scales. Display source metadata as
@@ -265,43 +336,87 @@ Diagram figure:
 ## 7. Design system
 
 Source rules: `pbakaus-impeccable` `reference/craft-floor.md` and
-`reference/typeset.md`, plus the lessons from the Terraform report.
+`reference/typeset.md`, plus the lessons from the Terraform report and the
+proposal C iterations. The prototype
+[`c-tabella.html`](local-review-report-creator/templates/c-tabella.html) is
+the visual reference.
 
 **Tokens** (named by purpose): `--ink`, `--ink-muted`, `--surface`,
 `--surface-sunken`, `--line`, `--accent`, `--accent-soft`, `--sev-blocker`,
 `--sev-important`, `--sev-improvement`, `--sev-note`, each severity with a
-`-soft` variant, `--radius-control`, `--radius-panel` (12–16px), `--measure`
-(70ch), and a spacing scale.
+`-soft` variant, `--code-bg`, `--code-ink`, `--code-add`, `--code-del`,
+`--radius-control`, `--radius-panel` (12–16px), `--measure` (70ch), and a
+spacing scale.
 
 **Typography**
 
 - One system sans stack; no web fonts.
-- Monospace only for code, identifiers, and data.
+- Monospace only for code, identifiers, and data. Identifiers inside prose
+  use inline `<code>` with a sunken background that clones across line
+  breaks.
 - Fixed role scale: display, h2, h3, h4, body (≥1rem), label, meta, data.
 - `font-variant-numeric: tabular-nums` for counts and tables.
 - `text-wrap: balance` for headings and `text-wrap: pretty` for body.
 - Body measure 65–75ch; more space above a heading than below it.
+- Short fragment links, such as `B-1`, never break across lines.
 
-**Accents** (adjustable): `blue`, `green`, `violet`, `graphite`. Implementation
-must verify normal text contrast of at least 4.5:1 on light and dark surfaces
-before the palette is called vetted.
+**Theme**: light only, also when the OS uses dark mode. Warm paper surface
+(`--surface: #fffcf7`) and ink text. Normal text must reach 4.5:1; muted text
+must not lose contrast through opacity.
+
+**Accents** (adjustable): `terracotta` (default), `blue`, `green`, `violet`,
+`graphite`. Implementation must verify normal text contrast of at least 4.5:1
+on the light surfaces before an accent is called vetted.
 
 **Severity display**: text badge plus inline SVG shape. Octagon for
 `blocker`, triangle for `important`, circle for `improvement`, info mark for
 `note`. Meaning must survive grayscale print and color-blind viewing.
 
-**Browser surfaces**: themed text selection, focus ring, scrollbars, and link
-underline offset.
+**Part labels**: findings and recommendations use one labelled grid
+(`dl.parts`): a fixed label column and a content column; on narrow screens the
+label sits above the content. Labels are sentence case and stay aligned
+whether or not they carry an emoji marker.
 
-**Themes**: light by default; dark through `prefers-color-scheme`. Both must
-pass contrast checks; no palette has been implemented or measured yet.
+**Emoji markers**: allowed only as `<span class="emo" aria-hidden="true">` at
+the start of these part labels:
+
+| Marker | Labels |
+|---|---|
+| 🔍 | Problema |
+| 🛠️ | Correzione, Soluzione |
+| ✅ | Vantaggio, Vantaggi |
+| ⚖️ | Costi |
+
+No other emoji appear: not in headings, badges, table cells, chips, prose,
+or diagrams. Severity meaning never depends on an emoji.
+
+**Code samples**: a figure with a caption (file name in monospace, short
+purpose, copy button) and a diff body. Each line has a non-selectable marker
+gutter (`+`, `-`, or blank) and keeps its source indentation. Added lines use
+`--code-add`, removed lines `--code-del`. Diff rows run full width; the
+detector's cramped-padding warning on them is accepted.
+
+**Diagram highlights**: embedded SVG may mark one node as `bad` (failing
+step), `warn` (fragile current design), or `good` (resolved design), using the
+severity soft colors. Mermaid sources stay theme-neutral (§9).
+
+**Browser surfaces**: themed focus ring, scrollbars, and link underline
+offset. Text selection must stay readable everywhere:
+
+- Prose: accent mixed at about 30% into the surface, ink text.
+- Inside `pre`: inverted selection (ink background, surface text), so diff
+  colors and selected code stay distinct.
+- `:target`: never fill the whole finding. Flash the badge row and title once
+  (respect `prefers-reduced-motion`), then keep only an accent underline on
+  the title. A full accent fill hid the diff colors in the prototype.
 
 **Refused patterns** (checker or `impeccable detect` flag them):
 
 - Colored `border-left` or `border-right` wider than 1px on cards or callouts.
 - Eyebrow labels above headings.
-- Emoji or Unicode glyphs as icons.
-- Card grids as page structure; nested cards.
+- Emoji outside the part-label markers above; Unicode glyphs as icons.
+- Card grids as page structure; nested cards. Benefit lists inside a
+  recommendation are plain separated items, not cards.
 - Hero-metric blocks; gradient text; decorative blur or glass.
 - Monospace used as decoration.
 - Same entrance animation on every section.
@@ -310,16 +425,19 @@ pass contrast checks; no palette has been implemented or measured yet.
 
 | ID | Feature | Behavior |
 |---|---|---|
-| a | Severity filters | Toggle chips with counts; `aria-pressed`; hidden findings keep anchors working; filter state never affects print |
-| b | Finding permalinks | Copy-link button per finding; `:target` highlight |
-| c | Copy as issue | Copies title, source ID/severity, confidence when supplied, evidence state, problem, example, fix or indication, and sources. Visible only when `navigator.clipboard` exists; explicit inline failure status if copying is denied |
-| d | Before/after | Side by side at ≥900px; tabs (`role="tablist"`) below; both panes print side by side |
-| e | Navigation | Sticky sidebar with active-section state on desktop; compact wrap on mobile; skip link |
+| a | Severity filters | Toggle chips with counts above the findings index; `aria-pressed`; each filter hides both index rows and detail articles; hidden findings keep anchors working and reveal on navigation; an empty state with a reset button appears when no row is visible; filter state never affects print |
+| b | Finding permalinks | Copy-link button per finding; `:target` highlight as in §7; a "Torna all'elenco" link returns to the index |
+| c | Copy as issue | Copies title, source ID/severity, confidence when supplied, evidence state, problem, example, fix or indication, benefit when present, limits, and sources. Visible only when `navigator.clipboard` exists; explicit inline failure status if copying is denied |
+| d | Before/after | Side by side at ≥900px. The prototype stacks the panes below 900px instead of using tabs; keeping tabs (`role="tablist"`) is an open choice. Both panes print side by side |
+| e | Navigation | Sticky horizontal section bar with active-section state at every width; horizontal scroll on narrow screens; skip link |
 | f | Expand/collapse all | One button for every non-source `<details>`; print expands all and restores the previous state |
-| g | Dark mode | Automatic through `prefers-color-scheme` |
+| g | Theme | Light only; no automatic dark mode |
+| h | Copy code | Per code figure; copies the resulting code: no marker gutter and no removed lines. Visible only when `navigator.clipboard` exists; the button label reports success or denial for two seconds |
+| i | Index rows | The whole row of the findings index opens the finding detail |
 
 All features use progressive enhancement: the report stays complete and
-readable without JavaScript. Respect `prefers-reduced-motion`.
+readable without JavaScript. Respect `prefers-reduced-motion`. The print
+stylesheet hides the section bar, filters, and tool buttons.
 
 ## 9. Mermaid diagrams
 
@@ -400,8 +518,11 @@ Draft description:
    Do not overwrite an existing report without authorization. The scaffolding
    alternative is pending C3.
 4. **Fill slots** with components from `references/components.md`. Choose an
-   accent and density. Add free sections only when the north stars justify
-   them.
+   accent and density. Write one index row per defect with a one-line action
+   taken from the source fix. Write problem with impact, and benefit only
+   when the source supports it. Give each recommendation problem, solution,
+   benefits, and costs. Use emoji only in the fixed part labels. Add free
+   sections only when the north stars justify them.
 5. **Write diagrams** following `references/diagrams.md`. Embed SVG when a
    renderer is available.
 6. **Check**:
@@ -449,8 +570,15 @@ severity, and finding/element locations so baseline deltas are comparable.
 - A finding lacks source review, source ID, or source severity; a source
   review/ID pair is duplicated; a note is misplaced or counted twice.
 - Header counts do not match the findings.
-- A recommendation lacks a header, a non-empty `conclusion` footer, or
-  non-empty `data-refs`; any reference fails to resolve to a finding.
+- A recommendation lacks a header, non-empty `why`, `how`, or `benefits`
+  parts, a non-empty `conclusion` footer, or non-empty `data-refs`; any
+  reference fails to resolve to a finding.
+- The findings index is missing while a non-note finding exists; a non-note
+  finding has no index row, or more than one; a row links to a missing or
+  note finding; a row's `data-row` differs from the finding's
+  `data-severity`; a row lacks a non-empty `action`.
+- The findings index, recommendations, and finding detail are out of the §5
+  order.
 - A `before-after` block lacks exactly one `before` and one `after` figure.
 - A diagram lacks a Mermaid source, `accTitle`, or `accDescr`.
 - A reported check lacks an allowed `data-status`, a non-empty
@@ -472,8 +600,10 @@ separately.
 
 - A diagram is not embedded as SVG.
 - The report loads an external script while all diagrams are embedded.
-- Refused-pattern heuristics: colored side borders wider than 1px, emoji in
-  headings or badges, or eyebrow elements above headings.
+- Refused-pattern heuristics: colored side borders wider than 1px, emoji
+  outside an `.emo` marker in a part label, an `.emo` marker that is not
+  `aria-hidden` or not one of the four allowed emoji, or eyebrow elements
+  above headings.
 - Colleague-framing phrases, such as `caro collega`, `ai colleghi`, or
   `da portare alla discussione`. Do not flag the bare word `collega`;
   `il modulo collega X a Y` is legitimate technical prose.
@@ -495,7 +625,8 @@ with the skill-creator checker.
 | R-structure | Mandatory sections and HTML contract present | §5, §6 |
 | R-severity | Source severity/verdict/confidence preserved; counts match; adapter acceptance blocked on C2 | §5, §6 |
 | R-evidence | Findings retain evidence and conditions; checks have explicit statuses; no `not-run` as passed | §3, §5, §6 |
-| R-recommendation | Source-backed recommendations with finding references, conclusion, and before/after when structural | §3, §5, §6 |
+| R-recommendation | Source-backed recommendations with finding references, problem, solution, benefits, conclusion, and before/after when structural | §3, §5, §6 |
+| R-index | Findings index first, one row per defect with a source-derived action | §3, §5, §6 |
 | R-invariants | Invariant blocks unchanged and versioned; adjustable values valid | §4, §6, §12 |
 | R-diagrams | Sources kept, accessible, theme-neutral; embedding attempted; offline claims tested | §9 |
 | R-tone | Technical, direct, no colleague framing or repetition | §3 |
@@ -504,8 +635,10 @@ with the skill-creator checker.
 
 **Cases**
 
-- Deterministic, one defective fixture each: missing conclusion, count
-  mismatch, invalid severity, missing evidence state, duplicate ID, diagram
+- Deterministic, one defective fixture each: missing conclusion,
+  recommendation without `why`, `how`, or `benefits`, finding without index
+  row, index row with mismatched severity or empty action, index placed after
+  the recommendations, emoji in a heading or badge, count mismatch, invalid severity, missing evidence state, duplicate ID, diagram
   without source, edited invariant CSS, unknown accent, missing check status,
   invalid check status, empty check result, unresolved recommendation
   reference, missing source ID, duplicate source ID within one review,
@@ -516,8 +649,11 @@ with the skill-creator checker.
   is not warned; identical source IDs from distinct reviews remain traceable;
   literal HTML in source evidence is escaped, not executed.
 - Browser cases: network disabled and empty cache, JavaScript disabled,
-  clipboard denial, filtered-target navigation, keyboard tabs, print state
-  restoration, mobile layout, and dark-mode contrast.
+  clipboard denial, filtered-target navigation, filter empty state and reset,
+  copy code without markers or removed lines, selection readability inside
+  code and prose, target highlight that keeps diff colors, sticky section bar
+  active state, keyboard navigation, print state restoration, mobile layout,
+  and light-theme contrast when the OS prefers dark mode.
 - Judgment, with anchored rubrics: source fidelity, tone and simplicity;
   recommendations traceable to source findings; justified
   use of a free component.
@@ -539,13 +675,13 @@ failing native tests for each executable seam before implementing it.
 
 | Step | Work | Complete when |
 |---|---|---|
-| 1 | Build `assets/template.html` from the Terraform report, applying §5–§8 | Template renders with sample content; every feature works |
+| 1 | Build `assets/template.html` from the proposal C prototype `c-tabella.html`, applying §5–§8 | Template renders with sample content; every feature works; prototype decisions in Q19–Q25 hold |
 | 2 | Use the `pbakaus-impeccable` critique and audit workflows; run the detector with telemetry disabled | Findings fixed or recorded as accepted; do not assume critique/audit are CLI subcommands |
 | 3 | Write `check_report.py` and its tests, failing first on defective fixtures | Unit tests pass; valid fixture is clean |
 | 4 | Write `embed_diagrams.py` after failing tests; verify the pinned renderer artifact and SRI | Tests pass; embedded page renders with network disabled and empty cache, with no external script loads |
 | 5 | Write `references/*` and `SKILL.md`; run the frontmatter checker | Checker passes; all references linked |
 | 6 | Write `evals.json`; run the eval-pack checker | Checker passes |
-| 7 | Generate a separate smoke-test report from the Terraform findings; preserve the origin report | Checker exits 0; source fidelity and mobile, desktop, print, keyboard, and dark-mode checks pass |
+| 7 | Generate a separate smoke-test report from the Terraform findings; preserve the origin report | Checker exits 0; source fidelity and mobile, desktop, print, keyboard, and light-theme checks pass |
 | 8 | Validate the chosen bundle path, host discovery, inventory requirements, and sync scope; run targeted checks before global validation | Bundle checks pass; no new global diagnostics attributable to the task; baseline failures remain explicit |
 | 9 | Resolve C7; perform cross-model runs only with explicit approval | If run, both outputs pass with source fidelity and identical invariant hashes; otherwise evidence remains `not-run` |
 
@@ -583,6 +719,11 @@ Do not repair unrelated policy, workflow, or token-risk failures in this task.
   Do not assume a `local-` prefix prevents bootstrap distribution.
 - **Open (C2, C3, C7, C10, C15):** adapter semantics, generation ownership,
   release evidence, language default, and evidence axes need decisions.
+- **Open:** before/after on narrow screens: keep the stacked panes of the
+  prototype or restore tabs (§8 d).
+- **Risk:** the `benefit` part and the index `action` invite paraphrase.
+  Both must stay traceable to the source fix; source-fidelity review covers
+  them, the stdlib checker does not.
 - **Risk:** template versions require a bundled validation contract; there
   is no automatic one-version hash grace period.
 - **Risk:** a CDN fallback is not fully offline. Embedding depends on an
@@ -674,3 +815,104 @@ corrects them: an embedded example does not validate an embedding tool;
 passed contrast checks; a CDN response does not validate a renderer; and
 matching invariant hashes does not prove source fidelity or safe custom CSS.
 The evaluation and implementation sections now expose those evidence gaps.
+
+## 17. Approved implementation contract
+
+The user confirmed this scope on 2026-11-11 after the skill-creator and
+grill-me interview. This section controls wherever the earlier design or
+counter-validation records a conflicting choice.
+
+### Bundle and locality
+
+Create `.github/skills/local-review-report-creator/` as a self-contained
+repository-local skill. Exclude exactly `/skills/local-review-report-creator/`
+through `.github/.bootstrap-ignore`. The naming validator accepts this exact
+bundle only when its frontmatter name matches and that exclusion exists.
+Do not grant a general exception to every `local-*` directory.
+The exact local bundle is discovered directly and does not require an
+inventory entry in the portable root `AGENTS.md` or an artificial prompt.
+Keep unrelated inventory diagnostics and global baseline failures outside scope.
+
+### Visual authority
+
+Use the real elements of
+[`d-atlante.html`](local-review-report-creator/templates/d-atlante.html),
+not a merely similar redesign. D replaces C as the visual authority:
+blue/light Atlas surfaces, Georgia headings, desktop side navigation,
+mobile horizontal navigation, right-hand tally, finding register, labelled
+detail grid, recommendation comparisons, copyable diffs, and print behavior.
+Keep stacked before/after panes on narrow screens, not tabs.
+Preserve the original prototypes and their tests.
+
+Move the prototype's D-specific style layer into a protected `layout` block,
+alongside the original `css`, `severity-icons`, and `script` blocks.
+Keep an empty custom-style slot for bounded case-specific extensions.
+Correct functional defects without restoring superseded C design choices.
+The bundled example content is illustrative; scaffolding replaces all
+Terraform findings before the formatter writes report content.
+
+### Source severity and evidence
+
+Use D's four presentation categories. The approved built-in source adapter
+is `BLOCKER` to `blocker`, `IMPORTANT` to `important`, and `SUGGESTION` to
+`improvement`; explicitly source-marked notes use `note`.
+For every other scale, ask the user to approve the correspondence.
+Do not infer `critical` to `blocker`, collapse `medium/low`, or derive a
+release verdict from presentation severity.
+Preserve source review, source ID, exact original severity, optional
+confidence, and original verdict as visible content.
+
+Evidence provenance uses `verified`, `reproduced`, `documented`, or
+`unverified`. Applicability is separate: `data-conditional="true"` plus a
+visible `data-part="conditions"` field when the source supplies a condition.
+Missing verification evidence remains `unverified`; it does not invent a
+test result. Preserve all supplied check results, especially failures and
+`not-run` or `blocked` states.
+
+### Generation ownership
+
+Use a hybrid workflow, not an obligatory JSON-to-HTML renderer:
+
+1. `scaffold_report.py` copies the invariant template into a new report and
+   inserts source-backed title, scope, verdict, summary, and language.
+2. The model fills content components with the existing review findings.
+3. `derive_report.py` explicitly writes counts, the findings register,
+   filters, and navigation from the authored findings and sections.
+4. `embed_diagrams.py` validates/scopes locally supplied SVG or uses an
+   installed local renderer. Preserve every Mermaid source.
+5. `check_report.py` remains a read-only structural checker.
+
+Output remains `.review/<YYYYMMDD>-review-<slug>/report.html`; existing files
+are not overwritten by scaffolding. Ordinary scaffolds contain a blocking
+pending marker. Only an explicit zero-findings source result authorizes
+`--zero-findings`.
+Italian remains the default; English is explicitly selectable.
+Source-only diagram degradation is the safe default when embedding is
+unavailable. The pinned CDN fallback is an explicit option and never an
+offline guarantee.
+
+### Validation and anti-scope
+
+Write failing native tests before implementing executable seams. Run bundle
+tests, creator frontmatter/eval-pack checks, local-control tests, and
+available browser checks. Capture global diagnostics before and after;
+do not treat new bundle failures as baseline problems.
+Keep model-run evidence separate from static cases.
+Cross-model comparisons do not block delivery and are not authorized to run.
+Cheaper-model reliability, isolated host activation, and unobserved browser
+properties remain explicit evidence gaps rather than inferred passes.
+
+Do not modify external skill bundles, fix unrelated global failures,
+change Git ignore/index/history for reports, publish, commit, or install
+the skill into global user folders.
+
+### Lightweight Mermaid supersession (2026-11-11)
+
+Client-side Mermaid from the pinned CDN artifact is the default diagram path
+for new reports. This supersedes the SVG-first expectation and the `source`
+fallback default in earlier sections (Q11, Q18, and section 9) for new
+reports. Mermaid source stays in the report. SVG embedding remains an optional
+offline hardening step. No external Mermaid CLI is required. The browser
+loads the pinned artifact with SRI, and the diagram source is rendered locally
+in the browser.
+
