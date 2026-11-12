@@ -222,3 +222,69 @@ Every output above is null when disabled.
   and [continuous ID prefix](https://docs.aws.amazon.com/aws-backup/latest/devguide/point-in-time-recovery-finding.html)
 - [Lambda runtime dependencies](https://docs.aws.amazon.com/lambda/latest/dg/python-package.html)
 - [SNS KMS publishers](https://docs.aws.amazon.com/sns/latest/dg/sns-key-management.html)
+
+<!-- BEGIN_TF_DOCS -->
+## Requirements
+
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.5.0 |
+| <a name="requirement_archive"></a> [archive](#requirement\_archive) | >= 2.4.0, < 3.0.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 5.72.0, < 6.0.0 |
+
+## Providers
+
+| Name | Version |
+|------|---------|
+| <a name="provider_archive"></a> [archive](#provider\_archive) | 2.8.1 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 5.100.0 |
+| <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
+
+## Modules
+
+No modules.
+
+## Resources
+
+| Name | Type |
+|------|------|
+| [aws_cloudwatch_log_group.coverage](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
+| [aws_cloudwatch_metric_alarm.health](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_metric_alarm) | resource |
+| [aws_dynamodb_table.incidents](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/dynamodb_table) | resource |
+| [aws_iam_role.coverage](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
+| [aws_iam_role.scheduler](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
+| [aws_iam_role_policy.coverage](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
+| [aws_iam_role_policy.scheduler](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
+| [aws_lambda_function.coverage](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function) | resource |
+| [aws_lambda_function_event_invoke_config.coverage](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function_event_invoke_config) | resource |
+| [aws_scheduler_schedule.coverage](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/scheduler_schedule) | resource |
+| [aws_scheduler_schedule_group.coverage](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/scheduler_schedule_group) | resource |
+| [terraform_data.configuration](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
+| [archive_file.coverage](https://registry.terraform.io/providers/hashicorp/archive/latest/docs/data-sources/file) | data source |
+| [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
+| [aws_partition.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/partition) | data source |
+| [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| <a name="input_solution_prefix"></a> [solution\_prefix](#input\_solution\_prefix) | Account-global unique consumer and regional prefix, 2-45 alphanumeric, hyphen or underscore characters. | `string` | n/a | yes |
+| <a name="input_coverage_policy"></a> [coverage\_policy](#input\_coverage\_policy) | Explicit whole-second freshness/grace/reminder thresholds and rate schedule (minutes or hours). No retention or backup-job inference. | <pre>object({<br/>    max_backup_age_seconds      = number<br/>    freshness_tolerance_seconds = number<br/>    initial_grace_seconds       = number<br/>    reminder_interval_seconds   = number<br/>    schedule                    = string<br/>  })</pre> | `null` | no |
+| <a name="input_enabled"></a> [enabled](#input\_enabled) | Create the scanner and health resources. Disabled mode needs no coverage configuration. | `bool` | `true` | no |
+| <a name="input_expected_resource_tags"></a> [expected\_resource\_tags](#input\_expected\_resource\_tags) | Independent expected-inventory tags. Every key/value must match (AND). Required when enabled. | `map(string)` | `{}` | no |
+| <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types) | Explicit inventory discovery types: DynamoDB tables and S3 general purpose buckets only. | `set(string)` | `[]` | no |
+| <a name="input_sns_kms_key_arn"></a> [sns\_kms\_key\_arn](#input\_sns\_kms\_key\_arn) | Caller-owned SNS customer-managed symmetric KMS key ARN in the provider account and Region. Required when enabled; caller retains key-policy ownership. | `string` | `null` | no |
+| <a name="input_sns_topic_arn"></a> [sns\_topic\_arn](#input\_sns\_topic\_arn) | Caller-owned standard SNS topic in the provider account and Region. Required when enabled. | `string` | `null` | no |
+| <a name="input_tags"></a> [tags](#input\_tags) | Additional scanner infrastructure tags. Do not include expected workload tags on the incident table. | `map(string)` | `{}` | no |
+
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| <a name="output_execution_role_arn"></a> [execution\_role\_arn](#output\_execution\_role\_arn) | Publisher role ARN for caller-owned topic/key policies, or null when disabled. |
+| <a name="output_health_alarm_arns"></a> [health\_alarm\_arns](#output\_health\_alarm\_arns) | Health alarm ARN map, or null when disabled. |
+| <a name="output_incident_table_arn"></a> [incident\_table\_arn](#output\_incident\_table\_arn) | Incident-state table ARN, or null when disabled. |
+| <a name="output_lambda_function_arn"></a> [lambda\_function\_arn](#output\_lambda\_function\_arn) | Coverage scanner Lambda ARN, or null when disabled. |
+| <a name="output_schedule_arn"></a> [schedule\_arn](#output\_schedule\_arn) | Scanner schedule ARN, or null when disabled. |
+<!-- END_TF_DOCS -->

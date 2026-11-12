@@ -655,8 +655,8 @@ or finalized COMPLIANCE vaults.
 | <a name="input_tags"></a> [tags](#input\_tags) | Additional tags to apply to all resources created by the module. | `map(string)` | `{}` | no |
 | <a name="input_vault_lock_changeable_for_days"></a> [vault\_lock\_changeable\_for\_days](#input\_vault\_lock\_changeable\_for\_days) | Cooling-off period in days during which the Vault Lock can still be removed (Compliance mode only). Minimum 3. | `number` | `3` | no |
 | <a name="input_vault_lock_max_retention_days"></a> [vault\_lock\_max\_retention\_days](#input\_vault\_lock\_max\_retention\_days) | Maximum retention in days enforced by Vault Lock. Recovery points cannot have a retention longer than this. Backup jobs targeting the vault must set delete\_after within [vault\_lock\_min\_retention\_days, vault\_lock\_max\_retention\_days]; jobs outside this range are rejected by the vault. | `number` | `3650` | no |
-| <a name="input_vault_lock_min_retention_days"></a> [vault\_lock\_min\_retention\_days](#input\_vault\_lock\_min\_retention\_days) | Explicit minimum for both vaults. When null, each vault uses the lower of 30/7 days and its shortest valid managed retention. Invalid rules still fail; external plans remain caller-owned. | `number` | `null` | no |
-| <a name="input_vault_lock_mode"></a> [vault\_lock\_mode](#input\_vault\_lock\_mode) | GOVERNANCE by default in both environments. COMPLIANCE requires explicit opt-in and becomes immutable after its cooling-off period. | `string` | `null` | no |
+| <a name="input_vault_lock_min_retention_days"></a> [vault\_lock\_min\_retention\_days](#input\_vault\_lock\_min\_retention\_days) | Explicit minimum retention for both vaults. When null, each vault uses the lower of the environment minimum (30/7) and its shortest valid managed-rule retention. Invalid rule retention still fails. External plans remain caller-owned. | `number` | `null` | no |
+| <a name="input_vault_lock_mode"></a> [vault\_lock\_mode](#input\_vault\_lock\_mode) | Vault Lock mode: defaults to GOVERNANCE in both environments. COMPLIANCE is an explicit opt-in and becomes immutable after its cooling-off period. | `string` | `null` | no |
 
 ## Outputs
 

@@ -324,12 +324,13 @@ No AWS credentials or real apply are used by the test workflow.
 | Name | Version |
 |------|---------|
 | <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.72.0, < 6.0.0 |
+| <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Modules
 
 | Name | Source | Version |
-| --- | --- | --- |
-| backup_coverage | ../terraform-aws-backup-coverage | n/a |
+|------|--------|---------|
+| <a name="module_backup_coverage"></a> [backup\_coverage](#module\_backup\_coverage) | ../terraform-aws-backup-coverage | n/a |
 
 ## Resources
 
@@ -344,24 +345,24 @@ No AWS credentials or real apply are used by the test workflow.
 | [aws_sns_topic.backup_alerts](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic) | resource |
 | [aws_sns_topic_policy.backup_alerts](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_policy) | resource |
 | [aws_sns_topic_subscription.email](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/sns_topic_subscription) | resource |
+| [terraform_data.coverage_configuration](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_iam_policy_document.sns_kms](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.sns_topic_policy](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_partition.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/partition) | data source |
 | [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
-| terraform_data.coverage_configuration | resource |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_backup_failure_event_states"></a> [backup\_failure\_event\_states](#input\_backup\_failure\_event\_states) | Failure states that trigger an alert through backup/copy detail.state or restore detail.status. | `list(string)` | <pre>[<br/>  "FAILED",<br/>  "EXPIRED",<br/>  "ABORTED"<br/>]</pre> | no |
+| <a name="input_coverage_expected_resource_tags"></a> [coverage\_expected\_resource\_tags](#input\_coverage\_expected\_resource\_tags) | Independent expected-inventory tags, matched with AND semantics. Not inferred from core selection or job history. | `map(string)` | `{}` | no |
+| <a name="input_coverage_policy"></a> [coverage\_policy](#input\_coverage\_policy) | Explicit snapshot age, tolerance, first-seen grace, reminder interval (whole seconds), and rate schedule. Required when coverage is enabled. | <pre>object({<br/>    max_backup_age_seconds      = number<br/>    freshness_tolerance_seconds = number<br/>    initial_grace_seconds       = number<br/>    reminder_interval_seconds   = number<br/>    schedule                    = string<br/>  })</pre> | `null` | no |
+| <a name="input_coverage_resource_types"></a> [coverage\_resource\_types](#input\_coverage\_resource\_types) | Explicit coverage inventory types: DynamoDB and S3. Required when coverage is enabled. | `set(string)` | `[]` | no |
 | <a name="input_create_sns_topic"></a> [create\_sns\_topic](#input\_create\_sns\_topic) | Whether to create a new SNS topic. Set to false if you want to use an existing topic. | `bool` | `true` | no |
-| `enable_backup_coverage` | Enable independent expected-inventory snapshot coverage; false preserves event-only alerts. | `bool` | `true` | no |
-| `coverage_expected_resource_tags` | Explicit expected inventory with AND tag semantics. | `map(string)` | `{}` | when enabled |
-| `coverage_resource_types` | Explicit DynamoDB/S3 discovery types. | `set(string)` | `[]` | when enabled |
-| `coverage_policy` | Explicit whole-second maximum age, tolerance, grace, reminder and rate schedule. | `object` | `null` | when enabled |
 | <a name="input_email_endpoints"></a> [email\_endpoints](#input\_email\_endpoints) | List of email addresses to subscribe to backup alerts. | `list(string)` | `[]` | no |
+| <a name="input_enable_backup_coverage"></a> [enable\_backup\_coverage](#input\_enable\_backup\_coverage) | Enable independent expected-inventory snapshot coverage alongside existing event alerts. Requires explicit coverage configuration; one false toggle creates no coverage resources. | `bool` | `true` | no |
 | <a name="input_enable_backup_failure_alerts"></a> [enable\_backup\_failure\_alerts](#input\_enable\_backup\_failure\_alerts) | Whether to create the EventBridge rule for backup/copy/restore failures. | `bool` | `true` | no |
 | <a name="input_enable_kms_deletion_alert"></a> [enable\_kms\_deletion\_alert](#input\_enable\_kms\_deletion\_alert) | Whether to alert when a KMS key is scheduled for deletion. | `bool` | `true` | no |
 | <a name="input_existing_sns_topic_arn"></a> [existing\_sns\_topic\_arn](#input\_existing\_sns\_topic\_arn) | ARN of an existing SNS topic to use. Required when create\_sns\_topic is false. | `string` | `null` | no |
@@ -378,13 +379,13 @@ No AWS credentials or real apply are used by the test workflow.
 
 | Name | Description |
 |------|-------------|
+| <a name="output_coverage_execution_role_arn"></a> [coverage\_execution\_role\_arn](#output\_coverage\_execution\_role\_arn) | Coverage publisher role ARN for external policy owners, or null when disabled. |
+| <a name="output_coverage_health_alarm_arns"></a> [coverage\_health\_alarm\_arns](#output\_coverage\_health\_alarm\_arns) | Coverage health alarm ARN map, or null when disabled. |
+| <a name="output_coverage_incident_table_arn"></a> [coverage\_incident\_table\_arn](#output\_coverage\_incident\_table\_arn) | Coverage incident-state table ARN, or null when disabled. |
+| <a name="output_coverage_lambda_function_arn"></a> [coverage\_lambda\_function\_arn](#output\_coverage\_lambda\_function\_arn) | Independent coverage scanner ARN, or null when disabled. |
 | <a name="output_eventbridge_rule_arn"></a> [eventbridge\_rule\_arn](#output\_eventbridge\_rule\_arn) | ARN of the EventBridge rule for backup failures. |
 | <a name="output_kms_deletion_rule_arn"></a> [kms\_deletion\_rule\_arn](#output\_kms\_deletion\_rule\_arn) | ARN of the EventBridge rule for KMS key deletion alerts. |
 | <a name="output_sns_kms_key_arn"></a> [sns\_kms\_key\_arn](#output\_sns\_kms\_key\_arn) | ARN of the customer-managed KMS key encrypting the SNS topic (the one created by this module, or the one passed in via sns\_kms\_key\_arn). Null if no topic is created. |
 | <a name="output_sns_topic_arn"></a> [sns\_topic\_arn](#output\_sns\_topic\_arn) | ARN of the SNS topic for backup alerts. |
 | <a name="output_sns_topic_name"></a> [sns\_topic\_name](#output\_sns\_topic\_name) | Name of the SNS topic. Null if using an existing topic. |
-| `coverage_lambda_function_arn` | Scanner Lambda ARN, or null when disabled. |
-| `coverage_execution_role_arn` | Coverage publisher role ARN, or null when disabled. |
-| `coverage_incident_table_arn` | Incident-state table ARN, or null when disabled. |
-| `coverage_health_alarm_arns` | Health alarm ARN map, or null when disabled. |
 <!-- END_TF_DOCS -->

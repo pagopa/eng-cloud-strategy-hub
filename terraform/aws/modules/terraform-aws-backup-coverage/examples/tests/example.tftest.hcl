@@ -1,5 +1,5 @@
 mock_provider "aws" {
-  source = "../../../terraform-aws-backup/tests/mocks"
+  source = "../../terraform-aws-backup/tests/mocks"
   mock_data "aws_region" {
     defaults = { name = "eu-south-1" }
   }

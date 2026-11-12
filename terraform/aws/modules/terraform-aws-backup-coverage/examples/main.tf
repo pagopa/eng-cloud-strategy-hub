@@ -22,7 +22,7 @@ locals {
 }
 
 module "standalone" {
-  source                 = ".."
+  source                 = "../"
   solution_prefix        = "orders-standalone-eu-south-1"
   expected_resource_tags = local.expected_tags
   resource_types         = ["DynamoDB", "S3"]
@@ -40,7 +40,7 @@ module "integrated" {
 }
 
 module "disabled" {
-  source          = ".."
+  source          = "../"
   solution_prefix = "orders-disabled-eu-south-1"
   enabled         = false
 }
