@@ -166,7 +166,8 @@ run "pitr_lowers_only_primary_minimum" {
 }
 
 run "nonproduction_short_rule_lowers_minimum" {
-  command = apply
+  state_key = "nonproduction"
+  command   = apply
   variables {
     environment = "nonprod"
     default_plan_additional_rules = [{
