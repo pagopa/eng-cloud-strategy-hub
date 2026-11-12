@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="it" data-report="review" data-template-version="1" data-accent="blue" data-layout="atlante" data-density="comfortable" data-diagram-fallback="cdn">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AWS Backup Alerting — review high-level e confronto</title>
+<style data-invariant="css">
+:root{--ink:#2b2118;--ink-muted:#6b5d4f;--surface:#fffcf7;--surface-sunken:#f6efe5;--line:#e8dccb;
+--accent:#b3502a;--accent-soft:#fbeadf;--sev-blocker:#b42318;--sev-blocker-soft:#fde8e4;--sev-important:#a14d00;
+--sev-important-soft:#fdefd9;--sev-improvement:#2f6b57;--sev-improvement-soft:#e3f0ea;--sev-note:#6b5d4f;--sev-note-soft:#f1ebe2;
+--code-bg:#f6efe5;--code-ink:#2b2118;--code-add:#e3f0ea;--code-del:#fde8e4;
+--radius-control:8px;--radius-panel:14px;--measure:70ch;--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:40px;--s7:64px;color-scheme:light}
+[data-accent=blue]{--accent:#2457c5;--accent-soft:#e8eefb}[data-accent=green]{--accent:#2f6b57;--accent-soft:#e3f0ea}[data-accent=violet]{--accent:#6e3ab8;--accent-soft:#f1eafb}[data-accent=graphite]{--accent:#3d4452;--accent-soft:#eceef1}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:72px}
+body{margin:0;background:var(--surface);color:var(--ink);font:1rem/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+[data-density=compact] body{font-size:1rem;line-height:1.5}
+h1,h2,h3{line-height:1.25;text-wrap:balance;margin:0}h1{font-size:1.75rem;letter-spacing:-.02em}h2{font-size:1.25rem;margin:var(--s6) 0 var(--s3)}h3{font-size:1.0625rem}
+p{margin:0 0 var(--s3);max-width:var(--measure);text-wrap:pretty}a{color:var(--accent);text-underline-offset:3px}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.875em}
+::selection{background:#f0c6a9;background:color-mix(in srgb,var(--accent) 30%,var(--surface));color:var(--ink)}
+.code pre ::selection{background:var(--ink);color:var(--surface)}
+p a[href^="#"],li a[href^="#"]{white-space:nowrap}.overview a{white-space:normal}:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+html{scrollbar-color:var(--line) transparent;accent-color:var(--accent)}
+.skip{position:absolute;left:-999px}.skip:focus{left:var(--s4);top:var(--s4);background:var(--surface);padding:var(--s2) var(--s3);z-index:9}
+.ico{width:16px;height:16px;fill:currentColor;flex:none}
+.meta{color:var(--ink-muted);font-size:.875rem}
+.counts{list-style:none;display:flex;flex-wrap:wrap;gap:var(--s2) var(--s5);padding:0;margin:var(--s4) 0 0;font-variant-numeric:tabular-nums}
+.counts li{display:flex;align-items:center;gap:6px;color:var(--ink-muted);font-size:.9375rem}.counts .n{font-weight:650;color:var(--ink)}
+.counts [data-count=blocker] .ico,.sev-blocker{color:var(--sev-blocker)}.counts [data-count=important] .ico,.sev-important{color:var(--sev-important)}
+.counts [data-count=improvement] .ico,.sev-improvement{color:var(--sev-improvement)}.counts [data-count=note] .ico,.sev-note{color:var(--sev-note)}
+.verdict{font-size:1.125rem;font-weight:550;margin-top:var(--s3)}
+.disclaimer{color:var(--ink-muted);font-size:.875rem}
+.actionsbar{display:flex;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s4)}
+button{font:inherit;color:inherit;cursor:pointer}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:var(--radius-control);padding:6px 12px;font-size:.875rem}
+.btn:hover{background:var(--surface-sunken)}
+.link{border:0;background:none;padding:0;color:var(--ink-muted);font-size:.8125rem}.link:hover{color:var(--accent)}
+.tools{display:flex;gap:var(--s4);align-items:center;margin-top:var(--s2)}.status{font-size:.8125rem;color:var(--ink-muted)}
+.badges{display:flex;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s2)}
+.sev,.ev,.st{display:inline-flex;align-items:center;gap:5px;font-size:.75rem;font-weight:600;padding:2px 8px;border-radius:999px}
+.sev-blocker.sev{background:var(--sev-blocker-soft)}.sev-important.sev{background:var(--sev-important-soft)}
+.sev-improvement.sev{background:var(--sev-improvement-soft)}.sev-note.sev{background:var(--sev-note-soft)}
+.ev,.st{color:var(--ink-muted);border:1px solid var(--line);font-weight:500}
+.ev-conditional,.ev-unverified{border-style:dashed}
+.st-passed{color:var(--sev-improvement)}.st-not-run,.st-blocked{border-style:dashed}.st-failed{color:var(--sev-blocker)}
+.finding{padding:var(--s5) 0;border-top:1px solid var(--line)}
+.finding p b{font-weight:600}.finding:target h3{text-decoration:underline;text-decoration-color:var(--accent);text-decoration-thickness:2px;text-underline-offset:6px}
+.finding:target>.badges,.finding:target>h3{animation:flash 1.8s cubic-bezier(.16,1,.3,1)}@keyframes flash{from{background:var(--accent-soft);box-shadow:0 0 0 6px var(--accent-soft)}to{background:transparent;box-shadow:0 0 0 6px transparent}}
+@media (prefers-reduced-motion:reduce){.finding:target>.badges,.finding:target>h3{animation:none}}
+.filters{display:flex;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s3)}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 12px;font-size:.8125rem}
+.chip[data-filter=blocker] .ico{color:var(--sev-blocker)}.chip[data-filter=important] .ico{color:var(--sev-important)}.chip[data-filter=improvement] .ico{color:var(--sev-improvement)}
+.chip[aria-pressed=false]{opacity:.5;text-decoration:line-through}
+.is-hidden{display:none}
+.reco{border:1px solid var(--line);border-radius:var(--radius-panel);padding:var(--s5)}
+.reco header p:first-of-type{margin-top:var(--s2)}
+.reco footer{margin-top:var(--s4);padding-top:var(--s3);border-top:1px solid var(--line)}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:var(--s4);margin:var(--s4) 0}
+figure{margin:0;background:var(--surface-sunken);border-radius:8px;padding:var(--s3)}figcaption{font-size:.875rem;margin-bottom:var(--s2)}
+.diagram svg{width:100%;height:auto;display:block}.diagram rect{fill:var(--surface);stroke:var(--ink-muted)}
+.diagram text{fill:var(--ink);font:13px system-ui,sans-serif}.diagram path{stroke:var(--ink-muted);fill:var(--ink-muted)}
+details{margin-top:var(--s2)}summary{cursor:pointer;color:var(--ink-muted);font-size:.875rem}
+.diagram-source pre{white-space:pre-wrap;font-size:.75rem;margin:var(--s2) 0 0}
+.checks{list-style:none;padding:0;margin:0}.checks li{display:grid;grid-template-columns:110px minmax(0,16rem) 1fr;gap:var(--s3);align-items:baseline;padding:var(--s2) 0;border-top:1px solid var(--line)}
+.actions li{margin-bottom:var(--s2)}
+.foot{color:var(--ink-muted);font-size:.8125rem;margin:var(--s7) 0 var(--s5)}
+@media (max-width:899px){.ba{grid-template-columns:1fr}.checks li{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{.actionsbar,.tools,.filters,.toc,.topbar{display:none!important}.is-hidden{display:block!important}
+.ba{grid-template-columns:1fr 1fr}body{font-size:11pt}.layout{display:block!important}.finding,.reco,figure{break-inside:avoid}}
+
+.wrap{max-width:1040px;margin:0 auto;padding:var(--s6) var(--s5)}
+header[data-slot=header]{display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:var(--s6);align-items:start;padding-bottom:var(--s5);border-bottom:1px solid var(--line)}
+.tally{background:var(--surface-sunken);border:1px solid var(--line);border-radius:var(--radius-panel);padding:var(--s5)}
+.tally-total{display:flex;align-items:center;gap:var(--s3);margin:0 0 var(--s4);font-weight:600;line-height:1.3}.tally-total .meta{font-weight:400}
+.tally .big{font-size:3rem;line-height:1;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--ink)}
+.bar{display:flex;gap:0;height:8px;border-radius:999px;overflow:hidden;margin-bottom:var(--s4)}.seg{display:block;min-width:10px}
+.seg-blocker{background:var(--sev-blocker)}.seg-important{background:var(--sev-important)}.seg-improvement{background:var(--sev-improvement)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.tally .counts{display:grid;grid-template-columns:repeat(3,auto);justify-content:space-between;gap:8px 12px;margin:0}.tally .counts li{font-size:.875rem}.tally .counts [data-count=note]{grid-column:1/-1}.tally .counts a{display:flex;align-items:center;gap:6px;color:inherit;text-decoration:none}.tally .counts a:hover .n{text-decoration:underline}
+.overview{width:100%;border-collapse:collapse;font-size:.9375rem}.overview th{text-align:left;font-size:.75rem;font-weight:600;color:var(--ink-muted);padding:var(--s2) var(--s3);border-bottom:1px solid var(--line)}
+.overview td{padding:var(--s3);border-bottom:1px solid var(--line);vertical-align:middle}.overview tr:hover td{background:var(--surface-sunken)}
+.overview td a{color:var(--ink);text-decoration:none;font-weight:550}.overview td a:hover{text-decoration:underline}
+.overview .todo{display:block;margin-top:2px;font-size:.875rem;color:var(--ink-muted);line-height:1.45}.overview td a{display:block}
+.overview .id{font-family:ui-monospace,Menlo,monospace;font-size:.8125rem;color:var(--ink-muted)}
+.detail{display:block}
+.finding{padding:28px 0;border-top-color:#d9cbb8}.finding h3{font-size:1.25rem;margin:var(--s1) 0}
+.parts{margin:var(--s4) 0 0;display:grid;gap:var(--s4)}.parts .row{display:grid;grid-template-columns:92px minmax(0,1fr);gap:8px 12px}
+.parts dt{font-size:.8125rem;font-weight:650;color:var(--ink-muted);padding-top:2px}
+.parts dd{margin:0;min-width:0}.parts dd>p{margin:0}.row-fix dt{color:var(--sev-improvement)}.row-sources dd,.row-limits dd{color:var(--ink-muted);font-size:.875rem}
+.parts figure{margin-top:var(--s3)}
+.code{background:var(--code-bg);color:var(--code-ink);padding:0;overflow:hidden;border:1px solid var(--line)}
+.code figcaption{padding:var(--s2) var(--s4);font-size:.75rem;color:var(--ink-muted);border-bottom:1px solid var(--line);margin:0}.code .file{font-family:ui-monospace,Menlo,monospace;color:var(--code-ink)}
+.code pre{margin:0;padding:var(--s3) 0;overflow-x:auto;font-size:.8125rem;line-height:1.6}.code .ln{display:grid;grid-template-columns:1.25rem minmax(0,1fr);padding:0 var(--s4);white-space:pre}.code .mk{user-select:none;color:var(--ink-muted)}
+.code .add{background:var(--code-add)}.code .del{background:var(--code-del);color:#8a2a1f}.code .add{color:#1e4d3d}.code .add .mk,.code .del .mk{color:inherit;font-weight:700}
+.viz{max-width:760px;min-width:0}.viz .diagram{overflow-x:auto}.timeline svg{min-width:520px}.viz .diagram svg{max-width:540px;margin:0 auto}.diagram rect.bad{stroke:var(--sev-blocker);fill:var(--sev-blocker-soft);stroke-width:1.5}
+.diagram .axis{stroke:#8a7560;stroke-width:2}.diagram .pt{stroke:var(--surface);stroke-width:3}.diagram .pt.ok{fill:var(--sev-improvement)}.diagram .pt.warn{fill:var(--sev-important)}.diagram .pt.bad{fill:var(--sev-blocker)}
+.diagram .when{fill:var(--ink-muted);font-size:11px;font-weight:600}
+.mini{border-collapse:collapse;margin-top:var(--s3);font-size:.875rem}.mini{width:100%}.mini th,.mini td{text-align:left;padding:6px 10px 6px 0;overflow-wrap:anywhere;border-bottom:1px solid var(--line)}.mini th{font-size:.75rem;color:var(--ink-muted);font-weight:600}
+td.bad,b.bad{color:var(--sev-blocker);font-weight:650}.calc{margin-top:var(--s3);background:var(--surface-sunken);padding:var(--s3) var(--s4);border-radius:8px;max-width:760px}
+.overview tr td:first-child{width:150px}
+.reco{background:var(--surface);border-color:var(--line)}.reco figure{background:none;padding:0}.reco figure.code{background:var(--code-bg)}
+:not(pre)>code{background:var(--surface-sunken);border:1px solid var(--line);border-radius:4px;padding:0 4px;font-size:.8125em;overflow-wrap:anywhere;-webkit-box-decoration-break:clone;box-decoration-break:clone}.calc code{background:var(--surface)}.mini code{border:0;background:none;padding:0}
+.toc{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.toc ul{list-style:none;display:flex;gap:var(--s5);max-width:1040px;margin:0 auto;padding:0 var(--s5);overflow-x:auto;scrollbar-width:none}
+.toc a{display:block;padding:var(--s3) 0;color:var(--ink-muted);text-decoration:none;font-size:.875rem;white-space:nowrap;box-shadow:inset 0 -2px 0 transparent;transition:color .15s,box-shadow .2s cubic-bezier(.16,1,.3,1)}
+.toc a:hover{color:var(--ink)}.toc a[aria-current]{color:var(--ink);font-weight:600;box-shadow:inset 0 -2px 0 var(--accent)}
+.overview tbody tr{position:relative;cursor:pointer}.overview td a::after{content:"";position:absolute;inset:0}.overview tbody tr:hover td a{text-decoration:underline}
+.empty{display:flex;gap:var(--s3);align-items:center;padding:var(--s4);background:var(--surface-sunken);border-radius:8px;color:var(--ink-muted);margin:var(--s3) 0}.empty[hidden]{display:none}
+.parts .row{grid-template-columns:128px minmax(0,1fr)}.parts dt{position:relative;padding-left:1.75em}.emo{position:absolute;left:0;top:1px;font-style:normal;font-size:.9375rem;line-height:1.4}
+.row-benefit dt{color:var(--sev-improvement)}.row-problem dt{color:var(--ink)}
+.code figcaption{display:flex;align-items:center;gap:var(--s2)}.code figcaption .copy-code{margin-left:auto}
+.diagram rect.warn{stroke:var(--sev-important);fill:var(--sev-important-soft);stroke-width:1.5}.diagram rect.good{stroke:var(--sev-improvement);fill:var(--sev-improvement-soft);stroke-width:1.5}
+.reco header h3{font-size:1.375rem}.reco .lede{font-size:1.0625rem;margin:var(--s2) 0 var(--s3)}
+.refs{display:flex;flex-wrap:wrap;gap:var(--s2);align-items:center;margin:0}
+.ref{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border:1px solid var(--line);border-radius:999px;font-size:.8125rem;color:var(--ink);text-decoration:none;background:var(--surface)}.ref:hover{border-color:var(--accent)}.ref .ico{width:12px;height:12px}
+.reco .parts{margin-top:var(--s5);padding-top:var(--s5);border-top:1px solid var(--line);gap:var(--s5)}.reco .ba{margin:0}
+.bullets{margin:var(--s2) 0 0;padding-left:1.15em;max-width:var(--measure)}.bullets li{margin-bottom:var(--s1)}.bullets li::marker{color:var(--ink-muted)}
+.steps{counter-reset:s;list-style:none;padding:0;margin:var(--s3) 0;display:grid;gap:var(--s2);max-width:var(--measure)}
+.steps li{position:relative;padding-left:34px}.steps li::before{position:absolute;left:0;top:2px;counter-increment:s;content:counter(s);width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:.75rem;font-weight:700;display:grid;place-items:center;font-variant-numeric:tabular-nums}
+.gains{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s4) var(--s5)}
+.gains li{padding-top:var(--s2);border-top:1px solid var(--line)}.gains b{display:block;font-weight:650;color:var(--sev-improvement);margin-bottom:2px}
+.row-costs dd{color:var(--ink)}.row-costs .bullets b{font-weight:600}
+.reco>details{margin-top:var(--s5)}.reco>details[open] summary{margin-bottom:var(--s2)}
+.reco footer .outcome{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s4);margin:var(--s2) 0 0}.outcome dt{font-size:.75rem;font-weight:650;color:var(--ink-muted)}.outcome dd{margin:0}
+.tools .back{margin-left:auto;font-size:.8125rem;color:var(--ink-muted)}
+@media (max-width:899px){header[data-slot=header]{grid-template-columns:1fr}.tally{order:-1;margin-bottom:var(--s4)}.tally .counts{grid-template-columns:repeat(2,auto)}header[data-slot=header]{display:flex;flex-direction:column;gap:0}.overview .hide-m{display:none}.gains,.reco footer .outcome{grid-template-columns:1fr}}
+@media (max-width:599px){.parts .row{grid-template-columns:1fr;gap:var(--s1)}.toc ul{gap:var(--s4);padding:0 var(--s4)}.wrap{padding:var(--s5) var(--s4)}.reco{padding:var(--s4)}.tally{padding:var(--s4)}}
+</style>
+<style data-invariant="layout">
+:root{
+  --surface:#fff;--surface-sunken:#eef2fa;--ink:#142549;--ink-muted:#4c5d7a;
+  --line:#d7deec;--accent:#1745ad;--accent-soft:#e7edfc;
+  --sev-blocker:#aa2525;--sev-blocker-soft:#fbe9e9;
+  --sev-important:#805000;--sev-important-soft:#fff1d9;
+  --sev-improvement:#246044;--sev-improvement-soft:#d9ecdf;
+  --sev-note:#4c5d7a;--sev-note-soft:#eef2fa;
+  --code-bg:#f5f7fc;--code-ink:#142549;--code-add:#edf6ef;--code-del:#fbe9e9;
+  --radius-control:4px;--radius-panel:0;--heading:Georgia,"Times New Roman",serif;
+}
+html{scroll-padding-top:32px}
+body{font-size:16px;line-height:1.65}
+::selection{background:var(--accent);color:var(--surface)}
+.shell{max-width:1520px;margin:auto;display:grid;grid-template-columns:230px minmax(0,1fr);padding:0 32px}
+.wrap{min-width:0;max-width:none;margin:0;padding:44px 0 80px 48px}
+.toc.rail{position:static;border:0;border-right:1px solid var(--line);padding:46px 28px 40px 0;background:none}
+.rail-inner{position:sticky;top:32px;max-height:calc(100dvh - 64px);overflow-y:auto;scrollbar-width:thin}
+.rail-title{font:400 25px/1.2 var(--heading);margin:0 0 12px}
+.rail-description{font-size:13px;color:var(--ink-muted);margin:0 0 30px}
+.rail ol{list-style:none;padding:0;margin:0}
+.rail li{margin:0}
+.rail a{display:flex;align-items:baseline;gap:12px;padding:11px 0;border-top:1px solid var(--line);font-size:14px;box-shadow:none;white-space:normal;transition:none}
+.rail a:hover,.rail a[aria-current]{color:var(--accent)}
+.rail a[aria-current]{font-weight:700;box-shadow:none}
+.rail a[aria-current]::after{content:"";width:6px;height:6px;background:var(--accent);border-radius:50%;margin-left:auto;align-self:center;flex:none}
+.rail .num{font-size:12px;min-width:16px;font-variant-numeric:tabular-nums}
+.rail .rail-types{display:block;list-style:none;margin:0 0 10px 24px;padding:0 0 0 12px;border-left:1px solid var(--line);overflow:visible}
+.rail-types a{align-items:center;gap:6px;min-height:36px;padding:6px 0;border:0;font-size:12px;white-space:nowrap}
+.rail-types .ico{width:12px;height:12px;flex:none}
+.rail-types .n{margin-left:auto;font-variant-numeric:tabular-nums}
+.rail-footer{margin:30px 0 0;padding-top:15px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-muted)}
+header[data-slot=header]{display:grid;grid-template-columns:minmax(0,1fr) 196px;gap:36px;padding:0 0 34px;border-bottom-color:#bcc7dc}
+h1{font:400 clamp(34px,4.2vw,60px)/1.08 var(--heading);letter-spacing:-.03em;max-width:15ch;margin:0 0 22px}
+header[data-slot=header]>.title-block>.meta{font-size:12px;margin:0 0 19px}
+.verdict{font-size:18px;font-weight:400;line-height:1.5;margin:0;max-width:55ch}
+.verdict strong{color:var(--sev-blocker);font-weight:650}
+.disclaimer{font-size:12px;margin:18px 0 0}
+.actionsbar{gap:12px;margin-top:20px}
+.btn{min-height:44px;font-size:12px;padding:8px 12px}
+.tally{order:0;background:none;border:0;border-radius:0;padding:4px 0 0;margin:0}
+.tally-total{display:block;font-size:14px;font-weight:650;line-height:1.5;margin:0 0 16px}
+.tally .big{font:inherit;letter-spacing:normal}
+.tally-total br{display:none}
+.tally-total .meta{display:block;font-size:12px;font-weight:400}
+.tally .counts{display:block;margin:0}
+.tally .counts li{padding:0;border-top:1px solid var(--line);font-size:13px}
+.tally .counts [data-count=note]{grid-column:auto}
+.tally .counts a{display:flex;align-items:center;gap:9px;width:100%;padding:10px 0;color:var(--ink);text-decoration:none;min-height:44px}
+.tally .counts a:hover{text-decoration:underline}
+.tally .counts .n{order:1;margin-left:auto;font-weight:650}
+.tally .ico{width:13px;height:13px}
+main{counter-reset:section}
+main>section{padding:32px 0;border-bottom:1px solid var(--line);scroll-margin-top:12px}
+main>section>h2{display:flex;align-items:baseline;gap:16px;margin:0 0 16px;font:400 28px/1.2 var(--heading);letter-spacing:-.015em}
+main>section>h2::before{counter-increment:section;content:counter(section,decimal-leading-zero);font:12px/1.65 system-ui,sans-serif;letter-spacing:normal;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+[data-section=summary]>p{font-size:17px;margin:0}
+.filters{gap:8px;margin:0 0 16px}
+.chip{min-height:44px;border-radius:4px;font-size:12px;padding:7px 10px}
+.chip[aria-pressed=false]{opacity:1;color:var(--ink-muted);background:var(--surface-sunken)}
+.register{list-style:none;padding:0;margin:0}
+.register li{position:relative;display:grid;grid-template-columns:66px minmax(0,1fr) 153px;gap:14px;padding:19px 0;border-top:1px solid var(--line);align-items:start}
+.register li.is-hidden{display:none}
+.register li:hover{background:var(--surface-sunken)}
+.finding-id{display:flex;gap:8px;align-items:center;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;padding-top:3px}
+.finding-id .ico{width:13px;height:13px}
+.register-copy{min-width:0}
+.register h3{margin:0 0 5px;font:650 16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+.register h3 a{color:var(--ink);text-decoration:none;white-space:normal}
+.register h3 a:hover{text-decoration:underline}
+.register h3 a::after{content:"";position:absolute;inset:0}
+.register h3 a:focus-visible::after{outline:2px solid var(--accent);outline-offset:3px}
+.register .todo{margin:0;font-size:14px;color:var(--ink-muted)}
+.register .evidence{text-align:right;font-size:12px;color:var(--ink-muted)}
+.register .severity-label{display:block;color:var(--ink);font-weight:650}
+.register .ev{display:block;margin-top:3px;line-height:1.45}
+.register .ev::before{content:"Evidenza: "}
+.sev,.ev,.st{border:0;border-radius:0;padding:0;line-height:1.65}
+.sev-blocker.sev,.sev-important.sev,.sev-improvement.sev,.sev-note.sev{background:none}
+.ev{font-size:12px}
+.ev-conditional,.ev-unverified,.st-not-run,.st-blocked{text-decoration:underline dashed;text-underline-offset:4px}
+.reco{border:0;border-radius:0;padding:0}
+.reco header h3{font-size:21px;font-weight:600;line-height:1.4;max-width:45ch}
+.reco .lede{font-size:15px}
+.parts{gap:20px}
+.parts .row{grid-template-columns:110px minmax(0,1fr);gap:10px 20px}
+.parts dt{padding-left:0;font-size:13px}
+.emo{display:none}
+.reco .parts{margin-top:24px;padding-top:24px;gap:24px}
+.reco .ref{border-radius:4px}
+.reco .outcome{font-size:14px}
+.finding{padding:28px 0;border-top-color:var(--line)}
+.finding h3{font:400 29px/1.25 var(--heading);margin:0 0 12px;max-width:36ch;letter-spacing:-.015em}
+.finding>.meta{font-size:12px;margin:0 0 24px}
+.finding .parts{font-size:15px}
+.badges{gap:16px;margin-bottom:12px}
+.tools{gap:12px;flex-wrap:wrap}
+.tools button,.tools .back{min-height:44px;display:inline-flex;align-items:center}
+.tools .status:empty{display:none}
+.code{border:0;border-radius:0}
+.code figcaption{flex-wrap:wrap;min-height:44px;padding:8px 16px;overflow-wrap:anywhere}
+.code .copy-code{min-height:36px}
+.code pre{font-size:14px;line-height:1.85}
+.code pre code{font-size:inherit}
+.code .add{color:#225036}
+.code .del{color:#8a2a1f}
+.parts figure.viz{padding:14px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.viz>figcaption{display:table;max-width:100%;margin:0 0 14px;padding:2px 9px;border-radius:4px;background:var(--ink-muted);color:var(--surface);font-size:.8125rem;font-weight:650;line-height:1.5}
+.viz .diagram{padding:6px}
+.diagram .axis{stroke:var(--ink-muted)}
+.checks li{grid-template-columns:112px minmax(0,16rem) minmax(0,1fr);padding:14px 0;font-size:14px}
+.checks .st{font-size:12px}
+.actions{margin:0;padding-left:22px}
+.actions li{margin:0;padding:12px 0 16px 8px;border-top:1px solid var(--line);font-size:15px}
+.actions li:last-child{padding-bottom:0}
+.actions li::marker{font-size:18px;font-variant-numeric:tabular-nums;color:var(--accent);font-weight:650}
+.action-phase{display:block;margin-bottom:4px;font-weight:650}
+.actions li:first-child .action-phase{color:var(--sev-blocker)}
+.action-copy{display:block;font-size:14px;color:var(--ink-muted)}
+.foot{margin:26px 0 0;font-size:12px}
+.reco .ba{gap:40px;align-items:stretch}
+.reco .ba figure[data-side]{position:relative;margin:0;padding:12px 14px 14px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.reco .ba figure[data-side=before]{--side:var(--ink-muted)}
+.reco .ba figure[data-side=after]{--side:var(--sev-improvement)}
+.reco .ba figcaption{margin-bottom:10px;color:var(--ink-muted)}
+.reco .ba figcaption strong{display:inline-block;margin-right:4px;padding:1px 8px;border-radius:999px;background:var(--side);color:var(--surface);font-size:.75rem;letter-spacing:.04em;text-transform:uppercase}
+.reco .ba .diagram{padding:6px;border-radius:4px;background:var(--surface)}
+.diagram-source summary{padding:3px 0;font-size:.75rem;line-height:1.5;color:var(--ink-muted)}
+.diagram-source summary::marker{font-size:.65rem}
+.reco .ba figure[data-side=after]::before{content:"→" / "";position:absolute;top:50%;left:-32px;width:24px;height:24px;margin-top:-12px;display:grid;place-items:center;border-radius:50%;background:var(--ink-muted);color:var(--surface);font-size:14px;line-height:1}
+@media(min-width:1500px){.wrap{padding-left:64px}header[data-slot=header]{gap:64px}}
+@media(max-width:1050px){
+  .shell{grid-template-columns:185px minmax(0,1fr);padding:0 24px}
+  .toc.rail{padding-right:20px}.wrap{padding-left:28px}
+  header[data-slot=header]{grid-template-columns:minmax(0,1fr) 160px;gap:20px}
+  .register li{grid-template-columns:56px minmax(0,1fr) 130px;gap:12px}
+  .ba,.checks li,.gains,.reco footer .outcome{grid-template-columns:1fr}
+  .reco .ba{gap:36px}
+  .reco .ba figure[data-side=after]::before{content:"↓" / "";top:-30px;left:50%;margin:0 0 0 -12px}
+}
+@media(max-width:760px){
+  html{scroll-padding-top:20px}
+  .shell{display:block;padding:0 20px}
+  .toc.rail{padding:8px 0 0;border:0}
+  .rail-inner{position:static;max-height:none;overflow:visible}
+  .rail-title,.rail-description,.rail-footer{display:none}
+  .rail ol{display:flex;align-items:start;gap:18px;overflow-x:auto;padding:4px 4px 8px;scrollbar-width:thin}
+  .rail a{white-space:nowrap;border:0;padding:10px 0;font-size:12px;gap:6px;min-height:44px}
+  .rail a[aria-current]::after{display:none}
+  .rail .rail-types{display:flex;gap:14px;margin:0;padding:0;border:0}
+  .rail-types .n{margin-left:0}
+  .wrap{padding:16px 0 44px}
+  header[data-slot=header]{display:block;padding-bottom:20px}
+  h1{font-size:42px;max-width:18ch;margin-bottom:12px}
+  header[data-slot=header]>.title-block>.meta{font-size:11px;margin-bottom:12px}
+  .verdict{font-size:17px}
+  .disclaimer{margin-top:12px}
+  .actionsbar{gap:8px;margin-top:12px}
+  .tally{margin-top:16px}
+  .tally-total{margin-bottom:8px}
+  .tally .counts{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
+  .tally .counts li{font-size:12px}
+  main>section{padding:20px 0}
+  main>section>h2{font-size:25px}
+  [data-section=summary]>p{font-size:16px}
+  .register li{grid-template-columns:48px minmax(0,1fr);gap:8px 12px}
+  .register h3{font-size:15px}.register .todo{font-size:13px}
+  .register .evidence{grid-column:2;text-align:left}
+  .parts .row{grid-template-columns:1fr;gap:4px}
+  .finding h3{font-size:26px}
+  .checks li{gap:6px}
+  .tools .back{margin-left:0}
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{
+  html{scroll-padding-top:0}
+  .shell{display:block;padding:0}
+  .wrap{padding:0}
+  body{font-size:10pt}
+  header[data-slot=header]{display:grid;grid-template-columns:minmax(0,1fr) 160px;gap:24px}
+  h1{font-size:30pt;max-width:none}
+  .tally{margin:0}.tally .counts{display:block}
+  main>section{padding:18px 0}
+  .register li.is-hidden{display:grid!important}
+  .register li{grid-template-columns:48px minmax(0,1fr) 130px}
+  .register .evidence{grid-column:auto;text-align:right}
+  .register .severity-label{display:block}
+  .finding,.reco{break-inside:auto}
+  .finding h3,h2,h3,dt,figcaption{break-after:avoid}
+  .register li,.checks li,.code,figure{break-inside:avoid}
+  .ba{grid-template-columns:1fr 1fr}
+  .reco .ba figure[data-side=after]::before{content:"→" / "";top:50%;left:-32px;margin:-12px 0 0}    .code pre,.code .ln{white-space:pre-wrap;overflow-wrap:anywhere}
+  .code .ln>span:last-child{min-width:0}
+  .diagram svg{min-width:0}
+  a{color:inherit}
+}
+:root[data-accent=terracotta]{--accent:#a34324;--accent-soft:#fbeadf}
+:root[data-accent=green]{--accent:#246044;--accent-soft:#e3f0ea}
+:root[data-accent=violet]{--accent:#6e3ab8;--accent-soft:#f1eafb}
+:root[data-accent=graphite]{--accent:#3d4452;--accent-soft:#eceef1}
+[data-density=compact] main>section{padding-block:24px}
+.tally .counts li>span{display:flex;align-items:center;gap:9px;padding:10px 0;min-height:44px}
+.tally .counts li>span .n{margin-left:auto}
+.parts dd [data-part=action][hidden],[data-part=action][hidden]{display:none}
+.code pre::selection,.code pre ::selection{background:var(--ink);color:var(--surface)}
+.toc[hidden],[hidden]{display:none!important}
+.diagram-error{color:var(--sev-blocker);font-size:.875rem}
+.actions a[href^="#"],.parts a[href^="#"]{white-space:normal;overflow-wrap:anywhere}
+:root[lang=en] .register .ev::before{content:"Evidence: "}
+table{width:100%;border-collapse:collapse;margin:var(--s3) 0;font-size:.875rem}
+caption{caption-side:top;text-align:left;padding:0 0 var(--s2);font-weight:650;color:var(--ink-muted)}
+th,td{text-align:left;vertical-align:top;padding:var(--s2) var(--s3);overflow-wrap:anywhere;border-bottom:1px solid var(--line)}
+th{font-size:.75rem;font-weight:650;color:var(--ink-muted);border-bottom:2px solid var(--ink)}
+@media (max-width:640px){table{display:block;overflow-x:auto}}
+.summary-lead{font-size:1.0625rem;line-height:1.6;max-width:68ch;margin:0 0 var(--s4)}
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--s3);margin:0 0 var(--s4)}
+.summary-grid>div{padding:var(--s3);border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.summary-grid dt{font-size:.75rem;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.04em}
+.summary-grid dd{margin:var(--s1) 0 0;font-weight:650}
+#sintesi details>summary{font-weight:650}
+.finding>.meta+figure.viz{margin-top:var(--s4)}
+.parts dd[data-part=problem] .code{margin-top:var(--s3)}
+@media print{.finding.is-hidden{display:block!important}.register li.is-hidden{display:grid!important}}
+</style><style data-slot="custom-style"></style></head>
+<body><svg data-invariant="severity-icons" aria-hidden="true" style="display:none"><symbol id="sev-blocker" viewBox="0 0 24 24"><polygon points="8,1 16,1 23,8 23,16 16,23 8,23 1,16 1,8"/></symbol><symbol id="sev-important" viewBox="0 0 24 24"><polygon points="12,2 23,22 1,22"/></symbol><symbol id="sev-improvement" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></symbol><symbol id="sev-note" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2.5"/><rect x="10.75" y="10" width="2.5" height="8" rx="1"/><rect x="10.75" y="5.5" width="2.5" height="2.5" rx="1"/></symbol></svg><a class="skip" href="#contenuto">Vai al contenuto</a>
+<div class="shell"><nav class="toc rail" aria-label="Indice del report">
+<div class="rail-inner"><p class="rail-title">Atlante della review</p>
+<p class="rail-description">Dal verdetto alla prova.</p>
+<ol data-derived="navigation"><li><a href="#sintesi"><span class="num" aria-hidden="true">01</span>Sintesi</a></li><li><a href="#elenco"><span class="num" aria-hidden="true">02</span>Criticità attuali</a></li><li><a href="#confronto"><span class="num" aria-hidden="true">03</span>Confronto con la review precedente</a></li><li><a href="#copertura"><span class="num" aria-hidden="true">04</span>Matrice di copertura aggiornata</a></li><li><a href="#criticita"><span class="num" aria-hidden="true">05</span>Dettaglio criticità attuali</a><ul class="rail-types" aria-label="Tipologie di criticità"><li><a href="#finding-delivery"><svg class="ico sev-important" viewBox="0 0 24 24" aria-hidden="true"><use href="#sev-important"/></svg><span>Importante</span><span class="n">1</span></a></li></ul></li><li><a href="#note"><span class="num" aria-hidden="true">06</span>Limiti e rettifiche conservate</a></li><li><a href="#evidenze"><span class="num" aria-hidden="true">07</span>Evidenze e verifiche</a></li><li><a href="#interventi"><span class="num" aria-hidden="true">08</span>Prossimi approfondimenti</a></li></ol>
+<p class="rail-footer">Questo report presenta una review esistente; non esegue nuove analisi.</p></div></nav><div class="wrap"><header data-slot="header"><div class="title-block">
+<h1>AWS Backup Alerting — review high-level e confronto</h1><p class="meta">terraform/aws/modules/terraform-aws-backup-alerting · Rivalutazione statica: 12 novembre 2026 · Baseline: report-2.html, 11 novembre 2026</p>
+<p class="verdict" data-slot="verdict">REVISION REQUIRED</p>
+<p class="disclaimer" data-slot="analysis-disclaimer">Questo report presenta una review esistente; non esegue nuove analisi.</p>
+<div class="actionsbar"><button type="button" class="btn" data-print>Stampa / PDF</button>
+<button type="button" class="btn" data-expand>Espandi tutto</button></div>
+</div><div class="tally" aria-labelledby="tally-title">
+<p class="tally-total" id="tally-title" data-derived="total"><span class="big">1</span> punto da rivedere<span class="meta">0 note informative</span></p>
+<ul class="counts" data-slot="counts"><li data-count="blocker"><span><svg class="ico sev-blocker" viewBox="0 0 24 24" aria-hidden="true"><use href="#sev-blocker"/></svg><span>Bloccante</span><span class="n">0</span></span></li><li data-count="important"><a href="#finding-delivery"><svg class="ico sev-important" viewBox="0 0 24 24" aria-hidden="true"><use href="#sev-important"/></svg><span>Importante</span><span class="n">1</span></a></li><li data-count="improvement"><span><svg class="ico sev-improvement" viewBox="0 0 24 24" aria-hidden="true"><use href="#sev-improvement"/></svg><span>Miglioramento</span><span class="n">0</span></span></li><li data-count="note"><span><svg class="ico sev-note" viewBox="0 0 24 24" aria-hidden="true"><use href="#sev-note"/></svg><span>Nota</span><span class="n">0</span></span></li></ul></div></header><main id="contenuto">
+<section data-section="summary" id="sintesi"><h2>Sintesi</h2>
+<p class="summary-lead"><strong>REVISION REQUIRED · MATERIAL CONCERNS SUPPORTED.</strong> Tre dei quattro finding precedenti sono superati sul piano statico. Resta il finding 2, severità medium e confidenza verified, sulla sorveglianza del percorso di notifica.</p>
+<p>Il verdetto riguarda l'affidamento operativo all'alerting: non è un blocco al merge derivato dalla severità, una certificazione Terraform o un'approvazione al rilascio. Il modulo notifica eventi selezionati; non dimostra che tutte le risorse attese restino protette.</p>
+<dl class="summary-grid"><div><dt>Perimetro</dt><dd>Contratto pubblico, copertura dichiarata, responsabilità operative, test mock e consumer immediati.</dd></div><div><dt>Fuori perimetro</dt><dd>Correttezza esecutiva Terraform, audit di vulnerabilità, deploy, remediation e verifica live AWS.</dd></div><div><dt>Baseline</dt><dd>Report HTML dell'11 novembre 2026, derivato dalla review del 10 novembre. Nessun commit del modulo associato alla vecchia review: confronto tra affermazioni, non ricostruzione di un diff storico.</dd></div><div><dt>Stato corrente</dt><dd>Working tree del 12 novembre 2026, HEAD <code>53ab3263185fc76b35bce541347f3bf0ce0c8607</code>. Nessuna modifica iniziale al modulo. Il file report.html risultava già eliminato e non è stato ripristinato.</dd></div></dl>
+<p>Destinatari: manutentori del modulo e consumer responsabili delle notifiche. Non è stato fornito uno SLA o un criterio di accettazione del rischio. Il confronto non assegna al modulo un obbligo di monitoraggio globale dei backup.</p>
+</section>
+<section data-section="findings-index" id="elenco"><h2>Criticità attuali</h2>
+<div class="filters" role="group" aria-label="Filtra per gravità" data-derived="filters"><button type="button" class="chip" aria-pressed="true" data-filter="important"><svg class="ico sev-important" viewBox="0 0 24 24" aria-hidden="true"><use href="#sev-important"/></svg>Importante <span class="n">1</span></button></div>
+<p class="empty" data-empty hidden>Nessuna criticità con i filtri attivi. <button type="button" class="btn" data-reset>Mostra tutte</button></p>
+<ol class="register" data-derived="index" aria-label="Criticità e cosa fare"><li data-row="important"><div class="finding-id sev-important"><svg class="ico sev-important" viewBox="0 0 24 24" aria-hidden="true"><use href="#sev-important"/></svg><span>2</span></div><div class="register-copy"><h3><a href="#finding-delivery">La sorveglianza operativa del canale di notifica resta non definita</a></h3><p class="todo" data-part="action">Definire chi sorveglia il canale e produrre evidenze separate di consegna e rilevazione dei guasti.</p></div><div class="evidence"><span class="severity-label">Importante</span><span class="ev">Verificato</span></div></li></ol></section>
+<section data-section="custom" id="confronto"><h2>Confronto con la review precedente</h2>
+<p>Gli ID 1–4 sono quelli della baseline. I finding superati non entrano nei conteggi attuali e non sono trasformati in note. Fonte della rivalutazione: lettura statica corrente, non esecuzione dei test presenti.</p>
+<table><caption>Quattro finding precedenti: tre superati staticamente, uno aperto</caption><thead><tr><th scope="col">ID e giudizio precedente</th><th scope="col">Stato corrente e prova</th><th scope="col">Limite della conclusione</th></tr></thead><tbody>
+<tr><th scope="row">1 · high / verified<br>Restore filtrati su state</th><td><strong>Superato nel perimetro statico.</strong> La regola include <code>state OR status</code>; il README distingue backup/copy da restore. <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/main.tf">main.tf:80</a>, <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/README.md">README.md:74</a>, <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/tests/alerting.tftest.hcl">alerting.tftest.hcl:109</a>.</td><td>Il mock confronta la struttura JSON. Non esegue il motore EventBridge su fixture AWS e non prova la consegna di un restore fallito.</td></tr>
+<tr><th scope="row">2 · medium / verified<br>Salute del canale non verificata</th><td><strong>Aperto, con documentazione migliorata.</strong> Ora il README richiede conferma SNS e test reali. Target e subscription restano senza DLQ; nel perimetro non sono definiti allarmi, controllo periodico o responsabilità per il silenzio del canale. <a href="#finding-delivery">Dettaglio attuale</a>.</td><td>Le metriche e i retry AWS esistono. L'assenza locale non dimostra l'assenza di controlli nel consumer; eventuali controlli esterni devono essere documentati come evidenza di chiusura.</td></tr>
+<tr><th scope="row">3 · high / likely<br>KMS dipendente dalla forma ID/ARN</th><td><strong>Superato nel perimetro statico.</strong> Gli input sono normalizzati all'ID; il pattern contiene ID e suffisso ARN per entrambe le operazioni, inclusi ID multi-Region. <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/locals.tf">locals.tf:6</a>, <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/main.tf">main.tf:117</a>, <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/tests/alerting.tftest.hcl">alerting.tftest.hcl:128</a>.</td><td>Nessun evento CloudTrail reale per ScheduleKeyDeletion o DisableKey è stato riprodotto. Non si estende la promessa ad alias o altre forme non dichiarate.</td></tr>
+<tr><th scope="row">4 · medium / verified<br>Prerequisiti webhook/SQS/Lambda incompleti</th><td><strong>Superato per riduzione esplicita dello scope.</strong> Solo subscription email nella risorsa, negli input e negli esempi. Rimozione degli input precedenti e delle subscription non-email documentata come migrazione. <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/main.tf">main.tf:149</a>, <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/README.md">README.md:83</a>.</td><td>Non sono state completate le integrazioni precedenti: sono state rimosse dal contratto gestito. Il consumer deve esaminare il piano di upgrade; le subscription esterne a un topic esistente restano fuori gestione.</td></tr>
+</tbody></table>
+<p>Conteggi della baseline: 0 critical, 2 high, 2 medium, 0 low; presentazione: 0 Bloccanti, 4 Importanti, 0 Miglioramenti, 0 Note. Conteggi attuali: 0 critical, 0 high, 1 medium, 0 low; presentazione: 0 Bloccanti, 1 Importante, 0 Miglioramenti, 0 Note. Verdetto precedente e attuale: <strong>REVISION REQUIRED</strong>, ma la ragione residua non include più i tre problemi superati.</p>
+<details><summary>Estratti correnti a supporto del confronto</summary>
+<figure class="code"><figcaption><span class="file">main.tf:80 — campi di stato</span></figcaption><pre><code>event_pattern = jsonencode({
+  source      = ["aws.backup"]
+  detail-type = var.monitored_event_types
+  detail = {
+    "$or" = [
+      { state = var.backup_failure_event_states },
+      { status = var.backup_failure_event_states },
+    ]
+  }
+})</code></pre></figure>
+<figure class="code"><figcaption><span class="file">locals.tf:6 — normalizzazione KMS</span></figcaption><pre><code>  monitored_kms_key_ids = distinct([
+    for key_id in var.kms_key_ids : reverse(split("/", key_id))[0]
+  ])
+
+  # Create a dedicated CMK only when we own the topic and no existing CMK is supplied.
+  create_sns_kms_key = var.create_sns_topic &amp;&amp; var.sns_kms_key_arn == null</code></pre></figure>
+</details></section>
+<section data-section="custom" id="copertura"><h2>Matrice di copertura aggiornata</h2>
+<p>Le sette aree della baseline restano separate dai difetti del contratto dichiarato. Una lacuna rispetto alla protezione completa non diventa automaticamente un finding del modulo di alerting.</p>
+<table><caption>Protezione più ampia: copertura e limiti attuali</caption><thead><tr><th scope="col">Area</th><th scope="col">Esito corrente</th><th scope="col">Evidenza e responsabilità</th></tr></thead><tbody>
+<tr><th scope="row">Backup mai partito</th><td>Non coperto dal percorso job-fallito.</td><td>[documented] Tipi e stati in <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/variables.tf">variables.tf:26</a>. Non è un controllo dell'assenza di eventi o di recovery point attesi.</td></tr>
+<tr><th scope="row">Singola risorsa scoperta</th><td>Nessuna riconciliazione tra inventario atteso e protezione effettiva.</td><td>[documented] <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/README.md">README.md:67</a>: il modulo non usa selection_tags per delimitare i job del workload.</td></tr>
+<tr><th scope="row">Tag rimosso</th><td>Perdita di copertura non controllata dal modulo.</td><td>[documented] Le regole correnti selezionano stati dei job e operazioni KMS, non mutazioni dei tag. Un controllo più ampio deve avere un inventario indipendente dal tag di selezione.</td></tr>
+<tr><th scope="row">Backup degradato</th><td>COMPLETED con problemi non incluso nei default.</td><td>[documented] <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/variables.tf">variables.tf:32</a>: FAILED, EXPIRED, ABORTED. La baseline distingue “Completed with issues” da perdita totale; nessuna estensione indiscriminata a PARTIAL.</td></tr>
+<tr><th scope="row">Modifiche distruttive</th><td>ScheduleKeyDeletion e DisableKey presenti; piani, vault e recovery point fuori dalle regole correnti.</td><td>[documented] <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/main.tf">main.tf:106</a>. Modifica, cancellazione e scadenza ordinaria restano scenari distinti.</td></tr>
+<tr><th scope="row">DR</th><td>Documentazione migliorata: istanza regionale separata nel README.</td><td>[documented] <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/README.md">README.md:93</a>. L'<a href="../../terraform/aws/modules/terraform-aws-backup/examples/production/main.tf">esempio production:83</a> mantiene solo l'istanza primaria. Nessuna prova del deployment DR consumer.</td></tr>
+<tr><th scope="row">Operatività</th><td>Conferma email e prova reale richieste; controllo continuativo e presa in carico non dimostrati.</td><td>[documented] <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/README.md">README.md:238</a>. Il <a href="#finding-delivery">finding 2</a> riguarda il canale; l'intervento umano resta [unknown].</td></tr>
+</tbody></table></section>
+<section data-section="findings" id="criticita"><h2>Dettaglio criticità attuali</h2>
+<article class="finding" data-finding id="finding-delivery" data-source-review="review-high-level-20261112" data-source-id="2" data-source-severity="medium" data-severity="important" data-evidence="verified" data-confidence="verified">
+<div class="badges"><span class="sev sev-important"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#sev-important"/></svg>Importante</span><span class="ev ev-verified">Verificato</span></div>
+<h3>La sorveglianza operativa del canale di notifica resta non definita</h3>
+<p class="meta" data-part="source-metadata">review-high-level-20261112 · 2 · medium · verified</p>
+<figure data-diagram class="viz" id="viz-delivery-flow"><figcaption>Percorso [documented]; ricezione e controllo continuativo [unknown]. Nessun passaggio runtime è dichiarato osservato.</figcaption>
+<div class="diagram" role="img" aria-label="EventBridge inoltra a SNS, che invia email confermate. La ricezione e la rilevazione di guasti non sono dimostrate."></div>
+<details class="diagram-source"><summary>Sorgente Mermaid</summary><pre class="mermaid-source">flowchart LR
+  accTitle: Percorso di notifica e limite operativo
+  accDescr: Il percorso configurato collega EventBridge a SNS ed email. Ricezione e rilevazione dei guasti non sono verificate.
+  E["EventBridge"] --&gt;|"[documented] target"| S["SNS cifrato"]
+  S --&gt;|"[documented] email confermata"| M["Casella destinataria"]
+  M -. "[unknown] ricezione e presa in carico" .-&gt; O["Operatore"]
+  E -. "[unknown] controllo continuativo" .-&gt; H["Responsabile del canale"]</pre></details></figure>
+<p data-part="action" hidden>Definire chi sorveglia il canale e produrre evidenze separate di consegna e rilevazione dei guasti.</p>
+<dl class="parts">
+<div class="row row-problem"><dt>Problema</dt><dd data-part="problem"><p>Nel perimetro esaminato — tutti i file .tf del modulo, README, test nativi ed esempio autonomo — non sono definiti allarmi di consegna, controllo periodico, DLQ dei target o delle subscription, né un responsabile con procedura per rilevare il silenzio del canale. Il README ora richiede test reali, ma non chiude il controllo continuativo.</p></dd></div>
+<div class="row row-example"><dt>Esempio</dt><dd data-part="example"><p>Il target inoltra al topic senza una DLQ configurata. AWS documenta retry predefiniti EventBridge per errori ritentabili, per 24 ore e fino a 185 tentativi; dopo l'esaurimento l'evento viene scartato. Non è stato provocato alcun guasto: è un rischio documentato, non una perdita osservata.</p>
+<figure class="code"><figcaption><span class="file">main.tf:94 — target backup senza controllo di consegna locale</span></figcaption><pre><code>resource "aws_cloudwatch_event_target" "backup_failures_sns" {
+  count      = var.enable_backup_failure_alerts ? 1 : 0
+  depends_on = [data.aws_iam_policy_document.sns_topic_policy]
+
+  rule      = aws_cloudwatch_event_rule.backup_failures[0].name
+  target_id = "send-to-sns"
+  arn       = local.sns_topic_arn
+}</code></pre></figure></dd></div>
+<div class="row row-fix"><dt>Suggerimento</dt><dd data-part="fix"><p>Definire il confine di responsabilità del controllo del canale e collegare eventuali controlli esterni del consumer. Non è richiesta qui una specifica architettura: servono evidenze di rilevazione e gestione degli errori per EventBridge → SNS e SNS → email.</p><p><strong>Verifica attesa:</strong> destinatario confermato, evento rappresentativo ricevuto, guasto controllato rilevato dal responsabile e procedura di recupero verificata. Se la sorveglianza è esterna, indicarne configurazione, owner e prova.</p></dd></div>
+<div class="row row-benefit"><dt>Perché</dt><dd data-part="benefit"><p>La creazione delle subscription e una prova iniziale non dimostrano che guasti successivi vengano rilevati. La lacuna impedisce di affidarsi al modulo come canale operativo sorvegliato, pur senza dimostrare che il deployment attuale perda messaggi.</p></dd></div>
+<div class="row row-limits"><dt>Evidenza e limiti</dt><dd data-part="limits"><p>Direct observation della configurazione e dell'assenza nel perimetro nominato; conseguenza come supported inference. Confidenza verified sull'assenza locale, non sulla perdita di messaggi. Relazioni [documented], non [observed]. Retry e metriche AWS non sono assenti: manca la loro sorveglianza nel perimetro. Il consumer potrebbe già fornirla, ma non è stata prodotta evidenza.</p></dd></div>
+<div class="row row-sources"><dt>Fonti</dt><dd data-part="sources"><p><a href="../../terraform/aws/modules/terraform-aws-backup-alerting/main.tf">main.tf:94, 136, 149</a>; <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/README.md">README.md:71, 238</a>; <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/tests/alerting.tftest.hcl">test mock:1</a>; <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/examples/main.tf">consumer autonomo:22</a>. <a href="https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-rule-retry-policy.html">AWS: retry e scarto EventBridge</a>, consultato il 12 novembre 2026.</p></dd></div>
+</dl><div class="tools"><button type="button" class="link" data-copy-link hidden>Copia link</button><button type="button" class="link" data-copy-issue hidden>Copia come issue</button><span class="status" role="status"></span><a class="back" href="#elenco">Torna all'elenco</a></div>
+</article></section>
+<section data-section="notes" id="note"><h2>Limiti e rettifiche conservate</h2>
+<p>La precedente controvalidazione aveva ritirato o limitato le affermazioni seguenti. Restano contesto storico, non nuovi finding né conclusioni runtime rivalidate oggi.</p>
+<table><caption>Rettifiche della baseline da non reintrodurre</caption><thead><tr><th scope="col">Tema</th><th scope="col">Limite conservato</th></tr></thead><tbody>
+<tr><th scope="row">Policy KMS</th><td>Non reintrodurre il finding sull'assenza di SourceArn/SourceAccount per EventBridge: la baseline cita il mancato supporto per questo percorso nella <a href="https://docs.aws.amazon.com/sns/latest/dg/sns-key-management.html">guida SNS/KMS</a>. Nessun nuovo audit IAM.</td></tr>
+<tr><th scope="row">Recovery point</th><td>Non affermare che la cancellazione sia visibile solo via CloudTrail: la baseline registra anche DELETING. Da solo non prova attore, origine manuale o completamento.</td></tr>
+<tr><th scope="row">PARTIAL</th><td>La presenza nell'API non dimostra l'emissione nativa per tutti i job; nessuna raccomandazione di aggiungerlo indistintamente ai filtri.</td></tr>
+<tr><th scope="row">Tag policy</th><td>Non è, da sola, un controllo che impedisce la rimozione del tag.</td></tr>
+<tr><th scope="row">Audit Manager</th><td>La baseline registra valutazioni ogni 24 ore ed esclusioni per risorse inattive: non è una garanzia universale tempestiva. Frequenze e limiti non sono stati nuovamente verificati in questa review.</td></tr>
+<tr><th scope="row">CI verde</th><td>Non prova matching reale, IAM, consegna o presa in carico. Nessuno stato CI live è stato acquisito; la dicitura del README sulla release non pubblicata non è stata dichiarata obsoleta.</td></tr>
+<tr><th scope="row">Decisione §6</th><td>Il commento in <a href="../../terraform/aws/modules/terraform-aws-backup-alerting/kms.tf">kms.tf:4</a> non fornisce il documento decisionale. Non è dimostrato che non esista altrove.</td></tr>
+</tbody></table>
+<p><strong>Contraria spiegazione considerata:</strong> il modulo può essere intenzionalmente limitato a eventi selezionati, e il consumer può sorvegliare il canale altrove. Questo giustifica non trasformare inventario, tag o DR in nuovi difetti. Non basta però a chiudere il finding 2 senza un contratto o un'evidenza del controllo esterno.</p>
+</section>
+<section data-section="evidence" id="evidenze"><h2>Evidenze e verifiche</h2>
+<h3 id="lacune">Lacune di evidenza decisive</h3>
+<ul><li><strong>Sorveglianza esterna:</strong> configurazione, owner, soglia e procedura consumer non fornite. Potrebbero chiudere il finding 2 senza modificare il modulo.</li>
+<li><strong>Matching e consegna reali:</strong> nessuna prova con payload rappresentativi backup/copy/restore e KMS ID/ARN, autorizzazioni effettive e email confermata. Le chiusure 1 e 3 sono statiche, non certificazioni operative.</li>
+<li><strong>Deployment e migrazione:</strong> non acquisiti piano consumer, copertura regionale DR o evidenza che la rimozione degli endpoint precedenti sia stata recepita. La documentazione non dimostra l'upgrade.</li></ul>
+<p>Review corrente: review-high-level-20261112; finding residuo con ID sorgente 2. Baseline: analisi-controvalidata-20261110, pubblicata nel report dell'11 novembre. SHA-256 del vecchio HTML prima della sovrascrittura: <code>898661faefb390a4077ac8965b6936c859e590aeb188ac0c67b462bccf05b942</code>. Le vecchie verifiche browser non sono state ereditate come risultati attuali.</p>
+<ul class="checks">
+<li data-check id="check-source-reading" data-status="passed"><span class="st st-passed">passed</span><code data-part="check-command">Lettura statica: modulo, README, test mock, esempio autonomo e consumer production/non-production</code><span data-part="check-result">Confrontati i quattro finding della baseline con il contratto corrente e le adiacenze a un hop. Consultata la guida AWS sui retry EventBridge. Nessuna remediation o operazione AWS.</span></li>
+<li data-check id="check-previous-report" data-status="failed"><span class="st st-failed">failed</span><code data-part="check-command">python3 .github/skills/local-review-report-creator/scripts/check_report.py .review/20261111-review-terraform-aws-backup-alerting/report-2.html --format text (prima dell'aggiornamento)</code><span data-part="check-result">Baseline: 2 errori, 0 warning. Invariant layout non allineato al template corrente; sezione raccomandazioni senza raccomandazioni. Sono problemi della presentazione precedente, non del modulo AWS.</span></li>
+<li data-check id="check-source-fidelity" data-status="passed"><span class="st st-passed">passed</span><code data-part="check-command">Confronto fonte → report: ID, severità, confidenza, prove e limiti</code><span data-part="check-result">Conservati ID 1–4 e metadati storici high/medium/high/medium, verified/verified/likely/verified; conteggi attuali limitati al finding 2. Conservate sette aree di copertura e sette rettifiche, distinguendo gli aggiornamenti statici dalle prove operative assenti.</span></li>
+<li data-check id="check-terraform-tests" data-status="not-run"><span class="st st-not-run">not-run</span><code data-part="check-command">make terraform-backup-check</code><span data-part="check-result">Non eseguito: correctness Terraform fuori dal perimetro confermato, nessun file del modulo modificato. La lettura dei test mock non dimostra che siano passati oggi.</span></li>
+<li data-check id="check-aws-runtime" data-status="not-run"><span class="st st-not-run">not-run</span><code data-part="check-command">Matching EventBridge, consegna SNS/email e fault injection nell'account consumer</code><span data-part="check-result">Nessun account AWS utilizzato, nessuna conferma subscription, invio, apply o modifica KMS. Non verificati IAM effettivo, tempi, ricezione e presa in carico.</span></li>
+<li data-check id="check-report-structure" data-status="passed"><span class="st st-passed">passed</span><code data-part="check-command">python3 .github/skills/local-review-report-creator/scripts/check_report.py .review/20261111-review-terraform-aws-backup-alerting/report-2.html --format text</code><span data-part="check-result">Versione aggiornata: 0 errori, 0 warning dopo derive_report.py. Il primo assemblaggio aveva fallito con un errore section-order; risolto collocando le lacune nella sezione evidenze. Il pass strutturale non certifica la review tecnica.</span></li>
+<li data-check id="check-report-browser" data-status="passed"><span class="st st-passed">passed</span><code data-part="check-command">Browser integrato / Playwright: viewport, filtro important, hash, emulateMedia(print), Tab, clipboard negata e console</code><span data-part="check-result">Viewport effettivi 1440 e 390 CSS px senza overflow. Un finding; filtro lo nasconde, anchor lo rivela, stampa lo mostra e ritorno screen ripristina il filtro. Tab raggiunge un link con outline solid. Clipboard negata: messaggio inline esplicito, nessuna pageerror o console error nel ricaricamento online strumentato. Mermaid renderizzato da CDN. Controlli mirati, non certificazione completa di accessibilità o stampa fisica.</span></li>
+<li data-check id="check-report-offline" data-status="passed"><span class="st st-passed">passed</span><code data-part="check-command">page.context().setOffline(true); page.reload()</code><span data-part="check-result">Ricaricamento offline con cache già popolata: un finding e sorgente Mermaid presenti; SVG renderizzato nel DOM. Il file non incorpora SVG: il risultato non prova rendering con cache vuota o JavaScript disabilitato.</span></li>
+<li data-check id="check-browser-full" data-status="not-run"><span class="st st-not-run">not-run</span><code data-part="check-command">Matrice completa browser, offline a cache vuota e JavaScript disabilitato</code><span data-part="check-result">Non eseguiti: contesto isolato a cache vuota senza JavaScript, clipboard consentita/assente, navigazione completa da tastiera, contrasto, dark mode OS, reduced motion e dialogo stampa nativo. Nessuna garanzia di rendering offline del diagramma; testo e sorgente sono inclusi nell'HTML.</span></li>
+<li data-check id="check-impeccable" data-status="not-run"><span class="st st-not-run">not-run</span><code data-part="check-command">IMPECCABLE_NO_TELEMETRY=1 impeccable detect --json report-2.html</code><span data-part="check-result">Eseguibile non disponibile; nessuna installazione effettuata.</span></li>
+</ul>
+<table data-severity-adapter data-approved="true"><caption>Mappatura confermata dall'utente il 12 novembre 2026; non introduce blocchi al rilascio</caption><thead><tr><th scope="col">Severità sorgente</th><th scope="col">Presentazione Atlante</th></tr></thead><tbody><tr data-adapter-source="high" data-adapter-target="important"><td>high</td><td>Importante</td></tr><tr data-adapter-source="medium" data-adapter-target="important"><td>medium</td><td>Importante</td></tr></tbody></table>
+<p>Non sono stati introdotti nuovi ID, note informative conteggiate, diff di remediation o proposte strutturali. Il diagramma proietta soltanto il percorso documentato e i limiti dichiarati dalla review corrente. Il codice riportato è un estratto corrente, non una correzione proposta.</p>
+</section>
+<section data-section="actions" id="interventi"><h2>Prossimi approfondimenti</h2>
+<p>Azioni di verifica, non un'autorizzazione a implementare o operare su AWS.</p>
+<ol class="steps"><li>Per il finding 2, identificare il responsabile del canale e acquisire l'evidenza dell'eventuale sorveglianza esterna e della procedura di recupero.</li><li>Chiudere la lacuna runtime con prove distinte di matching, autorizzazione, consegna e rilevazione del guasto per email confermate, senza equiparare test mock a consegna reale.</li><li>Verificare nel consumer il piano di migrazione email-only e l'istanza DR dove richiesta; usare la matrice di copertura per distinguere il contratto del modulo dalla protezione globale.</li></ol></section>
+</main><p class="foot">Documento di review generato da template. Nessuna certificazione del servizio.</p></div></div>
+<script data-invariant="script">
+(()=>{'use strict';const $=(s,r=document)=>[...r.querySelectorAll(s)];
+const it=document.documentElement.lang==='it',tr=(a,b)=>it?a:b;
+const say=(el,t)=>{const s=el.closest('.tools')?.querySelector('.status');if(s){s.textContent=t;setTimeout(()=>s.textContent='',2500)}};
+const copy=async(el,t,ok)=>{try{await navigator.clipboard.writeText(t);say(el,ok)}catch{say(el,tr('Copia non consentita dal browser','Browser denied clipboard access'))}};
+$('[data-copy-link],[data-copy-issue]').forEach(b=>b.hidden=!navigator.clipboard);
+$('[data-copy-link]').forEach(b=>b.addEventListener('click',()=>{const id=b.closest('[data-finding]').id;copy(b,location.href.split('#')[0]+'#'+encodeURIComponent(id),tr('Link copiato','Link copied'))}));
+$('[data-copy-issue]').forEach(b=>b.addEventListener('click',()=>{const f=b.closest('[data-finding]');
+const part=k=>{const el=f.querySelector(`[data-part="${k}"]`);if(!el)return null;
+const clean=el.cloneNode(true);
+$('.code',clean).forEach(figure=>{const file=figure.querySelector('.file')?.textContent||'';
+const lines=$('.ln',figure).map(line=>(line.querySelector('.mk')?.textContent||' ')+' '+line.lastElementChild.textContent).join('\n');
+figure.replaceWith(document.createTextNode('\n'+file+'\n```diff\n'+lines+'\n```\n'))});
+$('button,.mk',clean).forEach(n=>n.remove());$('p,li,tr',clean).forEach(n=>n.append('\n'));return clean.textContent.trim()};
+const body=['problem','example','fix','indication','benefit','conditions','limits','sources'].map(k=>{const text=part(k);return text?k+':\n'+text:null});
+const t=['## '+f.querySelector('h3').textContent.trim(),'','- Source ID: '+f.dataset.sourceId+' ('+f.dataset.sourceReview+')','- Source severity: '+f.dataset.sourceSeverity,
+f.dataset.confidence?'- Confidence: '+f.dataset.confidence:null,'- Evidence: '+f.dataset.evidence,...body].filter(x=>x!==null&&x!==undefined).join('\n\n');
+copy(b,t,tr('Issue copiata','Issue copied'))}));
+const sync=()=>{const off=$('[data-filter][aria-pressed=false]').map(b=>b.dataset.filter);
+$('[data-finding]').forEach(f=>f.classList.toggle('is-hidden',off.includes(f.dataset.severity)));
+$('[data-row]').forEach(r=>r.classList.toggle('is-hidden',off.includes(r.dataset.row)));
+const em=document.querySelector('[data-empty]');if(em)em.hidden=!$('[data-row]').length||$('[data-row]:not(.is-hidden)').length>0};
+const rs=document.querySelector('[data-reset]');if(rs)rs.addEventListener('click',()=>{$('[data-filter]').forEach(b=>b.setAttribute('aria-pressed','true'));sync()});
+$('[data-copy-code]').forEach(b=>{b.hidden=!navigator.clipboard;b.addEventListener('click',async()=>{const t=$('.ln:not(.del)',b.closest('.code')).map(l=>l.lastElementChild.textContent).join('\n');
+try{await navigator.clipboard.writeText(t);b.textContent=tr('Codice copiato','Code copied')}catch{b.textContent=tr('Copia non consentita','Copy denied')}setTimeout(()=>b.textContent=tr('Copia codice','Copy code'),2000)})});
+$('.overview tbody tr').forEach(r=>r.addEventListener('click',e=>{if(e.target.closest('a'))return;const a=r.querySelector('a');if(a)a.click()}));
+$('[data-filter]').forEach(b=>b.addEventListener('click',()=>{b.setAttribute('aria-pressed',b.getAttribute('aria-pressed')==='true'?'false':'true');sync()}));
+const reveal=()=>{let id;try{id=decodeURIComponent(location.hash.slice(1))}catch{return}
+const t=id&&document.getElementById(id);if(!t)return;
+const f=t.closest('[data-finding]');if(f&&f.classList.contains('is-hidden')){const b=$('[data-filter]').find(b=>b.dataset.filter===f.dataset.severity);if(b){b.setAttribute('aria-pressed','true');sync()}}
+for(let p=t.parentElement;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;
+if(f)requestAnimationFrame(()=>t.scrollIntoView())};
+addEventListener('hashchange',reveal);reveal();
+$('a[href^="#"]').forEach(a=>a.addEventListener('click',()=>{if(a.hash===location.hash)reveal()}));
+const det=()=>$('details:not(.diagram-source)');const tb=document.querySelector('[data-expand]');
+if(tb){tb.hidden=det().length===0;tb.addEventListener('click',()=>{const open=!det().every(d=>d.open);det().forEach(d=>d.open=open);tb.textContent=open?tr('Comprimi tutto','Collapse all'):tr('Espandi tutto','Expand all')})}
+let saved=null;addEventListener('beforeprint',()=>{if(saved===null)saved=$('details').map(d=>[d,d.open]);$('details').forEach(d=>d.open=true)});
+addEventListener('afterprint',()=>{if(saved!==null)saved.forEach(([d,open])=>d.open=open);saved=null});
+const pb=document.querySelector('[data-print]');if(pb)pb.addEventListener('click',()=>print());
+const links=$('.toc ol>li>a[href^="#"]');if(links.length&&'IntersectionObserver'in window){const map=new Map(links.map(a=>[a.getAttribute('href').slice(1),a]));
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){const a=map.get(e.target.id);if(a){links.forEach(l=>l.removeAttribute('aria-current'));a.setAttribute('aria-current','true')}}}),{rootMargin:'-20% 0px -70% 0px'});
+map.forEach((a,id)=>{const el=document.getElementById(id);if(el)io.observe(el)})}
+const pending=$('[data-diagram]').filter(f=>!f.querySelector('.diagram svg'));
+const failure=(f,message)=>{let p=f.querySelector('.diagram-error');if(!p){p=document.createElement('p');p.className='diagram-error';p.setAttribute('role','status');f.append(p)}p.textContent=message;const d=f.querySelector('.diagram-source');if(d)d.open=true};
+const render=async()=>{try{mermaid.initialize({startOnLoad:false,securityLevel:'strict',htmlLabels:false,flowchart:{htmlLabels:false}});
+for(const [i,f] of pending.entries()){try{const source=f.querySelector('.mermaid-source').textContent;await mermaid.parse(source);
+const result=await mermaid.render('report-mermaid-'+i,source);f.querySelector('.diagram').innerHTML=result.svg}
+catch{failure(f,tr('Diagramma non disponibile: consultare il sorgente.','Diagram unavailable: read the source.'))}}}
+catch{pending.forEach(f=>failure(f,tr('Renderer non disponibile.','Renderer unavailable.')))}};
+if(pending.length&&document.documentElement.dataset.diagramFallback==='cdn'){
+const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.min.js';
+script.integrity='sha384-EOXBFmc3gx5mb+vn0vPvvGqACToJD24hhacX5Yx+8NUUQrHIle/Qi5Bg9o3zKwW2';script.crossOrigin='anonymous';script.onload=render;
+script.onerror=()=>pending.forEach(f=>failure(f,tr('Renderer non disponibile: consultare il sorgente.','Renderer unavailable: read the source.')));document.head.append(script)}
+else pending.forEach(f=>failure(f,tr('SVG non incorporato: è disponibile il sorgente Mermaid.','SVG not embedded: Mermaid source is available.')));
+})();
+</script></body></html>

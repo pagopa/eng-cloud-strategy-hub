@@ -1,0 +1,29 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DecryptSourceResources",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:DescribeKey",
+        "kms:GenerateDataKey",
+        "kms:CreateGrant"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringLike": {
+          "kms:ViaService": [
+            "dynamodb.*.amazonaws.com",
+            "ec2.*.amazonaws.com",
+            "rds.*.amazonaws.com",
+            "s3.*.amazonaws.com",
+            "elasticfilesystem.*.amazonaws.com",
+            "eks.*.amazonaws.com",
+            "redshift.*.amazonaws.com"
+          ]
+        }
+      }
+    }
+  ]
+}

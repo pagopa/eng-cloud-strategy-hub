@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Review Terraform AWS Backup — criticità e raccomandazioni</title>
+  <style>
+    :root {
+      --paper: #fff; --background: #edf2f7; --ink: #203047;
+      --muted: #52647a; --line: #cbd6e3; --accent: #14597a;
+      --required: #982c3e; --important: #82540a;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 1.5rem; }
+    body { margin: 0; color: var(--ink); background: var(--background); font: 17px/1.65 "Avenir Next", "Segoe UI", Arial, sans-serif; }
+    a { color: var(--accent); text-underline-offset: .18em; overflow-wrap: anywhere; }
+    a:focus-visible, button:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+    .skip-link { position: absolute; top: -5rem; left: 1rem; padding: .8rem; background: var(--paper); z-index: 2; }
+    .skip-link:focus { top: 1rem; }
+    .page { max-width: 1400px; margin: 1.5rem auto; display: grid; grid-template-columns: 200px minmax(0, 1fr); background: var(--paper); }
+    .page > header, main, .page > footer { grid-column: 2; min-width: 0; }
+    .page > header { padding: 2.5rem 3rem 1.5rem; border-top: 6px solid var(--accent); }
+    h1 { font-size: clamp(2rem, 3.2vw, 2.8rem); line-height: 1.15; letter-spacing: -.025em; max-width: 28ch; margin: .5rem 0 1rem; }
+    h2 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 1rem; }
+    h3 { font-size: 1.3rem; line-height: 1.35; margin: 0 0 .7rem; }
+    h4 { font-size: 1.06rem; line-height: 1.4; margin: 0 0 .7rem; }
+    p { margin: .6rem 0 1rem; max-width: 74ch; }
+    li { margin: .4rem 0; }
+    .lead { font-size: 1.15rem; }
+    .meta, .note, .evidence { color: var(--muted); font-size: .9rem; }
+    nav { grid-column: 1; grid-row: 1 / span 3; position: sticky; top: 0; height: 100vh; align-self: start; padding: 2rem 1rem; background: var(--background); border-right: 1px solid var(--line); overflow-y: auto; }
+    nav a { display: block; min-height: 44px; padding: .6rem .5rem; font-size: .9rem; text-decoration: none; }
+    nav a:hover, nav a[aria-current="location"] { background: #dce8f0; text-decoration: underline; }
+    main { padding: 0 3rem 2rem; }
+    main > section { padding: 2rem 0; border-top: 1px solid var(--line); }
+    .overview { padding: 1rem 1.2rem; background: #f5f8fb; border-left: 4px solid var(--accent); }
+    .overview p:last-child { margin-bottom: 0; }
+    .actions { display: flex; flex-wrap: wrap; gap: .7rem; margin-top: 1.3rem; }
+    button { font: inherit; font-size: .9rem; min-height: 44px; padding: .6rem 1rem; background: var(--ink); color: var(--paper); border: 0; border-radius: 4px; cursor: pointer; }
+    button:hover { background: var(--accent); }
+    .recommendation { margin: 1.8rem 0 2.5rem; border: 2px solid var(--accent); }
+    .recommendation > header { padding: 1.2rem 1.5rem; background: #e8f2f7; border-bottom: 1px solid var(--line); }
+    .recommendation > header p { margin-bottom: 0; }
+    .recommendation-body { padding: 1.5rem; }
+    .recommendation > footer { padding: 1rem 1.5rem; border-top: 2px solid var(--accent); background: #f5f8fb; }
+    .recommendation > footer p { margin: 0; }
+    .recommendation h4 { margin-top: 1.5rem; }
+    .comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin: 1.2rem 0; }
+    figure { min-width: 0; margin: 0; padding: 1rem; border: 1px solid var(--line); }
+    figure h4 { margin: 0 0 .8rem !important; color: var(--accent); }
+    figcaption { margin-top: .8rem; font-size: .9rem; }
+    .diagram { overflow-x: auto; }
+    .diagram svg { display: block; max-width: 100%; height: auto; margin: auto; }
+    .diagram-source { font-size: .85rem; margin-top: .8rem; }
+    summary { cursor: pointer; min-height: 44px; padding: .5rem 0; font-weight: 650; }
+    details { margin: 1rem 0; }
+    pre { margin: .8rem 0; padding: 1rem; background: #edf1f6; overflow-x: auto; font-size: .84rem; line-height: 1.5; }
+    code { font: .9em/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; background: #edf1f6; padding: .1em .25em; overflow-wrap: anywhere; }
+    pre code { padding: 0; background: none; }
+    .table-wrap { overflow-x: auto; margin: 1rem 0; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: .92rem; }
+    caption { text-align: left; font-weight: 650; margin-bottom: .6rem; }
+    th { background: #e8edf5; }
+    th, td { padding: .7rem; vertical-align: top; border-bottom: 1px solid var(--line); }
+    .severity-group { margin: 2rem 0; }
+    .severity-group > h3 { border-bottom: 2px solid var(--line); padding-bottom: .7rem; }
+    #priorita > h3 { color: var(--required); border-color: var(--required); }
+    #importanti > h3 { color: var(--important); border-color: var(--important); }
+    .finding { margin: 1.2rem 0; padding: 1.2rem 1.4rem; border: 1px solid var(--line); border-left: 4px solid var(--line); }
+    .finding.required { border-left-color: var(--required); }
+    .finding.important { border-left-color: var(--important); }
+    .finding p:last-child { margin-bottom: 0; }
+    .finding .resolution { padding: .7rem 1rem; background: #f5f8fb; }
+    .tag { display: inline-block; font-size: .82rem; font-weight: 700; color: var(--muted); margin-bottom: .6rem; }
+    #diagram-status { padding: 1rem; background: #fff6df; color: #704808; }
+    .page > footer { padding: 1.5rem 3rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .85rem; }
+    [hidden] { display: none !important; }
+    @media (max-width: 1050px) {
+      .page { display: block; margin: 0 auto; }
+      nav { position: static; height: auto; display: flex; flex-wrap: wrap; padding: .7rem 1.5rem; border: 0; gap: .2rem .7rem; }
+      nav a { padding: .4rem; }
+    }
+    @media (max-width: 700px) {
+      body { font-size: 16px; }
+      .page > header, .page > footer { padding: 1.5rem 1rem; }
+      main { padding: 0 1rem 1.5rem; }
+      .comparison { grid-template-columns: minmax(0, 1fr); }
+      .recommendation > header, .recommendation-body, .recommendation > footer { padding: 1rem; }
+      .finding { padding: 1rem; }
+      th, td { padding: .6rem; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    @media print {
+      body { background: white; font-size: 10pt; }
+      .page { display: block; margin: 0; }
+      nav, .actions, .skip-link, .diagram-source, #diagram-status { display: none !important; }
+      .page > header, main, .page > footer { padding: 1rem 0; }
+      .comparison { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .recommendation { margin: 1rem 0; }
+      .recommendation > header, .recommendation-body, .recommendation > footer { padding: .8rem; }
+      figure, tr, .finding { break-inside: avoid; }
+      h2, h3, h4 { break-after: avoid; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+<a class="skip-link" href="#contenuto">Vai al contenuto</a>
+<div class="page">
+  <header>
+    <p class="meta">Review tecnica · 10 novembre 2026 · Analisi, non implementazione</p>
+    <h1>Terraform AWS Backup</h1>
+    <p class="lead">Criticità da correggere e due raccomandazioni: separare i moduli per responsabilità e coordinare i preset.</p>
+    <p class="note">Questa revisione riorganizza l'analisi esistente. Nessun nuovo audit Terraform, test AWS o refactoring applicato.</p>
+    <div class="actions">
+      <button type="button" id="print-report">Stampa / salva PDF</button>
+      <button type="button" id="toggle-details" aria-expanded="false">Espandi dettagli tecnici</button>
+    </div>
+  </header>
+  <nav aria-label="Indice del report">
+    <a href="#sintesi">Sintesi</a>
+    <a href="#architettura">R1 · Divisione dei moduli</a>
+    <a href="#presets">R2 · Coordinamento preset</a>
+    <a href="#rilievi">Criticità per gravità</a>
+    <a href="#note">Note e limiti</a>
+    <a href="#verifiche">Evidenze</a>
+    <a href="#confronto">Ordine degli interventi</a>
+  </nav>
+  <main id="contenuto">
+    <section id="sintesi">
+      <h2>In breve</h2>
+      <div class="overview">
+        <p><strong>Correzioni richieste:</strong> 1 bloccante sul naming, 3 problemi importanti su KMS/DR/restore e 4 miglioramenti di robustezza. Le 3 note descrivono limiti o comportamenti corretti, non ulteriori bug.</p>
+        <p><strong>Direzione architetturale:</strong> principale coordinatore, vault regionale riusabile e motore <code>backup-plan</code> esistente. I preset restano profili dello stesso motore.</p>
+      </div>
+      <p class="note">Le due raccomandazioni sono racchiuse in riquadri con una conclusione esplicita. Le criticità seguono in una sezione separata. Il refactoring non è un prerequisito dimostrato per correggere i difetti.</p>
+    </section>
+
+    <section id="raccomandazioni">
+      <h2>Raccomandazioni architetturali</h2>
+      <p>Il confronto mostra il comportamento attuale e quello proposto. “Dopo” indica una raccomandazione, non funzionalità già disponibili.</p>
+      <p id="diagram-status" role="status">Caricamento dei diagrammi Mermaid. Descrizioni e sorgenti restano disponibili sotto ogni grafico.</p>
+
+      <article class="recommendation" id="architettura" aria-labelledby="r1-title">
+        <header>
+          <h3 id="r1-title">R1 · Dividere i moduli per responsabilità</h3>
+          <p>Estrarre solo l'infrastruttura regionale. Mantenere nel principale policy e coordinamento, senza moltiplicare i micromoduli.</p>
+        </header>
+        <div class="recommendation-body">
+          <div class="comparison">
+            <figure id="oggi">
+              <h4>Prima · Il principale gestisce anche i vault</h4>
+              <div class="diagram" tabindex="0" role="img" aria-label="Prima: il consumer configura principale e preset esterni; entrambi riusano backup-plan."><svg aria-labelledby="comparison-0-chart-title-comparison-0" aria-describedby="comparison-0-chart-desc-comparison-0" aria-roledescription="flowchart-v2" role="graphics-document document" viewBox="-8 -8 266.23126220703125 217.40000915527344" style="max-width: 266.23126220703125px;" xmlns="http://www.w3.org/2000/svg" width="100%" id="comparison-0" data-id-scoped="true"><title id="comparison-0-chart-title-comparison-0">Moduli prima della raccomandazione</title><desc id="comparison-0-chart-desc-comparison-0">Il consumer configura il principale e i preset esterni. Entrambi chiamano backup-plan. Vault, KMS, lock, IAM e restore sono nel principale.</desc><style>#comparison-0{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;fill:#333;}#comparison-0 .error-icon{fill:#552222;}#comparison-0 .error-text{fill:#552222;stroke:#552222;}#comparison-0 .edge-thickness-normal{stroke-width:2px;}#comparison-0 .edge-thickness-thick{stroke-width:3.5px;}#comparison-0 .edge-pattern-solid{stroke-dasharray:0;}#comparison-0 .edge-pattern-dashed{stroke-dasharray:3;}#comparison-0 .edge-pattern-dotted{stroke-dasharray:2;}#comparison-0 .marker{fill:#333333;stroke:#333333;}#comparison-0 .marker.cross{stroke:#333333;}#comparison-0 svg{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;}#comparison-0 .label{font-family:"trebuchet ms",verdana,arial,sans-serif;color:#333;}#comparison-0 .cluster-label text{fill:#333;}#comparison-0 .cluster-label span,#comparison-0 p{color:#333;}#comparison-0 .label text,#comparison-0 span,#comparison-0 p{fill:#333;color:#333;}#comparison-0 .node rect,#comparison-0 .node circle,#comparison-0 .node ellipse,#comparison-0 .node polygon,#comparison-0 .node path{fill:#ECECFF;stroke:#9370DB;stroke-width:1px;}#comparison-0 .flowchart-label text{text-anchor:middle;}#comparison-0 .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#comparison-0 .node .label{text-align:center;}#comparison-0 .node.clickable{cursor:pointer;}#comparison-0 .arrowheadPath{fill:#333333;}#comparison-0 .edgePath .path{stroke:#333333;stroke-width:2.0px;}#comparison-0 .flowchart-link{stroke:#333333;fill:none;}#comparison-0 .edgeLabel{background-color:#e8e8e8;text-align:center;}#comparison-0 .edgeLabel rect{opacity:0.5;background-color:#e8e8e8;fill:#e8e8e8;}#comparison-0 .labelBkg{background-color:rgba(232, 232, 232, 0.5);}#comparison-0 .cluster rect{fill:#ffffde;stroke:#aaaa33;stroke-width:1px;}#comparison-0 .cluster text{fill:#333;}#comparison-0 .cluster span,#comparison-0 p{color:#333;}#comparison-0 div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:12px;background:hsl(80, 100%, 96.2745098039%);border:1px solid #aaaa33;border-radius:2px;pointer-events:none;z-index:100;}#comparison-0 .flowchartTitleText{text-anchor:middle;font-size:18px;fill:#333;}#comparison-0 :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g><marker orient="auto" markerHeight="12" markerWidth="12" markerUnits="userSpaceOnUse" refY="5" refX="6" viewBox="0 0 10 10" class="marker flowchart" id="comparison-0-comparison-0_flowchart-pointEnd"><path style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 0 0 L 10 5 L 0 10 z"></path></marker><marker orient="auto" markerHeight="12" markerWidth="12" markerUnits="userSpaceOnUse" refY="5" refX="4.5" viewBox="0 0 10 10" class="marker flowchart" id="comparison-0-comparison-0_flowchart-pointStart"><path style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 0 5 L 10 10 L 10 0 z"></path></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5" refX="11" viewBox="0 0 10 10" class="marker flowchart" id="comparison-0-comparison-0_flowchart-circleEnd"><circle style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" r="5" cy="5" cx="5"></circle></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5" refX="-1" viewBox="0 0 10 10" class="marker flowchart" id="comparison-0-comparison-0_flowchart-circleStart"><circle style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" r="5" cy="5" cx="5"></circle></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5.2" refX="12" viewBox="0 0 11 11" class="marker cross flowchart" id="comparison-0-comparison-0_flowchart-crossEnd"><path style="stroke-width: 2; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9"></path></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5.2" refX="-1" viewBox="0 0 11 11" class="marker cross flowchart" id="comparison-0-comparison-0_flowchart-crossStart"><path style="stroke-width: 2; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9"></path></marker><g class="root"><g class="clusters"></g><g class="edgePaths"><path marker-end="url(#comparison-0-comparison-0_flowchart-pointEnd)" style="fill:none;" class="edge-thickness-normal edge-pattern-solid flowchart-link LS-C LE-M" id="comparison-0-L-C-M-0" d="M87.759,33.8L42.975,58.8L42.975,78.5"></path><path marker-end="url(#comparison-0-comparison-0_flowchart-pointEnd)" style="fill:none;" class="edge-thickness-normal edge-pattern-solid flowchart-link LS-C LE-T" id="comparison-0-L-C-T-0" d="M148.307,33.8L193.091,58.8L193.091,78.5"></path><path marker-end="url(#comparison-0-comparison-0_flowchart-pointEnd)" style="fill:none;" class="edge-thickness-normal edge-pattern-solid flowchart-link LS-M LE-B" id="comparison-0-L-M-B-0" d="M42.975,117.6L42.975,142.6L83.131,165.017"></path><path marker-end="url(#comparison-0-comparison-0_flowchart-pointEnd)" style="fill:none;" class="edge-thickness-normal edge-pattern-solid flowchart-link LS-T LE-B" id="comparison-0-L-T-B-0" d="M193.091,117.6L193.091,142.6L152.934,165.017"></path></g><g class="edgeLabels"><g class="edgeLabel"><g transform="translate(0, 0)" class="label"><rect height="0" width="0" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve"></tspan></text></g></g><g class="edgeLabel"><g transform="translate(0, 0)" class="label"><rect height="0" width="0" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve"></tspan></text></g></g><g class="edgeLabel"><g transform="translate(0, 0)" class="label"><rect height="0" width="0" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve"></tspan></text></g></g><g class="edgeLabel"><g transform="translate(0, 0)" class="label"><rect height="0" width="0" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve"></tspan></text></g></g></g><g class="nodes"><g transform="translate(118.03281593322754, 16.899999618530273)" data-id="C" data-node="true" id="comparison-0-flowchart-C-0" class="node default default flowchart-label"><rect height="33.80000114440918" width="85.34375" y="-16.90000057220459" x="-42.671875" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">Consumer</tspan></text></g></g><g transform="translate(42.97500228881836, 100.69999885559082)" data-id="M" data-node="true" id="comparison-0-flowchart-M-1" class="node default default flowchart-label"><rect height="33.80000114440918" width="85.95000457763672" y="-16.90000057220459" x="-42.97500228881836" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">Principale</tspan></text></g></g><g transform="translate(193.09062957763672, 100.69999885559082)" data-id="T" data-node="true" id="comparison-0-flowchart-T-3" class="node default default flowchart-label"><rect height="33.80000114440918" width="114.28125" y="-16.90000057220459" x="-57.140625" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">Preset esterni</tspan></text></g></g><g transform="translate(118.03281593322754, 184.49999809265137)" data-id="B" data-node="true" id="comparison-0-flowchart-B-5" class="node default default flowchart-label"><rect height="33.80000114440918" width="102.625" y="-16.90000057220459" x="-51.3125" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">backup-plan</tspan></text></g></g></g></g></g></svg></div>
+              <figcaption>Il riuso dei piani esiste già. Il principale contiene vault, KMS, lock, IAM e restore; i preset sono composti dal consumer.</figcaption>
+              <details class="diagram-source"><summary>Sorgente Mermaid</summary><pre class="mermaid-source">flowchart TB
+    accTitle: Moduli prima della raccomandazione
+    accDescr: Il consumer configura il principale e i preset esterni. Entrambi chiamano backup-plan. Vault, KMS, lock, IAM e restore sono nel principale.
+    C["Consumer"] --> M["Principale"]
+    C --> T["Preset esterni"]
+    M --> B["backup-plan"]
+    T --> B</pre></details>
+            </figure>
+            <figure>
+              <h4>Dopo · Il principale coordina due componenti</h4>
+              <div class="diagram" tabindex="0" role="img" aria-label="Dopo: il principale coordina vault regionale e backup-plan, mantenendo IAM, restore e policy."><svg aria-labelledby="comparison-1-chart-title-comparison-1" aria-describedby="comparison-1-chart-desc-comparison-1" aria-roledescription="flowchart-v2" role="graphics-document document" viewBox="-8 -8 397.57501220703125 301.20001220703125" style="max-width: 397.57501220703125px;" xmlns="http://www.w3.org/2000/svg" width="100%" id="comparison-1" data-id-scoped="true"><title id="comparison-1-chart-title-comparison-1">Moduli dopo la raccomandazione</title><desc id="comparison-1-chart-desc-comparison-1">Nel percorso guidato il principale mantiene policy, IAM e restore. Coordina il nuovo sottomodulo vault regionale e il motore backup-plan esistente.</desc><style>#comparison-1{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;fill:#333;}#comparison-1 .error-icon{fill:#552222;}#comparison-1 .error-text{fill:#552222;stroke:#552222;}#comparison-1 .edge-thickness-normal{stroke-width:2px;}#comparison-1 .edge-thickness-thick{stroke-width:3.5px;}#comparison-1 .edge-pattern-solid{stroke-dasharray:0;}#comparison-1 .edge-pattern-dashed{stroke-dasharray:3;}#comparison-1 .edge-pattern-dotted{stroke-dasharray:2;}#comparison-1 .marker{fill:#333333;stroke:#333333;}#comparison-1 .marker.cross{stroke:#333333;}#comparison-1 svg{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;}#comparison-1 .label{font-family:"trebuchet ms",verdana,arial,sans-serif;color:#333;}#comparison-1 .cluster-label text{fill:#333;}#comparison-1 .cluster-label span,#comparison-1 p{color:#333;}#comparison-1 .label text,#comparison-1 span,#comparison-1 p{fill:#333;color:#333;}#comparison-1 .node rect,#comparison-1 .node circle,#comparison-1 .node ellipse,#comparison-1 .node polygon,#comparison-1 .node path{fill:#ECECFF;stroke:#9370DB;stroke-width:1px;}#comparison-1 .flowchart-label text{text-anchor:middle;}#comparison-1 .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#comparison-1 .node .label{text-align:center;}#comparison-1 .node.clickable{cursor:pointer;}#comparison-1 .arrowheadPath{fill:#333333;}#comparison-1 .edgePath .path{stroke:#333333;stroke-width:2.0px;}#comparison-1 .flowchart-link{stroke:#333333;fill:none;}#comparison-1 .edgeLabel{background-color:#e8e8e8;text-align:center;}#comparison-1 .edgeLabel rect{opacity:0.5;background-color:#e8e8e8;fill:#e8e8e8;}#comparison-1 .labelBkg{background-color:rgba(232, 232, 232, 0.5);}#comparison-1 .cluster rect{fill:#ffffde;stroke:#aaaa33;stroke-width:1px;}#comparison-1 .cluster text{fill:#333;}#comparison-1 .cluster span,#comparison-1 p{color:#333;}#comparison-1 div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:12px;background:hsl(80, 100%, 96.2745098039%);border:1px solid #aaaa33;border-radius:2px;pointer-events:none;z-index:100;}#comparison-1 .flowchartTitleText{text-anchor:middle;font-size:18px;fill:#333;}#comparison-1 :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g><marker orient="auto" markerHeight="12" markerWidth="12" markerUnits="userSpaceOnUse" refY="5" refX="6" viewBox="0 0 10 10" class="marker flowchart" id="comparison-1-comparison-1_flowchart-pointEnd"><path style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 0 0 L 10 5 L 0 10 z"></path></marker><marker orient="auto" markerHeight="12" markerWidth="12" markerUnits="userSpaceOnUse" refY="5" refX="4.5" viewBox="0 0 10 10" class="marker flowchart" id="comparison-1-comparison-1_flowchart-pointStart"><path style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 0 5 L 10 10 L 10 0 z"></path></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5" refX="11" viewBox="0 0 10 10" class="marker flowchart" id="comparison-1-comparison-1_flowchart-circleEnd"><circle style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" r="5" cy="5" cx="5"></circle></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5" refX="-1" viewBox="0 0 10 10" class="marker flowchart" id="comparison-1-comparison-1_flowchart-circleStart"><circle style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" r="5" cy="5" cx="5"></circle></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5.2" refX="12" viewBox="0 0 11 11" class="marker cross flowchart" id="comparison-1-comparison-1_flowchart-crossEnd"><path style="stroke-width: 2; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9"></path></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5.2" refX="-1" viewBox="0 0 11 11" class="marker cross flowchart" id="comparison-1-comparison-1_flowchart-crossStart"><path style="stroke-width: 2; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9"></path></marker><g class="root"><g class="clusters"></g><g class="edgePaths"><path marker-end="url(#comparison-1-comparison-1_flowchart-pointEnd)" style="fill:none;" class="edge-thickness-normal edge-pattern-solid flowchart-link LS-C LE-M" id="comparison-1-L-C-M-0" d="M248.883,33.8L248.883,58.8L248.883,78.5"></path><path marker-end="url(#comparison-1-comparison-1_flowchart-pointEnd)" style="fill:none;" class="edge-thickness-normal edge-pattern-solid flowchart-link LS-M LE-V" id="comparison-1-L-M-V-0" d="M216.059,117.6L167.503,142.6L167.503,162.3"></path><path marker-end="url(#comparison-1-comparison-1_flowchart-pointEnd)" style="fill:none;" class="edge-thickness-normal edge-pattern-solid flowchart-link LS-M LE-B" id="comparison-1-L-M-B-0" d="M281.707,117.6L330.263,142.6L330.263,162.3"></path><path marker-end="url(#comparison-1-comparison-1_flowchart-pointEnd)" style="fill:none;" class="edge-thickness-normal edge-pattern-solid flowchart-link LS-V LE-V1" id="comparison-1-L-V-V1-0" d="M126.323,201.4L65.406,226.4L65.406,246.1"></path><path marker-end="url(#comparison-1-comparison-1_flowchart-pointEnd)" style="fill:none;" class="edge-thickness-normal edge-pattern-solid flowchart-link LS-V LE-V2" id="comparison-1-L-V-V2-0" d="M208.683,201.4L269.6,226.4L269.6,246.1"></path></g><g class="edgeLabels"><g class="edgeLabel"><g transform="translate(0, 0)" class="label"><rect height="0" width="0" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve"></tspan></text></g></g><g class="edgeLabel"><g transform="translate(0, 0)" class="label"><rect height="0" width="0" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve"></tspan></text></g></g><g class="edgeLabel"><g transform="translate(0, 0)" class="label"><rect height="0" width="0" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve"></tspan></text></g></g><g class="edgeLabel"><g transform="translate(0, 0)" class="label"><rect height="0" width="0" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve"></tspan></text></g></g><g class="edgeLabel"><g transform="translate(0, 0)" class="label"><rect height="0" width="0" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve"></tspan></text></g></g></g><g class="nodes"><g transform="translate(248.8828125, 16.899999618530273)" data-id="C" data-node="true" id="comparison-1-flowchart-C-8" class="node default default flowchart-label"><rect height="33.80000114440918" width="85.34375" y="-16.90000057220459" x="-42.671875" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">Consumer</tspan></text></g></g><g transform="translate(248.8828125, 100.69999885559082)" data-id="M" data-node="true" id="comparison-1-flowchart-M-9" class="node default default flowchart-label"><rect height="33.80000114440918" width="158.5812530517578" y="-16.90000057220459" x="-79.2906265258789" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">Principale: coordina</tspan></text></g></g><g transform="translate(167.50312423706055, 184.49999809265137)" data-id="V" data-node="true" id="comparison-1-flowchart-V-11" class="node default default flowchart-label"><rect height="33.80000114440918" width="122.89375305175781" y="-16.90000057220459" x="-61.446876525878906" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">Vault regionale</tspan></text></g></g><g transform="translate(330.26250076293945, 184.49999809265137)" data-id="B" data-node="true" id="comparison-1-flowchart-B-13" class="node default default flowchart-label"><rect height="33.80000114440918" width="102.625" y="-16.90000057220459" x="-51.3125" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">backup-plan</tspan></text></g></g><g transform="translate(65.40625, 268.2999973297119)" data-id="V1" data-node="true" id="comparison-1-flowchart-V1-15" class="node default default flowchart-label"><rect height="33.80000114440918" width="130.8125" y="-16.90000057220459" x="-65.40625" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">Istanza primaria</tspan></text></g></g><g transform="translate(269.5999984741211, 268.2999973297119)" data-id="V2" data-node="true" id="comparison-1-flowchart-V2-17" class="node default default flowchart-label"><rect height="33.80000114440918" width="177.5749969482422" y="-16.90000057220459" x="-88.7874984741211" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">Istanza DR, se prevista</tspan></text></g></g></g></g></g></svg></div>
+              <figcaption>Un nuovo tipo di sottomodulo per vault/KMS/lock, istanziato per primario e DR. Lo stesso motore gestisce i piani.</figcaption>
+              <details class="diagram-source"><summary>Sorgente Mermaid</summary><pre class="mermaid-source">flowchart TB
+    accTitle: Moduli dopo la raccomandazione
+    accDescr: Nel percorso guidato il principale mantiene policy, IAM e restore. Coordina il nuovo sottomodulo vault regionale e il motore backup-plan esistente.
+    C["Consumer"] --> M["Principale: coordina"]
+    M --> V["Vault regionale"]
+    M --> B["backup-plan"]
+    V --> V1["Istanza primaria"]
+    V --> V2["Istanza DR, se prevista"]</pre></details>
+            </figure>
+          </div>
+          <div class="table-wrap" tabindex="0" role="region" aria-label="Responsabilità proposte dei moduli">
+            <table>
+              <thead><tr><th>Componente</th><th>Responsabilità dopo la divisione</th></tr></thead>
+              <tbody>
+                <tr><td>Principale</td><td>Default e policy prod/nonprod, naming, IAM, restore testing e compatibilità tra piani, lock e DR.</td></tr>
+                <tr><td>Vault regionale · nuovo</td><td>Chiave e alias KMS, key policy, vault e lock. Riceve ruoli e limiti espliciti, senza reinterpretare l'ambiente.</td></tr>
+                <tr><td>backup-plan · esistente</td><td>Regole, lifecycle, copie e selezione delle risorse. Più istanze quando servono piani o selezioni distinti.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><strong>Perché:</strong> riusare l'infrastruttura regionale e rendere chiaro chi verifica la coerenza. Aggiungere cartelle, da solo, non evita configurazioni incompatibili.</p>
+          <p><strong>Cosa non estrarre:</strong> IAM e restore restano in file del principale; alias e lock appartengono al vault; la selezione resta nel motore. Nessun modulo autonomo per ogni risorsa, preset o PITR.</p>
+          <details id="organizzazione">
+            <summary>Struttura proposta e vincoli di migrazione</summary>
+            <pre><code>terraform-aws-backup/
+  main.tf                    # Coordinamento pubblico
+  profiles.tf                # Proposto: configurazioni dei profili
+  iam.tf
+  restore-testing.tf
+  modules/
+    regional-vault/           # Nuovo: KMS, vault, lock
+    backup-plan/              # Esistente: regole e selezione
+    presets/                  # Wrapper pubblici compatibili</code></pre>
+            <p>Una release e uno state coordinato; niente pipeline o state separati per il solo riordino. Usare i provider delle rispettive regioni. Ogni figlio valida i propri input; il principale verifica le compatibilità dei componenti gestiti.</p>
+            <p>Preservare dipendenze operative da lock e policy: ricevere un ARN non significa avere già le autorizzazioni pronte. Il perimetro di restore non deve tradurre silenziosamente i tag con una semantica diversa.</p>
+            <p><strong>Migrazione:</strong> conservare uno state recuperabile, mappare gli indirizzi con <code>moved</code>, mantenere i nomi fisici e richiedere un plan senza creazioni, cancellazioni o sostituzioni. Tornare al vecchio codice senza migrazione inversa non è un rollback sicuro; l'apply non è atomico.</p>
+            <p>Stabilizzare il lock, introdurre AND, repliche KMS o nuove copie DR sono cambiamenti funzionali separati, non effetti impliciti dell'estrazione.</p>
+          </details>
+        </div>
+        <footer><p><strong>Conclusione R1:</strong> un solo nuovo confine, il vault regionale. Beneficio: riuso e responsabilità chiare. Costo: migrazione dello state e interfacce interne. La struttura attuale resta utilizzabile nelle composizioni compatibili.</p></footer>
+      </article>
+
+      <article class="recommendation" id="presets" aria-labelledby="r2-title">
+        <header>
+          <h3 id="r2-title">R2 · Coordinare i preset dal principale</h3>
+          <p>Offrire un percorso guidato per le nuove composizioni, preservando i wrapper pubblici e i consumer esistenti.</p>
+        </header>
+        <div class="recommendation-body">
+          <div class="comparison">
+            <figure>
+              <h4>Prima · Il consumer coordina ogni preset</h4>
+              <div class="diagram" tabindex="0" role="img" aria-label="Prima: il consumer configura i wrapper e verifica la compatibilità con il vault del principale."><svg aria-labelledby="comparison-2-chart-title-comparison-2" aria-describedby="comparison-2-chart-desc-comparison-2" aria-roledescription="flowchart-v2" role="graphics-document document" viewBox="-8 -8 179.6125030517578 320" style="max-width: 179.6125030517578px;" xmlns="http://www.w3.org/2000/svg" width="100%" id="comparison-2" data-id-scoped="true"><title id="comparison-2-chart-title-comparison-2">Preset prima della raccomandazione</title><desc id="comparison-2-chart-desc-comparison-2">Il consumer configura separatamente il principale e i wrapper. I wrapper chiamano backup-plan, ma il consumer deve verificare lock e DR.</desc><style>#comparison-2{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;fill:#333;}#comparison-2 .error-icon{fill:#552222;}#comparison-2 .error-text{fill:#552222;stroke:#552222;}#comparison-2 .edge-thickness-normal{stroke-width:2px;}#comparison-2 .edge-thickness-thick{stroke-width:3.5px;}#comparison-2 .edge-pattern-solid{stroke-dasharray:0;}#comparison-2 .edge-pattern-dashed{stroke-dasharray:3;}#comparison-2 .edge-pattern-dotted{stroke-dasharray:2;}#comparison-2 .marker{fill:#333333;stroke:#333333;}#comparison-2 .marker.cross{stroke:#333333;}#comparison-2 svg{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;}#comparison-2 .label{font-family:"trebuchet ms",verdana,arial,sans-serif;color:#333;}#comparison-2 .cluster-label text{fill:#333;}#comparison-2 .cluster-label span,#comparison-2 p{color:#333;}#comparison-2 .label text,#comparison-2 span,#comparison-2 p{fill:#333;color:#333;}#comparison-2 .node rect,#comparison-2 .node circle,#comparison-2 .node ellipse,#comparison-2 .node polygon,#comparison-2 .node path{fill:#ECECFF;stroke:#9370DB;stroke-width:1px;}#comparison-2 .flowchart-label text{text-anchor:middle;}#comparison-2 .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#comparison-2 .node .label{text-align:center;}#comparison-2 .node.clickable{cursor:pointer;}#comparison-2 .arrowheadPath{fill:#333333;}#comparison-2 .edgePath .path{stroke:#333333;stroke-width:2.0px;}#comparison-2 .flowchart-link{stroke:#333333;fill:none;}#comparison-2 .edgeLabel{background-color:#e8e8e8;text-align:center;}#comparison-2 .edgeLabel rect{opacity:0.5;background-color:#e8e8e8;fill:#e8e8e8;}#comparison-2 .labelBkg{background-color:rgba(232, 232, 232, 0.5);}#comparison-2 .cluster rect{fill:#ffffde;stroke:#aaaa33;stroke-width:1px;}#comparison-2 .cluster text{fill:#333;}#comparison-2 .cluster span,#comparison-2 p{color:#333;}#comparison-2 div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:12px;background:hsl(80, 100%, 96.2745098039%);border:1px solid #aaaa33;border-radius:2px;pointer-events:none;z-index:100;}#comparison-2 .flowchartTitleText{text-anchor:middle;font-size:18px;fill:#333;}#comparison-2 :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g><marker orient="auto" markerHeight="12" markerWidth="12" markerUnits="userSpaceOnUse" refY="5" refX="6" viewBox="0 0 10 10" class="marker flowchart" id="comparison-2-comparison-2_flowchart-pointEnd"><path style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 0 0 L 10 5 L 0 10 z"></path></marker><marker orient="auto" markerHeight="12" markerWidth="12" markerUnits="userSpaceOnUse" refY="5" refX="4.5" viewBox="0 0 10 10" class="marker flowchart" id="comparison-2-comparison-2_flowchart-pointStart"><path style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 0 5 L 10 10 L 10 0 z"></path></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5" refX="11" viewBox="0 0 10 10" class="marker flowchart" id="comparison-2-comparison-2_flowchart-circleEnd"><circle style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" r="5" cy="5" cx="5"></circle></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5" refX="-1" viewBox="0 0 10 10" class="marker flowchart" id="comparison-2-comparison-2_flowchart-circleStart"><circle style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" r="5" cy="5" cx="5"></circle></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5.2" refX="12" viewBox="0 0 11 11" class="marker cross flowchart" id="comparison-2-comparison-2_flowchart-crossEnd"><path style="stroke-width: 2; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9"></path></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5.2" refX="-1" viewBox="0 0 11 11" class="marker cross flowchart" id="comparison-2-comparison-2_flowchart-crossStart"><path style="stroke-width: 2; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9"></path></marker><g class="root"><g class="clusters"></g><g class="edgePaths"><path marker-end="url(#comparison-2-comparison-2_flowchart-pointEnd)" style="fill:none;" class="edge-thickness-normal edge-pattern-solid flowchart-link LS-C LE-M" id="comparison-2-L-C-M-0" d="M94.716,33.8L117.978,58.8L117.978,78.5"></path><path marker-end="url(#comparison-2-comparison-2_flowchart-pointEnd)" style="fill:none;" class="edge-thickness-normal edge-pattern-solid flowchart-link LS-C LE-T" id="comparison-2-L-C-T-0" d="M63.265,33.8L40.003,58.8L40.003,100.7L40.003,152L62.94,182.18"></path><path marker-end="url(#comparison-2-comparison-2_flowchart-pointEnd)" style="fill:none;stroke-width:2px;stroke-dasharray:3;" class="edge-thickness-normal edge-pattern-dotted flowchart-link LS-M LE-T" id="comparison-2-L-M-T-0" d="M117.978,117.6L117.978,152L95.041,182.18"></path><path marker-end="url(#comparison-2-comparison-2_flowchart-pointEnd)" style="fill:none;" class="edge-thickness-normal edge-pattern-solid flowchart-link LS-T LE-B" id="comparison-2-L-T-B-0" d="M78.991,220.2L78.991,245.2L78.991,264.9"></path></g><g class="edgeLabels"><g class="edgeLabel"><g transform="translate(0, 0)" class="label"><rect height="0" width="0" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve"></tspan></text></g></g><g class="edgeLabel"><g transform="translate(0, 0)" class="label"><rect height="0" width="0" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve"></tspan></text></g></g><g transform="translate(117.97812461853027, 151.99999904632568)" class="edgeLabel"><g transform="translate(-45.634376525878906, -9.40000057220459)" class="label"><rect height="18.80036735534668" width="91.24552917480469" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">vault e ruolo</tspan></text></g></g><g class="edgeLabel"><g transform="translate(0, 0)" class="label"><rect height="0" width="0" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve"></tspan></text></g></g></g><g class="nodes"><g transform="translate(78.9906234741211, 16.899999618530273)" data-id="C" data-node="true" id="comparison-2-flowchart-C-18" class="node default default flowchart-label"><rect height="33.80000114440918" width="157.9812469482422" y="-16.90000057220459" x="-78.9906234741211" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">Consumer: coordina</tspan></text></g></g><g transform="translate(117.97812461853027, 100.69999885559082)" data-id="M" data-node="true" id="comparison-2-flowchart-M-19" class="node default default flowchart-label"><rect height="33.80000114440918" width="85.95000457763672" y="-16.90000057220459" x="-42.97500228881836" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">Principale</tspan></text></g></g><g transform="translate(78.9906234741211, 203.29999923706055)" data-id="T" data-node="true" id="comparison-2-flowchart-T-21" class="node default default flowchart-label"><rect height="33.80000114440918" width="152.4812469482422" y="-16.90000057220459" x="-76.2406234741211" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">Wrapper dei preset</tspan></text></g></g><g transform="translate(78.9906234741211, 287.0999984741211)" data-id="B" data-node="true" id="comparison-2-flowchart-B-25" class="node default default flowchart-label"><rect height="33.80000114440918" width="102.625" y="-16.90000057220459" x="-51.3125" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">backup-plan</tspan></text></g></g></g></g></g></svg></div>
+              <figcaption>I wrapper ricevono vault e ruolo, non l'intero contratto di lock/DR. Le verifiche tra componenti spettano al consumer.</figcaption>
+              <details class="diagram-source"><summary>Sorgente Mermaid</summary><pre class="mermaid-source">flowchart TB
+    accTitle: Preset prima della raccomandazione
+    accDescr: Il consumer configura separatamente il principale e i wrapper. I wrapper chiamano backup-plan, ma il consumer deve verificare lock e DR.
+    C["Consumer: coordina"] --> M["Principale"]
+    C --> T["Wrapper dei preset"]
+    M -. "vault e ruolo" .-> T
+    T --> B["backup-plan"]</pre></details>
+            </figure>
+            <figure>
+              <h4>Dopo · Il principale valida i profili gestiti</h4>
+              <div class="diagram" tabindex="0" role="img" aria-label="Dopo: il consumer sceglie i profili e il principale verifica naming, retention, lock e destinazioni DR prima di chiamare backup-plan."><svg aria-labelledby="comparison-3-chart-title-comparison-3" aria-describedby="comparison-3-chart-desc-comparison-3" aria-roledescription="flowchart-v2" role="graphics-document document" viewBox="-8 -8 228.8125 301.20001220703125" style="max-width: 228.8125px;" xmlns="http://www.w3.org/2000/svg" width="100%" id="comparison-3" data-id-scoped="true"><title id="comparison-3-chart-title-comparison-3">Preset dopo la raccomandazione</title><desc id="comparison-3-chart-desc-comparison-3">Nel percorso guidato il consumer sceglie i profili. Il principale risolve e valida i valori, poi istanzia lo stesso motore backup-plan per i piani richiesti.</desc><style>#comparison-3{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;fill:#333;}#comparison-3 .error-icon{fill:#552222;}#comparison-3 .error-text{fill:#552222;stroke:#552222;}#comparison-3 .edge-thickness-normal{stroke-width:2px;}#comparison-3 .edge-thickness-thick{stroke-width:3.5px;}#comparison-3 .edge-pattern-solid{stroke-dasharray:0;}#comparison-3 .edge-pattern-dashed{stroke-dasharray:3;}#comparison-3 .edge-pattern-dotted{stroke-dasharray:2;}#comparison-3 .marker{fill:#333333;stroke:#333333;}#comparison-3 .marker.cross{stroke:#333333;}#comparison-3 svg{font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:16px;}#comparison-3 .label{font-family:"trebuchet ms",verdana,arial,sans-serif;color:#333;}#comparison-3 .cluster-label text{fill:#333;}#comparison-3 .cluster-label span,#comparison-3 p{color:#333;}#comparison-3 .label text,#comparison-3 span,#comparison-3 p{fill:#333;color:#333;}#comparison-3 .node rect,#comparison-3 .node circle,#comparison-3 .node ellipse,#comparison-3 .node polygon,#comparison-3 .node path{fill:#ECECFF;stroke:#9370DB;stroke-width:1px;}#comparison-3 .flowchart-label text{text-anchor:middle;}#comparison-3 .node .katex path{fill:#000;stroke:#000;stroke-width:1px;}#comparison-3 .node .label{text-align:center;}#comparison-3 .node.clickable{cursor:pointer;}#comparison-3 .arrowheadPath{fill:#333333;}#comparison-3 .edgePath .path{stroke:#333333;stroke-width:2.0px;}#comparison-3 .flowchart-link{stroke:#333333;fill:none;}#comparison-3 .edgeLabel{background-color:#e8e8e8;text-align:center;}#comparison-3 .edgeLabel rect{opacity:0.5;background-color:#e8e8e8;fill:#e8e8e8;}#comparison-3 .labelBkg{background-color:rgba(232, 232, 232, 0.5);}#comparison-3 .cluster rect{fill:#ffffde;stroke:#aaaa33;stroke-width:1px;}#comparison-3 .cluster text{fill:#333;}#comparison-3 .cluster span,#comparison-3 p{color:#333;}#comparison-3 div.mermaidTooltip{position:absolute;text-align:center;max-width:200px;padding:2px;font-family:"trebuchet ms",verdana,arial,sans-serif;font-size:12px;background:hsl(80, 100%, 96.2745098039%);border:1px solid #aaaa33;border-radius:2px;pointer-events:none;z-index:100;}#comparison-3 .flowchartTitleText{text-anchor:middle;font-size:18px;fill:#333;}#comparison-3 :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g><marker orient="auto" markerHeight="12" markerWidth="12" markerUnits="userSpaceOnUse" refY="5" refX="6" viewBox="0 0 10 10" class="marker flowchart" id="comparison-3-comparison-3_flowchart-pointEnd"><path style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 0 0 L 10 5 L 0 10 z"></path></marker><marker orient="auto" markerHeight="12" markerWidth="12" markerUnits="userSpaceOnUse" refY="5" refX="4.5" viewBox="0 0 10 10" class="marker flowchart" id="comparison-3-comparison-3_flowchart-pointStart"><path style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 0 5 L 10 10 L 10 0 z"></path></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5" refX="11" viewBox="0 0 10 10" class="marker flowchart" id="comparison-3-comparison-3_flowchart-circleEnd"><circle style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" r="5" cy="5" cx="5"></circle></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5" refX="-1" viewBox="0 0 10 10" class="marker flowchart" id="comparison-3-comparison-3_flowchart-circleStart"><circle style="stroke-width: 1; stroke-dasharray: 1, 0;" class="arrowMarkerPath" r="5" cy="5" cx="5"></circle></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5.2" refX="12" viewBox="0 0 11 11" class="marker cross flowchart" id="comparison-3-comparison-3_flowchart-crossEnd"><path style="stroke-width: 2; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9"></path></marker><marker orient="auto" markerHeight="11" markerWidth="11" markerUnits="userSpaceOnUse" refY="5.2" refX="-1" viewBox="0 0 11 11" class="marker cross flowchart" id="comparison-3-comparison-3_flowchart-crossStart"><path style="stroke-width: 2; stroke-dasharray: 1, 0;" class="arrowMarkerPath" d="M 1,1 l 9,9 M 10,1 l -9,9"></path></marker><g class="root"><g class="clusters"></g><g class="edgePaths"><path marker-end="url(#comparison-3-comparison-3_flowchart-pointEnd)" style="fill:none;" class="edge-thickness-normal edge-pattern-solid flowchart-link LS-C LE-M" id="comparison-3-L-C-M-0" d="M106.406,33.8L106.406,58.8L106.406,78.5"></path><path marker-end="url(#comparison-3-comparison-3_flowchart-pointEnd)" style="fill:none;" class="edge-thickness-normal edge-pattern-solid flowchart-link LS-M LE-K" id="comparison-3-L-M-K-0" d="M106.406,117.6L106.406,142.6L106.406,162.3"></path><path marker-end="url(#comparison-3-comparison-3_flowchart-pointEnd)" style="fill:none;" class="edge-thickness-normal edge-pattern-solid flowchart-link LS-K LE-B" id="comparison-3-L-K-B-0" d="M106.406,201.4L106.406,226.4L106.406,246.1"></path></g><g class="edgeLabels"><g class="edgeLabel"><g transform="translate(0, 0)" class="label"><rect height="0" width="0" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve"></tspan></text></g></g><g class="edgeLabel"><g transform="translate(0, 0)" class="label"><rect height="0" width="0" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve"></tspan></text></g></g><g class="edgeLabel"><g transform="translate(0, 0)" class="label"><rect height="0" width="0" ry="0" rx="0"></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve"></tspan></text></g></g></g><g class="nodes"><g transform="translate(106.40625, 16.899999618530273)" data-id="C" data-node="true" id="comparison-3-flowchart-C-26" class="node default default flowchart-label"><rect height="33.80000114440918" width="193.5" y="-16.90000057220459" x="-96.75" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">Consumer: sceglie profili</tspan></text></g></g><g transform="translate(106.40625, 100.69999885559082)" data-id="M" data-node="true" id="comparison-3-flowchart-M-27" class="node default default flowchart-label"><rect height="33.80000114440918" width="158.5812530517578" y="-16.90000057220459" x="-79.2906265258789" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">Principale: coordina</tspan></text></g></g><g transform="translate(106.40625, 184.49999809265137)" data-id="K" data-node="true" id="comparison-3-flowchart-K-29" class="node default default flowchart-label"><rect height="33.80000114440918" width="212.8125" y="-16.90000057220459" x="-106.40625" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">Verifiche naming, lock e DR</tspan></text></g></g><g transform="translate(106.40625, 268.2999973297119)" data-id="B" data-node="true" id="comparison-3-flowchart-B-31" class="node default default flowchart-label"><rect height="33.80000114440918" width="183.625" y="-16.90000057220459" x="-91.8125" ry="0" rx="0" style="" class="basic label-container"></rect><g transform="translate(0, -9.40000057220459)" style="" class="label"><rect></rect><text style=""><tspan class="row" x="0" dy="1em" xml:space="preserve">backup-plan per profilo</tspan></text></g></g></g></g></g></svg></div>
+              <figcaption>I preset diventano configurazioni del motore nel percorso guidato. I wrapper esterni restano disponibili, fuori da questa garanzia.</figcaption>
+              <details class="diagram-source"><summary>Sorgente Mermaid</summary><pre class="mermaid-source">flowchart TB
+    accTitle: Preset dopo la raccomandazione
+    accDescr: Nel percorso guidato il consumer sceglie i profili. Il principale risolve e valida i valori, poi istanzia lo stesso motore backup-plan per i piani richiesti.
+    C["Consumer: sceglie profili"] --> M["Principale: coordina"]
+    M --> K["Verifiche naming, lock e DR"]
+    K --> B["backup-plan per profilo"]</pre></details>
+            </figure>
+          </div>
+          <p><strong>Come:</strong> il principale risolve calendario, retention, selezione, vault, ruolo e copie per ogni profilo; verifica la compatibilità e passa valori espliciti a <code>backup-plan</code>. Non fonde automaticamente tutti i profili in un unico piano.</p>
+          <p><strong>Perché:</strong> un preset valido da solo può essere incompatibile con il vault. La verifica serve nel punto che conosce entrambi, non in quattro motori duplicati.</p>
+          <div class="table-wrap" tabindex="0" role="region" aria-label="Esempi di coordinamento proposto dei preset">
+            <table>
+              <thead><tr><th>Esempio</th><th>Comportamento raccomandato</th></tr></thead>
+              <tbody>
+                <tr><td>Hourly 7 giorni, lock minimo 35</td><td>Rifiutare prima dell'apply. Non alzare la retention o abbassare il lock automaticamente.</td></tr>
+                <tr><td>Weekly con copia DR richiesta</td><td>Configurare la copia nel piano weekly e verificarne la destinazione. Copiare solo il piano snapshot non basta.</td></tr>
+                <tr><td>Hourly senza copia DR</td><td>Renderlo esplicito, se ammesso dalla policy. Un vault DR esistente non implica copie per tutti i profili.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <details>
+            <summary>Default attuali e compatibilità da preservare</summary>
+            <div class="table-wrap" tabindex="0" role="region" aria-label="Valori predefiniti attuali dei preset">
+              <table>
+                <thead><tr><th>Preset</th><th>Default attuale</th></tr></thead>
+                <tbody>
+                  <tr><td><a href="../../terraform/aws/modules/terraform-aws-backup/modules/presets/hourly-backup/main.tf">hourly-backup</a></td><td>Ogni ora; 7 giorni.</td></tr>
+                  <tr><td><a href="../../terraform/aws/modules/terraform-aws-backup/modules/presets/weekly-full/main.tf">weekly-full</a></td><td>Domenica alle 02:00 UTC; 90 giorni.</td></tr>
+                  <tr><td><a href="../../terraform/aws/modules/terraform-aws-backup/modules/presets/long-retention/main.tf">long-retention</a></td><td>Ogni giorno; 3650 giorni; cold dopo 90.</td></tr>
+                  <tr><td><a href="../../terraform/aws/modules/terraform-aws-backup/modules/presets/archival/main.tf">archival</a></td><td>Ogni giorno; 3650 giorni; cold dopo 30.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p>I wrapper attuali non espongono <code>copy_actions</code> e non ereditano automaticamente lock o DR. Mantenerne percorsi e interfacce; nessun nuovo profilo attivato automaticamente sui consumer esistenti.</p>
+            <p>Introdurre il percorso guidato separatamente da R1. Testare equivalenza dei default e rifiuto di lock incompatibile, nomi troppo lunghi e copia senza destinazione. Non attivare lo stesso piano via wrapper e percorso guidato: una migrazione richiede mapping dello state e revisione del plan.</p>
+          </details>
+        </div>
+        <footer><p><strong>Conclusione R2:</strong> centralizzare il coordinamento, non duplicare il motore. La garanzia copre solo i piani gestiti dal principale; quelli esterni restano responsabilità del consumer. Le copie effettive richiedono comunque una verifica AWS.</p></footer>
+      </article>
+    </section>
+
+    <section id="rilievi">
+      <h2>Criticità, ordinate per gravità</h2>
+      <p class="note">Bloccante = contratto documentato da correggere prima della pubblicazione. Importante = proprietà o protezione attesa da chiarire o verificare. Miglioramento = controllo o robustezza da rafforzare. Nessuna categoria implica, da sola, perdita dati.</p>
+      <div class="severity-group" id="priorita">
+        <h3>Bloccante · 1 punto</h3>
+        <article class="finding required" id="blocker-1">
+          <span class="tag">BLOCKER-1 · Contratto pubblico · Confidenza alta</span>
+          <h4>I nomi generati possono superare i limiti AWS</h4>
+          <p><strong>Problema:</strong> <code>solution_prefix</code> ammette 50 caratteri, ma alcuni nomi derivati devono restare entro 50 anche dopo i suffissi. I preset non espongono un nome alternativo per la selezione.</p>
+          <p><strong>Esempio:</strong> <code>payments-prod-eu-south-1</code> ha 24 caratteri; la selezione weekly-full arriva a 51, long-retention a 54. Il provider rifiuta il plan.</p>
+          <p class="resolution"><strong>Correzione:</strong> validare i nomi finali e consentire nomi espliciti, preservando quelli esistenti. Testare limite e limite + 1; evitare troncamenti che causano collisioni.</p>
+          <p class="note">Rinominare il prefisso può sostituire risorse durevoli. La controvalidazione storica lo classifica IMPORTANT; qui blocca la pubblicazione del contratto, non per perdita dati dimostrata.</p>
+          <details>
+            <summary>Limiti del prefisso per i diversi percorsi</summary>
+            <p>Massimi riportati: snapshot 40; PITR 29; vault DR 47; restore testing 37; preset hourly 28, archival 26, weekly-full 23, long-retention 20. Non sono limiti generali di tutti i nomi dei backup plan. Le probe storiche hanno riprodotto errori del provider per snapshot/PITR.</p>
+          </details>
+          <p class="evidence">Fonti: <a href="../../terraform/aws/modules/terraform-aws-backup/variables.tf">variables.tf</a>, <a href="../../terraform/aws/modules/terraform-aws-backup/modules/backup-plan/main.tf">backup-plan/main.tf</a>, <a href="../../terraform/aws/modules/terraform-aws-backup/README.md">README</a>.</p>
+        </article>
+      </div>
+      <div class="severity-group" id="importanti">
+        <h3>Importanti · 3 punti</h3>
+        <article class="finding important" id="important-1">
+          <span class="tag">IMPORTANT-1 · Contratto KMS · Confidenza alta</span>
+          <h4>Due chiavi multi-region non sono automaticamente repliche</h4>
+          <p><strong>Problema:</strong> due <code>aws_kms_key</code> con <code>multi_region = true</code> restano indipendenti; il codice non crea una <code>aws_kms_replica_key</code>. Due prefissi <code>mrk-</code> non provano materiale crittografico condiviso.</p>
+          <p class="resolution"><strong>Correzione:</strong> scegliere tra chiavi indipendenti e vere repliche; allineare descrizione e implementazione, verificando la relazione tra le chiavi e non solo il flag.</p>
+          <p class="note">Default false. Non è dimostrato che le copie DR con chiavi indipendenti siano guaste.</p>
+          <p class="evidence">Fonti: <a href="../../terraform/aws/modules/terraform-aws-backup/kms.tf">kms.tf</a>, <a href="https://docs.aws.amazon.com/kms/latest/developerguide/multi-region-keys-overview.html">AWS: multi-region keys</a>.</p>
+        </article>
+        <article class="finding important" id="important-2">
+          <span class="tag">IMPORTANT-2 · Calendario e DR · Confidenza medio-alta, da verificare live</span>
+          <h4>Regole sovrapposte possono cambiare le copie attese</h4>
+          <p><strong>Problema:</strong> AWS ottimizza le regole del piano con finestre sovrapposte, privilegiando la retention maggiore. Non presumere che esegua anche la copia della regola non eseguita.</p>
+          <p><strong>Esempio:</strong> nello stesso piano, giornaliera 35 giorni con DR e settimanale 90 senza DR, entrambe domenica alle 01:00. La settimanale può prevalere: la protezione primaria resta, la copia attesa non è garantita. Anche orari diversi possono sovrapporsi con finestre di otto ore.</p>
+          <p class="resolution"><strong>Correzione:</strong> verificare finestre e copie delle regole dominanti. Controllare i job e le copie realmente eseguiti, non soltanto il plan.</p>
+          <p class="note">Scenario condizionato, non difetto generalizzato dei default. Nell'esempio production la giornaliera 365 domina sulla settimanale 120: non se ne deduce un buco DR.</p>
+          <p class="evidence">Fonti: <a href="../../terraform/aws/modules/terraform-aws-backup/locals.tf">locals.tf</a>, <a href="../../terraform/aws/modules/terraform-aws-backup/examples/production/main.tf">esempio production</a>, <a href="https://docs.aws.amazon.com/aws-backup/latest/devguide/understanding-backup-plan-summaries.html">AWS: regole sovrapposte</a>, <a href="https://docs.aws.amazon.com/aws-backup/latest/devguide/plan-options-and-configuration.html">opzioni dei piani</a>.</p>
+        </article>
+        <article class="finding important" id="important-3">
+          <span class="tag">IMPORTANT-3 · Restore · Limite del codice confermato nell'analisi</span>
+          <h4>Metadati del restore non configurabili</h4>
+          <p><strong>Problema:</strong> il modulo non espone <code>restore_metadata_overrides</code>. Per esempio, un restore RDS senza default VPC può richiedere subnet group e security group espliciti.</p>
+          <p class="resolution"><strong>Correzione:</strong> esporre override per tipo/selezione e provare un restore nell'ambiente previsto. Non creare automaticamente una rete scelta dal modulo.</p>
+          <p class="note">Un piano configurato non prova un restore riuscito; non tutti i servizi e ambienti richiedono gli stessi override.</p>
+          <p class="evidence">Fonti: <a href="../../terraform/aws/modules/terraform-aws-backup/restore-testing.tf">restore-testing.tf</a>, <a href="https://docs.aws.amazon.com/aws-backup/latest/devguide/restore-testing-inferred-metadata.html">AWS: metadati inferiti</a>.</p>
+        </article>
+      </div>
+      <div class="severity-group" id="limiti">
+        <h3>Miglioramenti · 4 punti</h3>
+        <article class="finding" id="suggestion-1">
+          <span class="tag">Miglioramento 1</span>
+          <h4>Restore attivo senza selezioni</h4>
+          <p><strong>Esempio e impatto:</strong> <code>enable_restore_testing = true</code> con <code>restore_testing_resource_types = []</code> crea un piano senza selezioni: non testa risorse. Riprodotto con mock; i default non hanno questo problema.</p>
+          <p class="resolution"><strong>Correzione:</strong> rifiutare la lista vuota quando il test è attivo, con un test negativo.</p>
+          <p class="evidence">Fonte: <a href="../../terraform/aws/modules/terraform-aws-backup/restore-testing.tf">restore-testing.tf</a>.</p>
+        </article>
+        <article class="finding" id="suggestion-2">
+          <span class="tag">Miglioramento 2</span>
+          <h4>Il selettore Aurora è più ampio del nome</h4>
+          <p><strong>Esempio e impatto:</strong> <code>arn:aws:rds:*:*:cluster:*</code> non distingue il motore. Con Aurora e DocumentDB nello stesso account il pattern da solo non isola Aurora; opt-in e impostazioni influiscono sull'inclusione effettiva. Possibili risorse e costi inattesi.</p>
+          <p class="resolution"><strong>Correzione:</strong> descrivere il pattern reale e usare tag o ARN discriminanti. Verificare un inventario rappresentativo: l'inclusione effettiva nell'account non è stata provata.</p>
+          <p class="evidence">Fonti: <a href="../../terraform/aws/modules/terraform-aws-backup/modules/backup-plan/locals.tf">backup-plan/locals.tf</a>, <a href="https://docs.aws.amazon.com/aws-backup/latest/devguide/assigning-resources-json.html">AWS: selezione delle risorse</a>.</p>
+        </article>
+        <article class="finding" id="suggestion-3">
+          <span class="tag">Miglioramento 3</span>
+          <h4>Input invalidi passano le guardie locali</h4>
+          <p><strong>Esempio e impatto:</strong> le probe con mock accettano 31 tag, 31 ARN wildcard, 501 ARN senza wildcard, un tipo restore non supportato e start window 30 minuti. Il provider esaminato non applica i corrispondenti controlli statici: gli errori possono emergere dopo aver creato altre risorse.</p>
+          <p class="resolution"><strong>Correzione:</strong> validazioni e test di confine per quote, tipi e finestre. Limiti esaminati: 30 tag, 30 ARN wildcard, 500 senza wildcard; AWS documenta almeno 60 minuti per la start window.</p>
+          <p class="note">Il PASS delle probe prova accettazione locale, non validità AWS. Non è stabilito se 30 minuti falliscano all'API o durante l'esecuzione; non è prova di perdita dati.</p>
+          <p class="evidence">Fonti: <a href="../../terraform/aws/modules/terraform-aws-backup/modules/backup-plan/variables.tf">backup-plan/variables.tf</a>, <a href="../../terraform/aws/modules/terraform-aws-backup/variables.tf">variables.tf</a>, <a href="https://docs.aws.amazon.com/aws-backup/latest/APIReference/API_BackupRule.html">AWS: BackupRule</a>, <a href="https://docs.aws.amazon.com/aws-backup/latest/devguide/assigning-resources.html#assigning-resources-quotas">quote di selezione</a>.</p>
+        </article>
+        <article class="finding" id="suggestion-4">
+          <span class="tag">Miglioramento 4</span>
+          <h4>Il minimo automatico del lock cambia con i piani</h4>
+          <p><strong>Esempio e impatto:</strong> in una probe nonprod, aggiungere PITR con retention 1 abbassa il minimo automatico da 7 a 1. Un vault COMPLIANCE già finalizzato non consente questa modifica.</p>
+          <p class="resolution"><strong>Correzione:</strong> rendere stabile il minimo dove necessario e testare gli stati del lock. Un minimo esplicito 7 rivela il conflitto, ma non permette PITR 1 nello stesso vault: può servire un'altra destinazione.</p>
+          <p class="note">Comportamento documentato; i piani dipendono dal lock, quindi non si deduce un'applicazione silenziosa della nuova protezione. Anche il default prod 35 può abbassarsi con retention più brevi. Stabilizzarlo è una modifica funzionale, non semplice refactoring.</p>
+          <p class="evidence">Fonti: <a href="../../terraform/aws/modules/terraform-aws-backup/locals.tf">locals.tf</a>, <a href="../../terraform/aws/modules/terraform-aws-backup/main.tf">main.tf</a>, <a href="https://docs.aws.amazon.com/aws-backup/latest/APIReference/API_PutBackupVaultLockConfiguration.html">AWS: Vault Lock</a>.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="note">
+      <h2>Note e limiti · 3 punti, non ulteriori bug</h2>
+      <article class="finding" id="suggestion-5">
+        <h3>Il core applica uno standard aziendale</h3>
+        <p>Produzione richiede DR nello stesso account e quattro destinazioni UE ammesse; nonprod lo disabilita. Il core crea risorse proprie e un piano snapshot, senza input dedicati per chiavi o ruoli esistenti. DR in staging o cross-account non è previsto.</p>
+        <p><strong>Indicazione:</strong> presentarlo come riutilizzabile entro queste policy, non universale. Aggiungere flessibilità e test solo per casi reali.</p>
+        <p class="evidence">Fonti: <a href="../../terraform/aws/modules/terraform-aws-backup/locals.tf">locals.tf</a>, <a href="../../terraform/aws/modules/terraform-aws-backup/variables.tf">variables.tf</a>, <a href="../../terraform/aws/modules/terraform-aws-backup/main.tf">main.tf</a>.</p>
+      </article>
+      <article class="finding" id="suggestion-6">
+        <h3>I tag sono combinati in OR, non AND</h3>
+        <p><code>workload = payments</code> e <code>environment = prod</code> selezionano anche payments/dev e orders/prod. Tipi e ARN possono ampliare la selezione: non implicano un'intersezione tra tutti i filtri. La semantica OR è corretta e documentata.</p>
+        <p><strong>Indicazione:</strong> se serve, aggiungere AND come modalità distinta o usare un tag composto, per esempio <code>backup-workload = payments-prod</code>. Testare inclusioni/esclusioni senza cambiare l'OR esistente.</p>
+        <p class="evidence">Fonti: <a href="../../terraform/aws/modules/terraform-aws-backup/modules/backup-plan/main.tf">backup-plan/main.tf</a>, <a href="../../terraform/aws/modules/terraform-aws-backup/README.md">README</a>, <a href="https://docs.aws.amazon.com/aws-backup/latest/APIReference/API_BackupSelection.html">AWS: BackupSelection</a>.</p>
+      </article>
+      <article class="finding" id="suggestion-7">
+        <h3>Un restore recente non certifica tutta la DR</h3>
+        <p>Il test sceglie recovery point primari negli ultimi sette giorni con <code>LATEST_WITHIN_WINDOW</code>. Snapshot e continuous sono candidati, ma non è garantita la verifica di entrambi. Ripristinare ieri non prova recupero storico, copia DR, integrità applicativa o RTO.</p>
+        <p><strong>Indicazione:</strong> dichiarare e provare separatamente gli obiettivi recente, storico, DR, snapshot/PITR e verifica applicativa. Non serve un nuovo modulo solo per descriverli.</p>
+        <p class="evidence">Fonte: <a href="../../terraform/aws/modules/terraform-aws-backup/restore-testing.tf">restore-testing.tf</a>.</p>
+      </article>
+    </section>
+
+    <section id="verifiche">
+      <h2>Evidenze e limiti dell'analisi</h2>
+      <p>Risultati conservati dal report precedente, <strong>non rieseguiti per questa revisione</strong>. Log originali non allegati; commit e fingerprint non ricontrollati.</p>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Risultati storici e limiti">
+        <table>
+          <thead><tr><th>Verifica storica</th><th>Risultato riportato e limite</th></tr></thead>
+          <tbody>
+            <tr><td>fmt, init senza backend, validate</td><td>fmt passato sul modulo; init/validate passati nelle copie isolate di motore, quattro preset, sei esempi e fixture consumer.</td></tr>
+            <tr><td>Test</td><td>68 passati: 43 core, 11 motore, 8 preset, 6 esempi. Rerun diagnostico: 54 esistenti + 8 probe, non tutti casi aggiuntivi distinti.</td></tr>
+            <tr><td>Mutation e controvalidazione</td><td>Un test ha rilevato una guardia di selezione alterata in copia. Claude Opus 5.5 ha riesaminato l'analisi e ridimensionato severità.</td></tr>
+            <tr><td>Backup, copie e restore AWS</td><td><strong>Non eseguiti.</strong> Nessuna misura di RPO, RTO, recupero storico o integrità applicativa.</td></tr>
+            <tr><td>COMPLIANCE, versioni minime, consumer</td><td>COMPLIANCE finalizzato non provato live; versioni minime, backend, credenziali e pipeline consumer non verificati.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">I mock non certificano IAM o relazioni KMS: il mock IAM restituisce un documento vuoto, quello KMS valori fissi. Non è però evidenza per affermare che IAM sia guasto.</p>
+      <details>
+        <summary>Contesto tecnico, configurazione attuale e comandi futuri</summary>
+        <p>Runtime storico: Terraform 1.14.3, AWS provider 5.100.0. Supporto dichiarato: Terraform ≥1.5.0, AWS ≥5.72.0 e &lt;6.0.0; mock test da Terraform 1.7.</p>
+        <p>Commit analizzato: <code>897dcf00e88bbba39a57f7f372ec9a3a34d2864e</code>.<br>Fingerprint: <code>e965f4f00ba59e21dbce819aabfaee08101c2877b2f091785ced945c19dfe68d</code>.</p>
+        <p>Configurazione riportata: snapshot alle 01:00 UTC con finestra 8 ore, retention prod 35/nonprod 14. PITR opt-in 1–35 giorni, piano/tag dedicati, senza cold storage né copia in quel piano. Lock GOVERNANCE di default; COMPLIANCE non modificabile dopo il periodo iniziale. Restore testing opt-in sul primario recente.</p>
+        <p>Tag, credenziali, opt-in e prerequisiti dei workload restano al consumer. PITR non significa copia DR. Il README descrive una release candidata con evidenza CI pendente: nessuna qualifica di produzione verificata; un precedente 404 sul tag non ne prova l'assenza assoluta.</p>
+        <pre><code>terraform fmt -check -recursive terraform/aws/modules/terraform-aws-backup
+terraform -chdir=terraform/aws/modules/terraform-aws-backup init -backend=false
+terraform -chdir=terraform/aws/modules/terraform-aws-backup validate
+terraform -chdir=terraform/aws/modules/terraform-aws-backup test
+# Ripetere nei componenti ed esempi modificati.
+# Nel consumer configurato: terraform plan -out=refactor.tfplan</code></pre>
+        <p>Traccia futura, non esecuzione o deploy autorizzato. Esaminare il plan prima dell'apply; test live con ambito, costi e autorizzazione espliciti.</p>
+      </details>
+      <p class="evidence">Riferimenti: <a href="../../terraform/aws/modules/terraform-aws-backup/tests/">test core</a>, <a href="../../terraform/aws/modules/terraform-aws-backup/tests/mocks/aws.tfmock.hcl">mock AWS</a>, <a href="../../terraform/aws/modules/terraform-aws-backup/README.md">README</a>.</p>
+    </section>
+
+    <section id="confronto">
+      <h2>Ordine degli interventi</h2>
+      <ol>
+        <li><strong>Correggere e verificare i contratti:</strong> naming, proprietà KMS, calendario delle copie e metadati restore.</li>
+        <li><strong>Rafforzare i controlli:</strong> selezioni vuote, perimetro risorse, input e compatibilità del lock.</li>
+        <li><strong>Applicare R1 e R2 separatamente:</strong> prima estrazione regionale a comportamento invariato; poi percorso guidato per i profili, con test e migrazioni espliciti.</li>
+      </ol>
+    </section>
+  </main>
+  <footer>Documento di review. Raccomandazioni non implementate e nessuna certificazione del servizio. Diagrammi Mermaid con descrizioni e sorgenti consultabili.</footer>
+</div>
+<script>
+  const technicalDetails = [...document.querySelectorAll('details:not(.diagram-source)')];
+  const toggleButton = document.getElementById('toggle-details');
+  function updateToggle() {
+    const expanded = technicalDetails.every(item => item.open);
+    toggleButton.textContent = expanded ? 'Comprimi dettagli tecnici' : 'Espandi dettagli tecnici';
+    toggleButton.setAttribute('aria-expanded', String(expanded));
+  }
+  technicalDetails.forEach(item => item.addEventListener('toggle', updateToggle));
+  toggleButton.addEventListener('click', () => {
+    const expand = technicalDetails.some(item => !item.open);
+    technicalDetails.forEach(item => { item.open = expand; });
+    updateToggle();
+  });
+  let printState = [];
+  window.addEventListener('beforeprint', () => {
+    printState = technicalDetails.map(item => item.open);
+    technicalDetails.forEach(item => { item.open = true; });
+  });
+  window.addEventListener('afterprint', () => {
+    technicalDetails.forEach((item, index) => { item.open = printState[index]; });
+    updateToggle();
+  });
+  document.getElementById('print-report').addEventListener('click', () => window.print());
+  const navLinks = [...document.querySelectorAll('nav a')];
+  const navTargets = navLinks.map(link => document.getElementById(link.hash.slice(1)));
+  function updateNavigation() {
+    const active = navTargets.filter(target => target.getBoundingClientRect().top <= 160).pop() || navTargets[0];
+    navLinks.forEach(link => {
+      if (link.hash === `#${active.id}`) link.setAttribute('aria-current', 'location');
+      else link.removeAttribute('aria-current');
+    });
+  }
+  window.addEventListener('scroll', updateNavigation, { passive: true });
+  updateNavigation();
+
+  function scopeDiagramIds(svg) {
+    if (svg.dataset.idScoped) return;
+    const ids = new Map([...svg.querySelectorAll('[id]')].map(node => [node.id, `${svg.id}-${node.id}`]));
+    [svg, ...svg.querySelectorAll('*')].forEach(node => {
+      [...node.attributes].forEach(attribute => {
+        let value = attribute.value;
+        if (attribute.name === 'id') value = ids.get(value) || value;
+        else {
+          value = value.replace(/url\(#([^)]+)\)/g, (match, id) => ids.has(id) ? `url(#${ids.get(id)})` : match);
+          if (value.startsWith('#') && ids.has(value.slice(1))) value = `#${ids.get(value.slice(1))}`;
+          if (attribute.name === 'aria-labelledby' || attribute.name === 'aria-describedby') {
+            value = value.split(' ').map(id => ids.get(id) || id).join(' ');
+          }
+        }
+        if (value !== attribute.value) node.setAttribute(attribute.name, value);
+      });
+    });
+    svg.dataset.idScoped = 'true';
+  }
+  async function renderDiagrams() {
+    const status = document.getElementById('diagram-status');
+    const figures = [...document.querySelectorAll('.comparison figure')];
+    document.querySelectorAll('.diagram svg').forEach(scopeDiagramIds);
+    if (figures.every(figure => figure.querySelector('.diagram svg'))) {
+      status.hidden = true;
+      return;
+    }
+    try {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10.9.3/dist/mermaid.min.js';
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('Libreria Mermaid non disponibile'));
+        document.head.appendChild(script);
+      });
+      mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', flowchart: { htmlLabels: false, curve: 'linear' } });
+      for (const [index, figure] of figures.entries()) {
+        if (figure.querySelector('.diagram svg')) continue;
+        const source = figure.querySelector('.mermaid-source').textContent;
+        const { svg } = await mermaid.render(`comparison-${index}`, source);
+        figure.querySelector('.diagram').innerHTML = svg;
+        scopeDiagramIds(figure.querySelector('.diagram svg'));
+      }
+      status.hidden = true;
+    } catch (error) {
+      status.hidden = false;
+      status.textContent = `Diagrammi non renderizzati: ${error.message}. Consultare le descrizioni e i sorgenti Mermaid.`;
+      figures.filter(figure => !figure.querySelector('.diagram svg')).forEach(figure => {
+        figure.querySelector('.diagram-source').open = true;
+      });
+      console.error('Rendering Mermaid fallito', error);
+    }
+  }
+  renderDiagrams();
+</script>
+</body>
+</html>

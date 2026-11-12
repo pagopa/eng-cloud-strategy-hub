@@ -1,6 +1,6 @@
 # Copilot And Workflow Governance
 
-This directory is the repository-owned source for Copilot customization, GitHub workflow definitions, and the scripts that validate or bootstrap those assets.
+This directory is the repository-owned source for Copilot customization and GitHub workflow definitions.
 
 ## Contents
 
@@ -20,8 +20,6 @@ The `.github/` surface supplies repository instructions and automation entrypoin
 | `copilot-instructions.md` | GitHub.com Copilot code-review guidance. |
 | `instructions/` | Path-scoped instructions for repository technologies and authoring tasks. |
 | `workflows/` | Pull request, pre-commit, release, code-analysis, and Terraform shell-test workflows. |
-| `scripts/bootstrap-copilot-config.sh` | Bootstrap entrypoint for copying Copilot configuration into a target repository. |
-| `scripts/validate-copilot-customizations.sh` | Validator for supported Copilot customization layouts and metadata. |
 | `PULL_REQUEST_TEMPLATE.md` | Pull request template used by GitHub. |
 
 ## Change path
@@ -35,11 +33,17 @@ No diagram is provided because the repository-wide governance-to-validation rela
 
 ## Validation
 
-The entrypoint smoke checks are safe and do not apply configuration:
+Workflow syntax is checked by the `workflow-static-analysis` job in
+`workflows/_code-analysis.yml`. Run the same linter locally through pre-commit:
 
 ```bash
-bash .github/scripts/bootstrap-copilot-config.sh --help
-bash .github/scripts/validate-copilot-customizations.sh --help
+pre-commit run actionlint --files .github/workflows/_code-analysis.yml
 ```
 
-Workflow syntax is checked by the `actionlint` job in `.github/workflows/_code-analysis.yml`; the local simulator exposes that job's relevant steps through `./validate-repo-locally.sh`.
+The local simulator [validate-repo-locally.sh](../validate-repo-locally.sh)
+exposes the workflow's relevant steps.
+
+Both CI workflow-lint jobs set up Go 1.25.x explicitly for actionlint 1.7.12.
+They use `GOTOOLCHAIN=local` during installation to prevent implicit toolchain
+switching. Local validation requires an installed actionlint binary or Go
+1.25 or newer to build it.

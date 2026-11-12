@@ -1,0 +1,13 @@
+interface:
+  display_name: "Local Review Report Creator"
+  short_description: "Present existing reviews with the D Atlante HTML layout"
+  default_prompt: >-
+    Use $local-review-report-creator to present supplied review findings as a
+    local D Atlante report. Preserve the source verdict, severity, confidence,
+    conditions, evidence, and execution results. Scaffold a new file, fill the
+    content components, derive counts/index/navigation, attempt local SVG
+    embedding, and run the read-only checker. Ask about unknown severity
+    mappings and missing substantive input. Report warnings and validation
+    gaps without publishing or claiming unobserved checks.
+policy:
+  allow_implicit_invocation: true

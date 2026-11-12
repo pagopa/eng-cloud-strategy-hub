@@ -71,3 +71,4 @@ env/
 !tests/scripts/**/fixtures/**/env/
 !tests/scripts/**/fixtures/**/env/**
 tmp/
+.impeccable/

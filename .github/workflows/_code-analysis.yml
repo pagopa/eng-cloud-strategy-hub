@@ -12,7 +12,6 @@ on:
       - synchronize
     paths:
       - ".github/workflows/**"
-      - ".github/scripts/**"
       - "actions/**"
       - "Makefile"
       - "validate-repo-locally.sh"
@@ -24,7 +23,6 @@ on:
       - main
     paths:
       - ".github/workflows/**"
-      - ".github/scripts/**"
       - "actions/**"
       - "Makefile"
       - "validate-repo-locally.sh"
@@ -59,7 +57,15 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up Go for actionlint
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # actions/setup-go@v6.0.0 release: https://github.com/actions/setup-go/releases/tag/v6.0.0
+        with:
+          go-version: "1.25.x"
+          cache: false
+
       - name: 🔎 Run actionlint
+        env:
+          GOTOOLCHAIN: local
         run: |
           set -Eeuo pipefail
 
@@ -123,7 +129,7 @@ jobs:
               shell_targets+=("${candidate}")
             fi
           done < <(
-            find .github/scripts scripts tests/scripts tools validate-repo-locally.sh \
+            find scripts tests/scripts tools validate-repo-locally.sh \
               -type f \
               ! -name '.gitkeep' \
               -print0
@@ -203,40 +209,6 @@ jobs:
             echo "- Status: \`${{ job.status }}\`"
             echo "- Syntax: \`bash -n\`"
             echo "- Linter: \`shellcheck -s bash -x\`"
-          } >> "${GITHUB_STEP_SUMMARY}"
-
-  # Functional smoke checks run independently from static analysis.
-  copilot-customization-entrypoints:
-    name: Copilot Customization Entry Points
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-
-    steps:
-      - name: 📥 Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # actions/checkout@v6.0.2 release: https://github.com/actions/checkout/releases/tag/v6.0.2
-        with:
-          persist-credentials: false
-
-      - name: 🔥 Smoke test bootstrap entry point
-        run: |
-          set -Eeuo pipefail
-          bash .github/scripts/bootstrap-copilot-config.sh --help
-
-      - name: 🔥 Smoke test validation entry point
-        run: |
-          set -Eeuo pipefail
-          bash .github/scripts/validate-copilot-customizations.sh --help
-
-      - name: 📝 Publish job summary
-        if: ${{ always() }}
-        run: |
-          set -Eeuo pipefail
-          {
-            echo "## Copilot Customization Entry Points"
-            echo
-            echo "- Status: \`${{ job.status }}\`"
-            echo "- Bootstrap CLI: \`--help\`"
-            echo "- Validation CLI: \`--help\`"
           } >> "${GITHUB_STEP_SUMMARY}"
 
   # Component tests are kept as a separate lane so they do not wait for lint.
