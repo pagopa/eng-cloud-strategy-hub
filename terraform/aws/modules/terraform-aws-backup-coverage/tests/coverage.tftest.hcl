@@ -219,7 +219,11 @@ run "reject_infrastructure_self_selection" {
 run "reject_oversized_runtime_configuration" {
   command = plan
   variables {
-    expected_resource_tags = { workload = join("", [for _ in range(3500) : "a"]) }
+    expected_resource_tags = { workload = join("", [for _ in range(350) : "aaaaaaaaaa"]) }
+  }
+  assert {
+    condition     = length(var.expected_resource_tags["workload"]) == 3500
+    error_message = "The oversized configuration fixture must retain its 3500-character payload."
   }
   expect_failures = [terraform_data.configuration]
 }
