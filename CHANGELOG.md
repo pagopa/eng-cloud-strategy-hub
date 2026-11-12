@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.10.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/v2.9.0...v2.10.0) (2026-11-12)
+
+
+### Features
+
+* Add AWS Backup module with customizable backup plans and presets ([#57](https://github.com/pagopa/eng-cloud-strategy-hub/issues/57)) ([d30c364](https://github.com/pagopa/eng-cloud-strategy-hub/commit/d30c3641dcb68628d9a67f1807ec4c06f3772064))
+
 ## [2.9.0](https://github.com/pagopa/eng-cloud-strategy-hub/compare/v2.8.0...v2.9.0) (2026-10-05)
 
 
