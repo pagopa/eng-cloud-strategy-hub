@@ -143,9 +143,9 @@ module "backup" {
 
 This configures daily snapshots retained for **35 days**, primary and DR
 encrypted vaults, copies of the daily snapshots retained for **35 days**, and
-COMPLIANCE lock with a **30-day minimum** on both vaults. PITR and automated
-restore testing remain off. Set `vault_lock_mode = "GOVERNANCE"` explicitly to
-defer COMPLIANCE; production does not require that mode.
+GOVERNANCE lock with a **30-day minimum** for the default rules on both vaults.
+PITR and automated restore testing remain off. COMPLIANCE requires an explicit
+`vault_lock_mode = "COMPLIANCE"` opt-in.
 
 Production DR is mandatory. The deprecated `cross_region_copy` input does not
 disable it. `dr_region` must match `aws.dr`, differ from `aws_region`, and be one
@@ -337,16 +337,17 @@ or the retention of every backup.
 | --- | --- | --- |
 | Snapshot retention | 35 days | 14 days |
 | Snapshot copy retention | Same as primary retention unless overridden | No copy |
-| Lock mode | COMPLIANCE, overridable to GOVERNANCE | GOVERNANCE, overridable to COMPLIANCE |
-| Default minimum | Fixed 30 days on primary and DR vaults | Fixed 7 days |
+| Lock mode | GOVERNANCE; COMPLIANCE is explicit opt-in | GOVERNANCE; COMPLIANCE is explicit opt-in |
+| Default minimum | Lower of 30 days and shortest managed retention per destination | Lower of 7 days and shortest managed primary retention |
 | Maximum retention | 3650 days | 3650 days |
 | PITR and cold storage | Explicit opt-in | Explicit opt-in |
 
-Dev and UAT both use `environment = "nonprod"`. Adding a shorter snapshot, copy,
-or PITR rule never lowers the default minimum automatically. Incompatible
-retention fails validation. An explicit `vault_lock_min_retention_days` overrides
-the default for both vaults. Every managed retention must fit the relevant
-minimum and `vault_lock_max_retention_days`.
+Dev and UAT both use `environment = "nonprod"`. Each automatic minimum follows
+the actual managed rules targeting that vault. Primary-only rules and dedicated
+PITR do not lower the DR minimum; copies affect only their destination. An
+explicit `vault_lock_min_retention_days` overrides the default for both vaults.
+Every managed retention must fit the relevant minimum and maximum. Invalid
+retention still fails rather than being silently corrected.
 
 Retention must be positive whole days. Cold transition must be non-negative
 whole days, with zero disabling it. A transition after 30 days requires at least
@@ -355,14 +356,12 @@ must also satisfy this rule and the destination lock bounds.
 
 **GOVERNANCE is not permanent immutability:** sufficiently privileged users can
 remove its lock. **COMPLIANCE becomes irreversible after its cooling-off period**
-in either environment. Production defaults to COMPLIANCE with a three-day
-cooling-off period, but callers may explicitly select GOVERNANCE.
+in either environment. Both environments default to GOVERNANCE. Explicit
+COMPLIANCE uses a three-day cooling-off period unless overridden.
 
-**Upgrade warning:** an existing production caller that leaves `vault_lock_mode`
-unset will now plan COMPLIANCE. To defer that transition, set
-`vault_lock_mode = "GOVERNANCE"` before upgrading. Review existing lock settings
-and a consumer plan before applying; finalized COMPLIANCE settings cannot be
-changed or rolled back by reverting the module version.
+**Upgrade warning:** defaults do not unlock existing finalized COMPLIANCE vaults.
+Review existing lock settings and a consumer plan before changing a module ref;
+finalized COMPLIANCE settings cannot be changed or rolled back by reverting it.
 
 The [nonprod-compliance-optin example](./examples/nonprod-compliance-optin/)
 explicitly chooses COMPLIANCE, 35-day retention, a 35-day lock minimum, and a
@@ -430,12 +429,28 @@ module "backup_alerting" {
   solution_prefix = "payments-prod-eu-south-1"
   kms_key_ids     = [module.backup.kms_key_id]
   email_endpoints = ["oncall@example.com"]
+  coverage_expected_resource_tags = { backup-workload = "payments-prod" }
+  coverage_resource_types         = ["DynamoDB", "S3"]
+  coverage_policy = {
+    max_backup_age_seconds      = 86400
+    freshness_tolerance_seconds = 3600
+    initial_grace_seconds       = 86400
+    reminder_interval_seconds   = 86400
+    schedule                    = "rate(15 minutes)"
+  }
 }
 ```
 
 SNS email subscriptions require confirmation. CloudTrail supplies the configured
 KMS API events. Test real notification delivery; creating the subscription is
 not delivery evidence.
+
+Alerting enables [independent snapshot coverage](../terraform-aws-backup-coverage/)
+by default. Its expected tags and supported discovery types must be configured
+explicitly; matching these tags uses AND, unlike core's legacy OR selection.
+Using the same map is not proof of selection correctness. Set
+`enable_backup_coverage = false` for event-only alerting without coverage inputs.
+The scanner checks primary-region snapshot age, not PITR windows or DR copies.
 
 Primary-region alerting does not monitor DR automatically. For production DR,
 add another alerting instance with `providers = { aws = aws.dr }`, a distinct
@@ -498,7 +513,7 @@ The complete contract is in [variables.tf](./variables.tf) and
 | `enable_continuous_backup` | Opt into a separate continuous plan |
 | `continuous_backup_selection_tags`, `continuous_retention_days` | Dedicated PITR scope and independent 1-35-day retention |
 | `cold_storage_after` | Optional snapshot cold transition; service-specific support required |
-| `vault_lock_mode` | COMPLIANCE default in prod; GOVERNANCE in nonprod; either may be explicitly selected |
+| `vault_lock_mode` | GOVERNANCE in both environments; COMPLIANCE requires explicit opt-in |
 | `vault_lock_min_retention_days`, `vault_lock_max_retention_days` | Explicit lock bounds; maximum defaults to 3650 |
 | `vault_lock_changeable_for_days` | COMPLIANCE cooling-off period; default three days |
 | `default_plan_additional_rules` | Extra schedules on the default selection |
@@ -525,8 +540,9 @@ core and presets reuse the same [backup-plan implementation](./modules/backup-pl
 
 The repository's [Terraform Backup workflow](../../../../.github/workflows/terraform-backup.yml)
 is designed to run formatting, backend-disabled initialization, caller-root
-validation, and native mock tests for all seven public modules and seven examples.
-It also checks failure propagation, AWS provider 5.72.0, Terraform 1.5.7
+validation, and native mock tests for all eight public modules and eight examples.
+It also checks deterministic coverage runtime tests, packaging, native/Python
+failure propagation, AWS provider 5.72.0, archive provider 2.4.0, Terraform 1.5.7
 compatibility, and workflow linting. Mock tests use Terraform 1.14.3.
 
 Candidate-bound native CI evidence is still pending. Local formatting or authored
@@ -639,8 +655,8 @@ or finalized COMPLIANCE vaults.
 | <a name="input_tags"></a> [tags](#input\_tags) | Additional tags to apply to all resources created by the module. | `map(string)` | `{}` | no |
 | <a name="input_vault_lock_changeable_for_days"></a> [vault\_lock\_changeable\_for\_days](#input\_vault\_lock\_changeable\_for\_days) | Cooling-off period in days during which the Vault Lock can still be removed (Compliance mode only). Minimum 3. | `number` | `3` | no |
 | <a name="input_vault_lock_max_retention_days"></a> [vault\_lock\_max\_retention\_days](#input\_vault\_lock\_max\_retention\_days) | Maximum retention in days enforced by Vault Lock. Recovery points cannot have a retention longer than this. Backup jobs targeting the vault must set delete\_after within [vault\_lock\_min\_retention\_days, vault\_lock\_max\_retention\_days]; jobs outside this range are rejected by the vault. | `number` | `3650` | no |
-| <a name="input_vault_lock_min_retention_days"></a> [vault\_lock\_min\_retention\_days](#input\_vault\_lock\_min\_retention\_days) | Explicit minimum retention for both vaults. When null, the fixed minimum is 30 days in prod and 7 in nonprod; shorter plan retention never lowers it automatically. External plans remain caller-owned. | `number` | `null` | no |
-| <a name="input_vault_lock_mode"></a> [vault\_lock\_mode](#input\_vault\_lock\_mode) | Vault Lock mode: defaults to COMPLIANCE in prod and GOVERNANCE in nonprod. Either mode may be explicitly selected in either environment. COMPLIANCE becomes immutable after its cooling-off period. | `string` | `null` | no |
+| <a name="input_vault_lock_min_retention_days"></a> [vault\_lock\_min\_retention\_days](#input\_vault\_lock\_min\_retention\_days) | Explicit minimum for both vaults. When null, each vault uses the lower of 30/7 days and its shortest valid managed retention. Invalid rules still fail; external plans remain caller-owned. | `number` | `null` | no |
+| <a name="input_vault_lock_mode"></a> [vault\_lock\_mode](#input\_vault\_lock\_mode) | GOVERNANCE by default in both environments. COMPLIANCE requires explicit opt-in and becomes immutable after its cooling-off period. | `string` | `null` | no |
 
 ## Outputs
 

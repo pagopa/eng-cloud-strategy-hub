@@ -125,8 +125,8 @@ run "copy_lifecycle_without_copy" {
   }
   expect_failures = [aws_backup_vault_lock_configuration.primary]
 }
-run "primary_only_rule_cannot_lower_default_minimum" {
-  command = plan
+run "primary_only_rule_lowers_only_primary_minimum" {
+  command = apply
   variables {
     retention_days      = 365
     copy_retention_days = 90
@@ -137,27 +137,36 @@ run "primary_only_rule_cannot_lower_default_minimum" {
       copy_to_dr   = false
     }]
   }
-  expect_failures = [aws_backup_vault_lock_configuration.primary]
+  assert {
+    condition     = aws_backup_vault_lock_configuration.primary.min_retention_days == 29 && aws_backup_vault_lock_configuration.dr[0].min_retention_days == 30
+    error_message = "A short primary-only rule must not lower the DR minimum."
+  }
 }
 
-run "copy_cannot_lower_default_minimum" {
-  command = plan
+run "copy_lowers_only_destination_minimum" {
+  command = apply
   variables { copy_retention_days = 29 }
-  expect_failures = [aws_backup_vault_lock_configuration.dr]
+  assert {
+    condition     = aws_backup_vault_lock_configuration.primary.min_retention_days == 30 && aws_backup_vault_lock_configuration.dr[0].min_retention_days == 29
+    error_message = "A shorter copy must lower only its actual destination's automatic minimum."
+  }
 }
 
-run "pitr_cannot_lower_default_minimum" {
-  command = plan
+run "pitr_lowers_only_primary_minimum" {
+  command = apply
   variables {
     enable_continuous_backup         = true
     continuous_backup_selection_tags = { backup-pitr = "orders" }
     continuous_retention_days        = 29
   }
-  expect_failures = [aws_backup_vault_lock_configuration.primary]
+  assert {
+    condition     = aws_backup_vault_lock_configuration.primary.min_retention_days == 29 && aws_backup_vault_lock_configuration.dr[0].min_retention_days == 30
+    error_message = "Dedicated PITR must participate only in primary vault bounds."
+  }
 }
 
-run "nonproduction_short_rule_cannot_lower_default_minimum" {
-  command = plan
+run "nonproduction_short_rule_lowers_minimum" {
+  command = apply
   variables {
     environment = "nonprod"
     default_plan_additional_rules = [{
@@ -166,7 +175,10 @@ run "nonproduction_short_rule_cannot_lower_default_minimum" {
       delete_after = 6
     }]
   }
-  expect_failures = [aws_backup_vault_lock_configuration.primary]
+  assert {
+    condition     = aws_backup_vault_lock_configuration.primary.min_retention_days == 6
+    error_message = "Every managed primary rule must participate in the automatic minimum."
+  }
 }
 
 run "negative_additional_retention" {

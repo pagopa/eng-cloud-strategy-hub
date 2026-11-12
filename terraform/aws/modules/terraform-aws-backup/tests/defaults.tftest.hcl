@@ -24,8 +24,8 @@ run "production_defaults" {
   state_key = "production"
   command   = apply
   assert {
-    condition     = aws_backup_vault_lock_configuration.primary.changeable_for_days == 3 && aws_backup_vault_lock_configuration.primary.min_retention_days == 30 && aws_backup_vault_lock_configuration.dr[0].changeable_for_days == 3 && aws_backup_vault_lock_configuration.dr[0].min_retention_days == 30
-    error_message = "Production must default to COMPLIANCE and a fixed 30-day minimum on both vaults."
+    condition     = aws_backup_vault_lock_configuration.primary.changeable_for_days == null && aws_backup_vault_lock_configuration.primary.min_retention_days == 30 && aws_backup_vault_lock_configuration.dr[0].changeable_for_days == null && aws_backup_vault_lock_configuration.dr[0].min_retention_days == 30
+    error_message = "Production must default to GOVERNANCE and a 30-day minimum for the default 35-day rules."
   }
   assert {
     condition     = length(module.default_plan.rules) == 1 && alltrue([for rule in module.default_plan.rules : rule.lifecycle[0].delete_after == 35 && !rule.enable_continuous_backup && length(rule.copy_action) == 1])
@@ -60,20 +60,26 @@ run "production_governance_override" {
   }
 }
 
-run "reject_production_retention_below_default_minimum" {
-  command = plan
-  variables { retention_days = 29 }
-  expect_failures = [aws_backup_vault_lock_configuration.primary, aws_backup_vault_lock_configuration.dr]
+run "product_selected_seven_day_production_retention" {
+  command = apply
+  variables { retention_days = 7 }
+  assert {
+    condition     = aws_backup_vault_lock_configuration.primary.min_retention_days == 7 && aws_backup_vault_lock_configuration.dr[0].min_retention_days == 7
+    error_message = "Automatic minima must support explicit seven-day snapshots and copies."
+  }
 }
 
-run "reject_nonproduction_retention_below_default_minimum" {
+run "product_selected_nonproduction_retention" {
   state_key = "nonproduction"
-  command   = plan
+  command   = apply
   variables {
     environment    = "nonprod"
     retention_days = 6
   }
-  expect_failures = [aws_backup_vault_lock_configuration.primary]
+  assert {
+    condition     = aws_backup_vault_lock_configuration.primary.min_retention_days == 6
+    error_message = "An explicit valid short snapshot must lower the automatic minimum."
+  }
 }
 
 run "missing_production_dr" {

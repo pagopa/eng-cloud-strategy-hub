@@ -10,6 +10,8 @@
 ###############################################################################
 
 data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
+data "aws_region" "current" {}
 
 resource "aws_kms_key" "sns" {
   count = local.create_sns_kms_key ? 1 : 0
@@ -79,5 +81,48 @@ data "aws_iam_policy_document" "sns_kms" {
       "kms:Decrypt",
     ]
     resources = ["*"]
+  }
+
+  dynamic "statement" {
+    for_each = var.enable_backup_coverage ? [1] : []
+    content {
+      sid    = "AllowCoveragePublisherUseOfKey"
+      effect = "Allow"
+      principals {
+        type        = "AWS"
+        identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
+      }
+      actions   = ["kms:GenerateDataKey*", "kms:Decrypt"]
+      resources = ["*"]
+      condition {
+        test     = "ArnEquals"
+        variable = "aws:PrincipalArn"
+        values   = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/${var.solution_prefix}-coverage-lambda"]
+      }
+    }
+  }
+
+  dynamic "statement" {
+    for_each = var.enable_backup_coverage ? [1] : []
+    content {
+      sid    = "AllowCoverageHealthAlarmsUseOfKey"
+      effect = "Allow"
+      principals {
+        type        = "Service"
+        identifiers = ["cloudwatch.amazonaws.com"]
+      }
+      actions   = ["kms:GenerateDataKey*", "kms:Decrypt"]
+      resources = ["*"]
+      condition {
+        test     = "StringEquals"
+        variable = "aws:SourceAccount"
+        values   = [data.aws_caller_identity.current.account_id]
+      }
+      condition {
+        test     = "ArnLike"
+        variable = "aws:SourceArn"
+        values   = ["arn:${data.aws_partition.current.partition}:cloudwatch:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:alarm:${var.solution_prefix}-backup-coverage-*"]
+      }
+    }
   }
 }

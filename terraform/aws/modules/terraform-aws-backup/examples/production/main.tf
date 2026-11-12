@@ -25,7 +25,7 @@ provider "aws" {
 ###############################################################################
 # Core Backup Module
 ###############################################################################
-# COMPLIANCE is the default; set vault_lock_mode = "GOVERNANCE" to defer it.
+# COMPLIANCE requires an explicit opt-in; GOVERNANCE is the default.
 module "backup" {
   source = "../.."
   providers = {
@@ -83,7 +83,16 @@ module "backup" {
 module "backup_alerting" {
   source = "../../../terraform-aws-backup-alerting"
 
-  solution_prefix = "team-payments"
+  solution_prefix                 = "team-payments"
+  coverage_expected_resource_tags = { backup-workload = "payments" }
+  coverage_resource_types         = ["DynamoDB", "S3"]
+  coverage_policy = {
+    max_backup_age_seconds      = 86400
+    freshness_tolerance_seconds = 3600
+    initial_grace_seconds       = 86400
+    reminder_interval_seconds   = 86400
+    schedule                    = "rate(15 minutes)"
+  }
 
   # Monitor the backup CMK for accidental deletion
   kms_key_ids = [module.backup.kms_key_id]

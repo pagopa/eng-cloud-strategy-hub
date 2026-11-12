@@ -119,3 +119,36 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "enable_backup_coverage" {
+  description = "Enable independent expected-inventory snapshot coverage alongside existing event alerts. Requires explicit coverage configuration; one false toggle creates no coverage resources."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "coverage_expected_resource_tags" {
+  description = "Independent expected-inventory tags, matched with AND semantics. Not inferred from core selection or job history."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "coverage_resource_types" {
+  description = "Explicit coverage inventory types: DynamoDB and S3. Required when coverage is enabled."
+  type        = set(string)
+  default     = []
+  nullable    = false
+}
+
+variable "coverage_policy" {
+  description = "Explicit snapshot age, tolerance, first-seen grace, reminder interval (whole seconds), and rate schedule. Required when coverage is enabled."
+  type = object({
+    max_backup_age_seconds      = number
+    freshness_tolerance_seconds = number
+    initial_grace_seconds       = number
+    reminder_interval_seconds   = number
+    schedule                    = string
+  })
+  default = null
+}

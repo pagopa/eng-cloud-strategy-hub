@@ -57,7 +57,8 @@ module "backup" {
 }
 
 module "backup_alerting" {
-  source = "../../../terraform-aws-backup-alerting"
+  source                 = "../../../terraform-aws-backup-alerting"
+  enable_backup_coverage = false
 
   solution_prefix = "team-payments"
   kms_key_ids     = [module.backup.kms_key_id]

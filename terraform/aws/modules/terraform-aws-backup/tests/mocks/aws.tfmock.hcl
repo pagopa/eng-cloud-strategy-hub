@@ -6,6 +6,25 @@ mock_data "aws_caller_identity" {
   }
 }
 
+mock_data "aws_partition" {
+  defaults = {
+    partition  = "aws"
+    dns_suffix = "amazonaws.com"
+  }
+}
+
+mock_resource "aws_lambda_function" {
+  defaults = {
+    arn = "arn:aws:lambda:eu-south-1:123456789012:function:test-coverage"
+  }
+}
+
+mock_resource "aws_dynamodb_table" {
+  defaults = {
+    arn = "arn:aws:dynamodb:eu-south-1:123456789012:table/test-coverage"
+  }
+}
+
 mock_data "aws_iam_policy_document" {
   defaults = {
     json = "{\"Version\":\"2012-10-17\",\"Statement\":[]}"

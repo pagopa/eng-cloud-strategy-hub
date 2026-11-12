@@ -204,7 +204,7 @@ variable "continuous_retention_days" {
 ###############################################################################
 
 variable "vault_lock_mode" {
-  description = "Vault Lock mode: defaults to COMPLIANCE in prod and GOVERNANCE in nonprod. Either mode may be explicitly selected in either environment. COMPLIANCE becomes immutable after its cooling-off period."
+  description = "Vault Lock mode: defaults to GOVERNANCE in both environments. COMPLIANCE is an explicit opt-in and becomes immutable after its cooling-off period."
   type        = string
   default     = null
 
@@ -215,7 +215,7 @@ variable "vault_lock_mode" {
 }
 
 variable "vault_lock_min_retention_days" {
-  description = "Explicit minimum retention for both vaults. When null, the fixed minimum is 30 days in prod and 7 in nonprod; shorter plan retention never lowers it automatically. External plans remain caller-owned."
+  description = "Explicit minimum retention for both vaults. When null, each vault uses the lower of the environment minimum (30/7) and its shortest valid managed-rule retention. Invalid rule retention still fails. External plans remain caller-owned."
   type        = number
   default     = null
   validation {

@@ -62,7 +62,8 @@ module "backup" {
 ###############################################################################
 
 module "backup_alerting" {
-  source = "../../../terraform-aws-backup-alerting"
+  source                 = "../../../terraform-aws-backup-alerting"
+  enable_backup_coverage = false
 
   solution_prefix = "team-payments-dev"
 

@@ -5,6 +5,7 @@ on:
     paths:
       - terraform/aws/modules/terraform-aws-backup/**
       - terraform/aws/modules/terraform-aws-backup-alerting/**
+      - terraform/aws/modules/terraform-aws-backup-coverage/**
       - Makefile
       - .github/workflows/terraform-backup.yml
   push:
@@ -12,6 +13,7 @@ on:
     paths:
       - terraform/aws/modules/terraform-aws-backup/**
       - terraform/aws/modules/terraform-aws-backup-alerting/**
+      - terraform/aws/modules/terraform-aws-backup-coverage/**
       - Makefile
       - .github/workflows/terraform-backup.yml
   workflow_dispatch:
@@ -56,7 +58,16 @@ jobs:
           terraform -chdir="$root" providers schema -json > "$RUNNER_TEMP/backup-schema.json"
           jq '.provider_schemas["registry.terraform.io/hashicorp/aws"].resource_schemas |
             {plan: .aws_backup_plan, restore_plan: .aws_backup_restore_testing_plan,
-             restore_selection: .aws_backup_restore_testing_selection}' "$RUNNER_TEMP/backup-schema.json"
+             restore_selection: .aws_backup_restore_testing_selection,
+             coverage_lambda: .aws_lambda_function, coverage_state: .aws_dynamodb_table,
+             coverage_schedule: .aws_scheduler_schedule,
+             coverage_health: .aws_cloudwatch_metric_alarm}' "$RUNNER_TEMP/backup-schema.json"
+      - name: Prepare isolated Python test runtime
+        run: |
+          set -euo pipefail
+          command -v python3
+          python3 -m venv "$RUNNER_TEMP/coverage-python"
+          echo "$RUNNER_TEMP/coverage-python/bin" >> "$GITHUB_PATH"
       - name: Inspect and execute the native aggregate
         run: |
           set -euo pipefail
@@ -82,9 +93,15 @@ jobs:
         run: |
           set -euo pipefail
           test_file=terraform/aws/modules/terraform-aws-backup/tests/defaults.tftest.hcl
+          runtime_file=terraform/aws/modules/terraform-aws-backup-coverage/tests/test_coverage.py
           backup_file="$(mktemp "$RUNNER_TEMP/backup-test.XXXXXX")"
+          runtime_backup="$(mktemp "$RUNNER_TEMP/coverage-test.XXXXXX")"
           cp "$test_file" "$backup_file"
-          trap 'cp "$backup_file" "$test_file"; rm -f "$backup_file"' EXIT
+          cp "$runtime_file" "$runtime_backup"
+          trap 'cp "$backup_file" "$test_file"; cp "$runtime_backup" "$runtime_file"; rm -f "$backup_file" "$runtime_backup"' EXIT
+          command -v python3
+          python3 -m venv "$RUNNER_TEMP/coverage-python"
+          export PATH="$RUNNER_TEMP/coverage-python/bin:$PATH"
           cat >> "$test_file" <<'HCL'
           run "injected_aggregate_failure" {
             command = plan
@@ -105,6 +122,23 @@ jobs:
           fi
           grep -F "BACKUP_AGGREGATE_FAILURE_PROBE" "$RUNNER_TEMP/backup-failure.log"
           cp "$backup_file" "$test_file"
+          make terraform-backup-check
+          cat >> "$runtime_file" <<'PY'
+
+          class AggregateFailureProbe(unittest.TestCase):
+              def test_runtime_failure_propagates(self):
+                  self.fail("COVERAGE_RUNTIME_FAILURE_PROBE")
+          PY
+          set +e
+          make terraform-backup-check > "$RUNNER_TEMP/coverage-failure.log" 2>&1
+          result=$?
+          set -e
+          if [ "$result" -eq 0 ]; then
+            echo "::error::The aggregate ignored a failing coverage runtime test."
+            exit 1
+          fi
+          grep -F "COVERAGE_RUNTIME_FAILURE_PROBE" "$RUNNER_TEMP/coverage-failure.log"
+          cp "$runtime_backup" "$runtime_file"
           make terraform-backup-check
           git diff --check
 

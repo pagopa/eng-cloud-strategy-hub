@@ -1,7 +1,10 @@
 mock_provider "aws" {
   source = "../terraform-aws-backup/tests/mocks"
 }
-variables { solution_prefix = "test-alerts" }
+variables {
+  solution_prefix        = "test-alerts"
+  enable_backup_coverage = false
+}
 run "new_topic_and_key" {
   command = apply
   assert {

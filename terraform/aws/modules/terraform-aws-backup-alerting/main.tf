@@ -49,6 +49,30 @@ data "aws_iam_policy_document" "sns_topic_policy" {
     }
   }
 
+  dynamic "statement" {
+    for_each = var.enable_backup_coverage ? [1] : []
+    content {
+      sid    = "AllowCoverageHealthAlarmsPublish"
+      effect = "Allow"
+      principals {
+        type        = "Service"
+        identifiers = ["cloudwatch.amazonaws.com"]
+      }
+      actions   = ["sns:Publish"]
+      resources = [local.sns_topic_arn]
+      condition {
+        test     = "StringEquals"
+        variable = "aws:SourceAccount"
+        values   = [data.aws_caller_identity.current.account_id]
+      }
+      condition {
+        test     = "ArnLike"
+        variable = "aws:SourceArn"
+        values   = ["arn:${data.aws_partition.current.partition}:cloudwatch:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:alarm:${var.solution_prefix}-backup-coverage-*"]
+      }
+    }
+  }
+
   # Enforce TLS for any access to the topic.
   statement {
     sid    = "DenyInsecureTransport"
